@@ -1,0 +1,150 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Category {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?
+  imageUrl     String?  @map("image_url")
+  displayOrder Int      @default(0) @map("display_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  products     Product[]
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("categories")
+}
+
+model Product {
+  id                    String                  @id @default(uuid())
+  categoryId            String?                 @map("category_id")
+  category              Category?               @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  name                  String
+  description           String?
+  price                 Decimal                 @db.Decimal(10, 2)
+  imageUrl              String?                 @map("image_url")
+  isAvailable           Boolean                 @default(true) @map("is_available")
+  displayOrder          Int                     @default(0) @map("display_order")
+  orderItems            OrderItem[]
+  productOptionCategories ProductOptionCategory[]
+  createdAt             DateTime                @default(now()) @map("created_at")
+  updatedAt             DateTime                @updatedAt @map("updated_at")
+
+  @@map("products")
+}
+
+model ProductOptionCategory {
+  id            String          @id @default(uuid())
+  productId     String          @map("product_id")
+  product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name          String
+  isRequired    Boolean         @default(false) @map("is_required")
+  minSelections Int             @default(1) @map("min_selections")
+  maxSelections Int             @default(1) @map("max_selections")
+  displayOrder  Int             @default(0) @map("display_order")
+  options       ProductOption[]
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  @@map("product_option_categories")
+}
+
+model ProductOption {
+  id                String                @id @default(uuid())
+  optionCategoryId  String                @map("option_category_id")
+  optionCategory    ProductOptionCategory @relation(fields: [optionCategoryId], references: [id], onDelete: Cascade)
+  name              String
+  priceModifier     Decimal               @default(0) @map("price_modifier") @db.Decimal(10, 2)
+  isAvailable       Boolean               @default(true) @map("is_available")
+  displayOrder      Int                   @default(0) @map("display_order")
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+
+  @@map("product_options")
+}
+
+model Order {
+  id            String        @id @default(uuid())
+  orderNumber   String        @unique @map("order_number")
+  customerName  String        @map("customer_name")
+  customerPhone String?       @map("customer_phone")
+  customerAddress String?     @map("customer_address")
+  status        String        @default("pending")
+  paymentMethod String?       @map("payment_method")
+  paymentStatus String        @default("pending") @map("payment_status")
+  subtotal      Decimal       @db.Decimal(10, 2)
+  deliveryFee   Decimal       @default(0) @map("delivery_fee") @db.Decimal(10, 2)
+  total         Decimal       @db.Decimal(10, 2)
+  notes         String?
+  items         OrderItem[]
+  whatsappMessages WhatsAppMessage[]
+  pendingTransfers PendingTransfer[]
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id            String   @id @default(uuid())
+  orderId       String   @map("order_id")
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId     String?  @map("product_id")
+  productName   String   @map("product_name")
+  quantity      Int      @default(1)
+  unitPrice     Decimal  @map("unit_price") @db.Decimal(10, 2)
+  subtotal      Decimal  @db.Decimal(10, 2)
+  selectedOptions Json?  @map("selected_options")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@map("order_items")
+}
+
+model BotMessage {
+  id          String   @id @default(uuid())
+  messageKey  String   @unique @map("message_key")
+  messageText String   @map("message_text")
+  messageType String   @default("text") @map("message_type")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("bot_messages")
+}
+
+model WhatsAppMessage {
+  id          String   @id @default(uuid())
+  orderId     String?  @map("order_id")
+  order       Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  phoneNumber String   @map("phone_number")
+  messageText String   @map("message_text")
+  messageType String   @default("sent") @map("message_type")
+  direction   String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("whatsapp_messages")
+}
+
+model PendingTransfer {
+  id              String   @id @default(uuid())
+  orderId         String   @map("order_id")
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  transferReference String? @map("transfer_reference")
+  amount          Decimal  @db.Decimal(10, 2)
+  status          String   @default("pending")
+  verifiedAt      DateTime? @map("verified_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("pending_transfers")
+}
+

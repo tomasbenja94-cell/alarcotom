@@ -1,0 +1,106 @@
+# Configuración de Nginx para El Buen Menú
+# Copiar a: /etc/nginx/sites-available/elbuenmenu
+# Crear symlink: sudo ln -s /etc/nginx/sites-available/elbuenmenu /etc/nginx/sites-enabled/
+# Probar: sudo nginx -t
+# Reiniciar: sudo systemctl reload nginx
+
+# Redirigir HTTP a HTTPS
+server {
+    listen 80;
+    server_name tu-dominio.com www.tu-dominio.com;
+    
+    # Redirigir todo a HTTPS
+    return 301 https://$server_name$request_uri;
+}
+
+# Configuración HTTPS (requiere certificado SSL)
+server {
+    listen 443 ssl http2;
+    server_name tu-dominio.com www.tu-dominio.com;
+
+    # Certificados SSL (usar Let's Encrypt)
+    ssl_certificate /etc/letsencrypt/live/tu-dominio.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/tu-dominio.com/privkey.pem;
+    
+    # Configuración SSL
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+
+    # Logs
+    access_log /var/log/nginx/elbuenmenu-access.log;
+    error_log /var/log/nginx/elbuenmenu-error.log;
+
+    # Cliente máximo de tamaño (para subir imágenes)
+    client_max_body_size 10M;
+
+    # Frontend (React - archivos estáticos)
+    # Los archivos del build deben estar en /var/www/elbuenmenu/public
+    location / {
+        root /var/www/elbuenmenu/public;
+        try_files $uri $uri/ /index.html;
+        
+        # Headers de seguridad
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        
+        # Cache para archivos estáticos
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+    }
+
+    # Backend API
+    location /api {
+        proxy_pass http://localhost:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # Comprobantes de transferencia (imágenes)
+    location /proofs {
+        proxy_pass http://localhost:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # CORS para imágenes
+        add_header Access-Control-Allow-Origin *;
+        add_header Access-Control-Allow-Methods "GET, OPTIONS";
+        add_header Access-Control-Allow-Headers "Authorization, Content-Type";
+        
+        # Cache para imágenes
+        expires 7d;
+        add_header Cache-Control "public";
+    }
+
+    # WebSocket support (si lo necesitas)
+    location /ws {
+        proxy_pass http://localhost:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+

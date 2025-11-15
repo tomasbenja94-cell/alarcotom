@@ -1,0 +1,610 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+generator seed {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id           String    @id @default(uuid())
+  name         String
+  description  String?
+  imageUrl     String?   @map("image_url")
+  displayOrder Int       @default(0) @map("display_order")
+  isActive     Boolean   @default(true) @map("is_active")
+  products     Product[]
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("categories")
+}
+
+model Product {
+  id                      String                  @id @default(uuid())
+  categoryId              String?                 @map("category_id")
+  category                Category?               @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  name                    String
+  description             String?
+  price                   Float
+  imageUrl                String?                 @map("image_url")
+  isAvailable             Boolean                 @default(true) @map("is_available")
+  displayOrder            Int                     @default(0) @map("display_order")
+  orderItems              OrderItem[]
+  productOptionCategories ProductOptionCategory[]
+  createdAt               DateTime                @default(now()) @map("created_at")
+  updatedAt               DateTime                @updatedAt @map("updated_at")
+
+  @@map("products")
+}
+
+model ProductOptionCategory {
+  id            String          @id @default(uuid())
+  productId     String          @map("product_id")
+  product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name          String
+  isRequired    Boolean         @default(false) @map("is_required")
+  minSelections Int             @default(1) @map("min_selections")
+  maxSelections Int             @default(1) @map("max_selections")
+  displayOrder  Int             @default(0) @map("display_order")
+  options       ProductOption[]
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  @@map("product_option_categories")
+}
+
+model ProductOption {
+  id               String                @id @default(uuid())
+  optionCategoryId String                @map("option_category_id")
+  optionCategory   ProductOptionCategory @relation(fields: [optionCategoryId], references: [id], onDelete: Cascade)
+  name             String
+  priceModifier    Float                 @default(0) @map("price_modifier")
+  isAvailable      Boolean               @default(true) @map("is_available")
+  displayOrder     Int                   @default(0) @map("display_order")
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+
+  @@map("product_options")
+}
+
+model Order {
+  id                  String                     @id @default(uuid())
+  orderNumber         String                     @unique @map("order_number")
+  customerName        String                     @map("customer_name")
+  customerPhone       String?                    @map("customer_phone")
+  customerAddress     String?                    @map("customer_address")
+  customerLat         Float?                     @map("customer_lat") // Latitud de la dirección del cliente
+  customerLng         Float?                     @map("customer_lng") // Longitud de la dirección del cliente
+  status              String                     @default("pending") // pending, confirmed, preparing, ready, assigned, in_transit, delivered, cancelled
+  paymentMethod       String?                    @map("payment_method")
+  paymentStatus       String                     @default("pending") @map("payment_status")
+  subtotal            Float
+  deliveryFee         Float                      @default(0) @map("delivery_fee")
+  total               Float
+  notes               String?
+  deliveryCode        String?                    @map("delivery_code") // Código de entrega
+  trackingToken       String?                    @unique @map("tracking_token") // Token único para tracking público
+  deliveryPersonId    String?                    @unique @map("delivery_person_id")
+  deliveryPerson      DeliveryPerson?            @relation(fields: [deliveryPersonId], references: [id], onDelete: SetNull)
+  items               OrderItem[]
+  whatsappMessages    WhatsAppMessage[]
+  pendingTransfers    PendingTransfer[]
+  balanceTransactions DriverBalanceTransaction[]
+  createdAt           DateTime                   @default(now()) @map("created_at")
+  updatedAt           DateTime                   @updatedAt @map("updated_at")
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id              String   @id @default(uuid())
+  orderId         String   @map("order_id")
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId       String?  @map("product_id")
+  product         Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productName     String   @map("product_name")
+  quantity        Int      @default(1)
+  unitPrice        Float    @map("unit_price")
+  subtotal        Float
+  selectedOptions String?  @map("selected_options")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@map("order_items")
+}
+
+model BotMessage {
+  id          String   @id @default(uuid())
+  messageKey  String   @unique @map("message_key")
+  messageText String   @map("message_text")
+  messageType String   @default("text") @map("message_type")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("bot_messages")
+}
+
+model WhatsAppMessage {
+  id          String   @id @default(uuid())
+  orderId     String?  @map("order_id")
+  order       Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  phoneNumber String   @map("phone_number")
+  messageText String   @map("message_text")
+  messageType String   @default("sent") @map("message_type")
+  direction   String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("whatsapp_messages")
+}
+
+model PendingTransfer {
+  id                String    @id @default(uuid())
+  orderId           String    @map("order_id")
+  order             Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  transferReference String?   @map("transfer_reference")
+  amount            Float
+  status            String    @default("pending")
+  proofImageUrl     String?   @map("proof_image_url")
+  verifiedAt        DateTime? @map("verified_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@map("pending_transfers")
+}
+
+model DeliveryPerson {
+  id                  String                     @id @default(uuid())
+  name                String
+  phone               String                     @unique
+  username            String?                    @unique // Usuario para login
+  password            String? // DEPRECATED: Mantener para migración, usar passwordHash
+  passwordHash        String?                    @map("password_hash") // Hash bcrypt de la contraseña
+  isActive            Boolean                    @default(true) @map("is_active")
+  currentOrderId      String?                    @unique @map("current_order_id")
+  totalDeliveries     Int                        @default(0) @map("total_deliveries")
+  lastLat             Float?                     @map("last_lat")
+  lastLng             Float?                     @map("last_lng")
+  lastSeenAt          DateTime?                  @map("last_seen_at")
+  balance             Float                      @default(0)
+  orders              Order[] // Relación con pedidos asignados
+  balanceTransactions DriverBalanceTransaction[]
+  sessions            DriverSession[] // Sesiones activas del repartidor
+  createdAt           DateTime                   @default(now()) @map("created_at")
+  updatedAt           DateTime                   @updatedAt @map("updated_at")
+
+  @@map("delivery_persons")
+}
+
+// Sesiones de repartidores para control de tokens
+model DriverSession {
+  id        String   @id @default(uuid())
+  driverId  String   @map("driver_id")
+  driver    DeliveryPerson @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  tokenHash String   @map("token_hash") // Hash SHA256 del token JWT
+  deviceInfo String? @map("device_info")
+  expiresAt DateTime @map("expires_at")
+  revoked   Boolean  @default(false)
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([driverId])
+  @@index([tokenHash])
+  @@map("driver_sessions")
+}
+
+// Admins del sistema
+model Admin {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  passwordHash String  @map("password_hash") // Hash bcrypt
+  role        String   @default("admin") // admin, super_admin, operator, viewer
+  isActive    Boolean  @default(true) @map("is_active")
+  refreshTokens RefreshToken[]
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("admins")
+}
+
+// Refresh tokens para admins
+model RefreshToken {
+  id        String   @id @default(uuid())
+  adminId   String   @map("admin_id")
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  tokenHash String   @map("token_hash") // Hash SHA256 del refresh token
+  expiresAt DateTime @map("expires_at")
+  revoked   Boolean  @default(false)
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([adminId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+// Logs de auditoría
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String   // Nombre de la acción
+  userId    String?  @map("user_id") // ID del usuario (admin o driver)
+  userRole  String   @map("user_role") // Rol del usuario
+  details   String?  // JSON con detalles adicionales
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  timestamp DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([timestamp])
+  @@map("audit_logs")
+}
+
+// Intentos de código de entrega (prevenir brute force)
+model DeliveryCodeAttempt {
+  id            String   @id @default(uuid())
+  orderId       String   @map("order_id")
+  driverId      String   @map("driver_id")
+  attemptCount  Int      @default(0) @map("attempt_count")
+  lastAttemptAt DateTime @map("last_attempt_at")
+
+  @@unique([orderId, driverId])
+  @@map("delivery_code_attempts")
+}
+
+model Customer {
+  id                     String   @id @default(uuid())
+  phone                  String   @unique
+  name                   String?
+  isBlocked              Boolean  @default(false) @map("is_blocked") // Si está bloqueado, no responde mensajes
+  disabledPaymentMethods String?  @map("disabled_payment_methods") // JSON array: ["efectivo", "transferencia"]
+  iuc                    String?  @unique // Identificador Único de Cliente (4 dígitos)
+  intentosInvalidos      Int      @default(0) @map("intentos_invalidos") // Contador de intentos inválidos
+  ultimoIntento          DateTime? @map("ultimo_intento") // Timestamp del último intento inválido
+  baneadoHasta           DateTime? @map("baneado_hasta") // Fecha hasta cuando está baneado
+  notes                  String?
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@map("customers")
+  @@index([iuc])
+}
+
+model DriverBalanceTransaction {
+  id        String         @id @default(uuid())
+  driverId  String         @map("driver_id")
+  driver    DeliveryPerson @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  orderId   String?        @map("order_id")
+  order     Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  type      String // "delivery", "pago_admin", "ajuste"
+  amount    Float // Positivo para sumar, negativo para restar
+  reference String? // Referencia adicional (comentario, número de transferencia, etc.)
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  @@map("driver_balance_transactions")
+}
+
+// Configuración del sistema
+model Setting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String   // JSON string con el valor de la configuración
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+// Estados del sistema (Modo Emergencia, Sin Stock)
+model SystemState {
+  id              String   @id @default(uuid())
+  emergencyMode   Boolean  @default(false) @map("emergency_mode") // Modo Emergencia activo
+  noStockMode     Boolean  @default(false) @map("no_stock_mode") // Sin Stock activo
+  activatedAt     DateTime? @map("activated_at")
+  deactivatedAt   DateTime? @map("deactivated_at")
+  activatedBy     String?  @map("activated_by") // ID del admin que activó
+  notes           String?  // Notas sobre por qué se activó
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("system_states")
+}
+
+// Checklist diario de tareas internas
+model DailyChecklistTask {
+  id          String   @id @default(uuid())
+  taskDate    DateTime @map("task_date") // Fecha del día (solo fecha, sin hora)
+  title       String   // Título de la tarea
+  description String?  // Descripción opcional
+  emoji       String?  // Emoji para la tarea (ej: 🥔, 🧴, 📦)
+  isCompleted Boolean  @default(false) @map("is_completed")
+  completedAt DateTime? @map("completed_at")
+  assignedTo  String?  @map("assigned_to") // Responsable (nombre o ID)
+  priority    Int      @default(0) // 0 = normal, 1 = alta, 2 = urgente
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([taskDate])
+  @@map("daily_checklist_tasks")
+}
+
+// Notificaciones del sistema
+model SystemNotification {
+  id          String   @id @default(uuid())
+  type        String   // 'stock_low', 'expiring', 'no_sales', 'price_suggestion', 'combo_recommendation', 'promotion_time', 'system_alert'
+  title       String   // Título de la notificación
+  message     String   // Mensaje de la notificación
+  severity    String   @default("info") // 'info', 'warning', 'error', 'success'
+  isRead      Boolean  @default(false) @map("is_read")
+  readAt      DateTime? @map("read_at")
+  metadata    String?  // JSON con datos adicionales (productId, etc.)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([isRead])
+  @@index([type])
+  @@index([createdAt])
+  @@map("system_notifications")
+}
+
+// Recomendaciones de IA del menú
+model AIRecommendation {
+  id              String   @id @default(uuid())
+  type            String   // 'no_sales_product', 'suggested_combo', 'price_down', 'price_up', 'promotion_time'
+  productId       String?  @map("product_id") // Si aplica a un producto específico
+  productName     String?  @map("product_name")
+  recommendation  String   // Descripción de la recomendación
+  data            String   // JSON con datos detallados (ventas, precios, etc.)
+  dayGenerated    DateTime @map("day_generated") // Día en que se generó (solo fecha)
+  isAcknowledged  Boolean  @default(false) @map("is_acknowledged")
+  acknowledgedAt  DateTime? @map("acknowledged_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([dayGenerated])
+  @@index([type])
+  @@index([isAcknowledged])
+  @@map("ai_recommendations")
+}
+
+// Historial de cierres automáticos del día
+model DailyClosure {
+  id              String   @id @default(uuid())
+  closureDate     DateTime @unique @map("closure_date") // Fecha del cierre (00:00 del día)
+  totalSales      Float    @default(0) @map("total_sales")
+  totalOrders     Int      @default(0) @map("total_orders")
+  averageTicket   Float    @default(0) @map("average_ticket")
+  summary         String?  // JSON con resumen completo del día
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([closureDate])
+  @@map("daily_closures")
+}
+
+// Modo Lluvia / Pico de Demanda
+model PeakDemandMode {
+  id                    String   @id @default(uuid())
+  isActive              Boolean  @default(false) @map("is_active")
+  estimatedTimeMinutes  Int      @default(20) @map("estimated_time_minutes") // Tiempo estimado adicional
+  maxOrdersPerHour      Int?     @map("max_orders_per_hour") // Límite de pedidos por hora
+  priceMultiplier       Float    @default(1.0) @map("price_multiplier") // Multiplicador de precios (1.0 = sin cambio)
+  disabledProductIds    String?  @map("disabled_product_ids") // JSON array de IDs de productos deshabilitados
+  activatedAt           DateTime? @map("activated_at")
+  deactivatedAt         DateTime? @map("deactivated_at")
+  notes                 String?  // Notas sobre por qué se activó
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("peak_demand_modes")
+}
+
+// Clientes VIP / Fidelidad (basado en @lid de WhatsApp)
+model CustomerLoyalty {
+  id                  String   @id @default(uuid())
+  customerId          String   @unique @map("customer_id") // ID @lid de WhatsApp (ej: "180375909310641@lid")
+  tier                String   @default("bronze") // 'bronze', 'silver', 'gold', 'vip'
+  totalPoints         Int      @default(0) @map("total_points") // Puntos totales acumulados
+  totalOrders         Int      @default(0) @map("total_orders")
+  totalSpent          Float    @default(0) @map("total_spent")
+  lastOrderDate       DateTime? @map("last_order_date")
+  favoriteProducts    String?  @map("favorite_products") // JSON array de IDs de productos favoritos
+  discountPercentage  Float    @default(0) @map("discount_percentage") // Descuento automático (%)
+  priority            Boolean  @default(false) // Prioridad en cocina
+  referredBy          String?  @map("referred_by") // ID @lid del invitador
+  totalReferrals      Int      @default(0) @map("total_referrals") // Cantidad de referidos válidos
+  birthday            String?  // Fecha de cumpleaños (MM-DD) para regalo anual
+  isActive            Boolean  @default(true) @map("is_active")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  pointsHistory       PointsHistory[]
+  referralsMade       Referral[] @relation("ReferrerReferrals")
+  codeRedemptions     PromoCodeRedemption[]
+
+  @@index([customerId])
+  @@index([tier])
+  @@index([totalPoints])
+  @@map("customer_loyalty")
+}
+
+// Historial de puntos
+model PointsHistory {
+  id              String   @id @default(uuid())
+  customerId      String   @map("customer_id") // ID @lid
+  customerLoyalty CustomerLoyalty? @relation(fields: [customerId], references: [customerId])
+  points          Int      // Puntos ganados/perdidos (positivo = ganado, negativo = canjeado)
+  reason          String   // 'compra', 'referido', 'referidor', 'codigo_promocional', 'cumpleaños', 'mision_diaria', 'mision_semanal', 'primer_pedido', 'cliente_nuevo', 'manual_admin'
+  description     String?  // Descripción detallada
+  orderId         String?  @map("order_id") // Si está relacionado con un pedido
+  referralId      String?  @map("referral_id") // Si está relacionado con un referido
+  referral        Referral? @relation(fields: [referralId], references: [id])
+  promoCodeId     String?  @map("promo_code_id") // Si está relacionado con un código
+  metadata        String?  // JSON con datos adicionales
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([customerId])
+  @@index([createdAt])
+  @@map("points_history")
+}
+
+// Sistema de referidos
+model Referral {
+  id                String   @id @default(uuid())
+  referrerId        String   @map("referrer_id") // ID @lid del invitador
+  referrerLoyalty   CustomerLoyalty? @relation("ReferrerReferrals", fields: [referrerId], references: [customerId])
+  referredId        String   @unique @map("referred_id") // ID @lid del invitado
+  status            String   @default("pending") // 'pending', 'validated', 'cancelled'
+  validatedAt       DateTime? @map("validated_at")
+  validationOrderId String?  @unique @map("validation_order_id") // Pedido que validó el referido
+  pointsAwarded     Int      @default(0) @map("points_awarded") // Puntos otorgados al invitador
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  pointsHistory     PointsHistory[]
+
+  @@index([referrerId])
+  @@index([referredId])
+  @@index([status])
+  @@map("referrals")
+}
+
+// Códigos promocionales
+model PromoCode {
+  id                  String   @id @default(uuid())
+  code                String   @unique // Código único (ej: "NAVIDAD2025")
+  type                String   // 'discount_percent', 'discount_fixed', 'free_product', 'bonus_points', 'level_upgrade', 'special_gift'
+  value               Float    // Valor del beneficio (%, monto fijo, puntos, etc.)
+  description         String?  // Descripción del código
+  productId           String?  @map("product_id") // Si type = 'free_product'
+  levelRestriction    String?  @map("level_restriction") // JSON array: ["silver", "gold", "vip"] o null para todos
+  maxTotalUses        Int?     @map("max_total_uses") // Límite total de usos
+  maxUsesPerCustomer  Int      @default(1) @map("max_uses_per_customer") // Límite por cliente
+  totalUses           Int      @default(0) @map("total_uses") // Usos actuales
+  validFrom           DateTime @map("valid_from") // Fecha de inicio
+  validUntil          DateTime @map("valid_until") // Fecha de expiración
+  validHours          String?  @map("valid_hours") // JSON: { "from": "18:00", "to": "00:00" } o null para todo el día
+  isActive            Boolean  @default(true) @map("is_active")
+  createdBy           String?  @map("created_by") // ID del admin que lo creó
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  redemptions         PromoCodeRedemption[]
+
+  @@index([code])
+  @@index([isActive])
+  @@map("promo_codes")
+}
+
+// Canjes de códigos promocionales
+model PromoCodeRedemption {
+  id              String   @id @default(uuid())
+  promoCodeId     String   @map("promo_code_id")
+  promoCode       PromoCode @relation(fields: [promoCodeId], references: [id])
+  customerId      String   @map("customer_id") // ID @lid
+  customerLoyalty CustomerLoyalty? @relation(fields: [customerId], references: [customerId])
+  orderId         String?  @map("order_id") // Si se aplicó a un pedido
+  pointsAwarded   Int      @default(0) @map("points_awarded") // Si el código daba puntos
+  redeemedAt      DateTime @default(now()) @map("redeemed_at")
+
+  @@index([promoCodeId])
+  @@index([customerId])
+  @@unique([promoCodeId, customerId, orderId]) // Un código solo puede usarse una vez por cliente por pedido
+  @@map("promo_code_redemptions")
+}
+
+// Configuración del sistema de fidelidad
+model LoyaltyConfig {
+  id                      String   @id @default(uuid())
+  key                     String   @unique
+  value                   String   // JSON con el valor de configuración
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  @@map("loyalty_config")
+}
+
+// Etiquetas inteligentes de productos
+model ProductLabel {
+  id          String   @id @default(uuid())
+  productId   String   @unique @map("product_id")
+  labels      String   // JSON array: ["más_vendido", "recomendado", "pocas_ventas", "nuevo", "muy_pedido_hoy"]
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([productId])
+  @@map("product_labels")
+}
+
+// Gastos reales del negocio
+model BusinessExpense {
+  id          String   @id @default(uuid())
+  date        DateTime // Fecha del gasto
+  category    String   // 'proveedores', 'combustible', 'mantenimiento', 'herramientas', 'imprevistos', 'otros'
+  description String   // Descripción del gasto
+  amount      Float    // Monto del gasto
+  supplierId  String?  @map("supplier_id") // Si es compra a proveedor
+  notes       String?  // Notas adicionales
+  receiptUrl  String?  @map("receipt_url") // URL de comprobante
+  createdBy   String?  @map("created_by") // ID del admin que registró
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([date])
+  @@index([category])
+  @@map("business_expenses")
+}
+
+// Análisis de costo real del día
+model DailyCostAnalysis {
+  id                    String   @id @default(uuid())
+  analysisDate          DateTime @unique @map("analysis_date") // Fecha del análisis
+  totalSales            Float    @default(0) @map("total_sales")
+  totalExpenses         Float    @default(0) @map("total_expenses")
+  ingredientCost        Float    @default(0) @map("ingredient_cost") // Costo de insumos usados
+  laborCost             Float    @default(0) @map("labor_cost") // Costo laboral del día
+  wasteCost             Float    @default(0) @map("waste_cost") // Costo de desperdicio/merma
+  totalCost             Float    @default(0) @map("total_cost") // Costo total
+  netProfit             Float    @default(0) @map("net_profit") // Ganancia neta
+  profitability         Float    @default(0) // Rentabilidad (%)
+  hoursWorked           Float    @default(0) @map("hours_worked") // Horas trabajadas por empleados
+  ordersCount           Int      @default(0) @map("orders_count")
+  averageTicket         Float    @default(0) @map("average_ticket")
+  details               String?  // JSON con detalles completos
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  @@index([analysisDate])
+  @@map("daily_cost_analyses")
+}
+
+// Referencias pendientes (cuando alguien entra por link de invitación)
+model PendingReferral {
+  id          String   @id @default(uuid())
+  referredId  String   @unique @map("referred_id") // ID @lid del invitado
+  referrerId  String   @map("referrer_id") // ID @lid del invitador
+  visitedAt   DateTime @default(now()) @map("visited_at") // Cuando visitó el link
+  expiresAt   DateTime @map("expires_at") // Expira después de 30 días
+
+  @@index([referredId])
+  @@index([referrerId])
+  @@map("pending_referrals")
+}
+
+// Horarios especiales (temporales, solo 1 día)
+model SpecialHours {
+  id          String   @id @default(uuid())
+  isActive    Boolean  @default(true) @map("is_active")
+  startTime   String   @map("start_time") // Formato HH:mm (ej: "14:00")
+  endTime     String   @map("end_time") // Formato HH:mm (ej: "22:00")
+  expiresAt   DateTime @map("expires_at") // Se resetea automáticamente después de 1 día
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("special_hours")
+}
