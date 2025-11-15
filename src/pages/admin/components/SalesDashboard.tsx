@@ -277,6 +277,7 @@ export default function SalesDashboard() {
         display: true,
         position: 'top' as const,
         labels: {
+          color: '#111111',
           font: {
             size: 12,
             weight: 'bold' as const
@@ -322,16 +323,6 @@ export default function SalesDashboard() {
           color: '#C7C7C7',
           font: {
             size: 11
-          }
-        }
-      }
-    },
-    plugins: {
-      legend: {
-        labels: {
-          color: '#111111',
-          font: {
-            size: 12
           }
         }
       }
