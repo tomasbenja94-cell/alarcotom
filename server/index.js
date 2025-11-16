@@ -4696,6 +4696,15 @@ if (process.env.NODE_ENV !== 'production') {
 // ========== ERROR HANDLER (debe ir al final) ==========
 app.use(errorHandler);
 
+// ========== HEALTHCHECK (simple JSON) ==========
+app.get('/api/health', (req, res) => {
+  res.json({
+    ok: true,
+    service: 'backend',
+    time: new Date().toISOString()
+  });
+});
+
 // ========== INICIAR SERVIDOR ==========
 app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en https://elbuenmenu.site`);
