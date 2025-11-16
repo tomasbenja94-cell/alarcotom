@@ -844,6 +844,8 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
     };
     
     // Solo agregar uniqueCode si se generó correctamente
+    // Si la migración no está aplicada, Prisma rechazará este campo al crear el pedido
+    // En ese caso, intentaremos crear el pedido sin uniqueCode
     if (uniqueCode) {
       orderData.uniqueCode = uniqueCode;
     }
@@ -890,12 +892,35 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
       }
     };
 
-    const order = await prisma.order.create({
-      data: orderData,
-      include: {
-        items: true
+    // Intentar crear el pedido
+    // Si falla por uniqueCode (migración no aplicada), intentar sin ese campo
+    let order;
+    try {
+      order = await prisma.order.create({
+        data: orderData,
+        include: {
+          items: true
+        }
+      });
+    } catch (createError) {
+      // Si el error es porque uniqueCode no existe en el esquema, intentar sin ese campo
+      if (createError.message && createError.message.includes('uniqueCode') && uniqueCode) {
+        console.warn('⚠️ Error al crear pedido con uniqueCode (migración no aplicada), intentando sin uniqueCode...');
+        const orderDataWithoutUniqueCode = { ...orderData };
+        delete orderDataWithoutUniqueCode.uniqueCode;
+        
+        order = await prisma.order.create({
+          data: orderDataWithoutUniqueCode,
+          include: {
+            items: true
+          }
+        });
+        console.warn('⚠️ Pedido creado sin uniqueCode. Ejecuta la migración: npx prisma migrate deploy');
+      } else {
+        // Si es otro error, relanzarlo
+        throw createError;
       }
-    });
+    }
     
     // ========== REGISTRAR REFERIDO PENDIENTE SI EXISTE ==========
     // Si el cliente tiene un referidor pendiente (entró por link de invitación), registrarlo
