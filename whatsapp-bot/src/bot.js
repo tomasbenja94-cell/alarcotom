@@ -2265,6 +2265,7 @@ async function validateOrderQueryWithIUC(from, messageText, customerJid) {
         }
         
         // Validar formato del mensaje: PEDIDO CONFIRMADO - XXXX - El Buen Menú
+        // El código XXXX ahora es el unique_code del pedido, no el IUC del cliente
         const orderPattern = /PEDIDO CONFIRMADO\s*-\s*(\d{4})\s*-\s*El Buen Menú/i;
         const match = messageText.match(orderPattern);
         
@@ -2318,65 +2319,36 @@ async function validateOrderQueryWithIUC(from, messageText, customerJid) {
                 }
             }
             
-            await sendMessage(from, `⚠️ *Error de validación*\n\nTu identificador único no coincide con este formato.\n\nRecordá: *PEDIDO CONFIRMADO - XXXX - El Buen Menú*\n\nIntento ${(customer?.intentos_invalidos || 0) + 1}/5.`);
+            await sendMessage(from, `⚠️ *Error de validación*\n\nEl formato del mensaje no es correcto.\n\nRecordá: *PEDIDO CONFIRMADO - XXXX - El Buen Menú*\n\nDonde XXXX es el código único de 4 dígitos que recibiste al crear el pedido.\n\nIntento ${(customer?.intentos_invalidos || 0) + 1}/5.`);
             return { valid: false };
         }
         
-        const iucFromMessage = match[1];
+        const uniqueCodeFromMessage = match[1];
         
-        // Verificar que el IUC pertenezca al cliente
-        if (!customer || !customer.iuc) {
-            await sendMessage(from, `⚠️ *Error de validación*\n\nNo se encontró tu identificador único (IUC).\n\nEl IUC se asigna cuando tu primer pedido es aprobado.\n\nSi ya tenés un pedido aprobado, contactá con soporte.`);
-            return { valid: false };
-        }
-        
-        if (customer.iuc !== iucFromMessage) {
-            // IUC incorrecto - incrementar intentos
-            const newAttempts = (customer.intentos_invalidos || 0) + 1;
-            const now = new Date();
-            const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+        // Buscar el pedido por su código único (unique_code)
+        try {
+            const allOrders = await apiRequest('/orders');
+            const orderWithCode = allOrders.find(order => order.unique_code === uniqueCodeFromMessage);
             
-            let attemptsToRecord = newAttempts;
-            let lastAttemptTime = now.toISOString();
-            
-            if (customer.ultimo_intento) {
-                const lastAttempt = new Date(customer.ultimo_intento);
-                if (lastAttempt < oneHourAgo) {
-                    attemptsToRecord = 1;
-                }
+            if (!orderWithCode) {
+                logger.warn(`⚠️ No se encontró pedido con código único: ${uniqueCodeFromMessage}`);
+                await sendMessage(from, `⚠️ *Error de validación*\n\nNo se encontró un pedido con el código ${uniqueCodeFromMessage}.\n\nVerificá que el código sea correcto.`);
+                return { valid: false };
             }
             
-            let banUntil = null;
-            if (attemptsToRecord >= 5) {
-                const wasBannedBefore = customer.baneado_hasta && new Date(customer.baneado_hasta) > new Date();
-                const banDays = wasBannedBefore ? 5 : 1;
-                banUntil = new Date(now.getTime() + banDays * 24 * 60 * 60 * 1000);
+            // Verificar que el pedido pertenezca al cliente (si tiene customer_phone asignado)
+            // Si customer_phone es null, es un pedido nuevo y se puede procesar
+            if (orderWithCode.customer_phone && orderWithCode.customer_phone !== '' && orderWithCode.customer_phone !== customerJid) {
+                logger.warn(`⚠️ Pedido ${orderWithCode.order_number} pertenece a otro cliente. Order phone: "${orderWithCode.customer_phone}", Customer JID: "${customerJid}"`);
+                await sendMessage(from, `⚠️ *Error de validación*\n\nEste pedido no pertenece a tu cuenta.\n\nSolo podés consultar tus propios pedidos.`);
+                return { valid: false };
             }
             
-            try {
-                await apiRequest(`/customers/${customer.id}`, {
-                    method: 'PUT',
-                    body: JSON.stringify({
-                        intentos_invalidos: attemptsToRecord,
-                        ultimo_intento: lastAttemptTime,
-                        baneado_hasta: banUntil
-                    })
-                });
-            } catch (error) {
-                logger.error('Error actualizando intentos inválidos:', error);
-            }
-            
-            if (attemptsToRecord >= 5) {
-                const wasBannedBefore = customer.baneado_hasta && new Date(customer.baneado_hasta) > new Date();
-                const banMessage = wasBannedBefore 
-                    ? `🚫 *Bloqueo temporal aumentado*\n\nDetectamos un segundo intento de manipulación del sistema.\n\nTu cuenta fue bloqueada por 5 días.\n\nSi creés que es un error, contactá con soporte.`
-                    : `⚠️ *Seguridad activada*\n\nDetectamos demasiados intentos de consulta inválidos.\n\nTu cuenta fue bloqueada por 24 horas por protección del sistema.\n\n⚠ Estos intentos inválidos son:\n\n• Mensaje sin IUC\n• IUC incorrecto\n• Formato alterado\n• Pedido inexistente\n• Pedido de otro cliente`;
-                
-                await sendMessage(from, banMessage);
-                return { valid: false, blocked: true };
-            }
-            
-            await sendMessage(from, `⚠️ *Error de validación*\n\nTu identificador único (IUC) no coincide.\n\nTu IUC es: *${customer.iuc}*\n\nRecordá: *PEDIDO CONFIRMADO - ${customer.iuc} - El Buen Menú*\n\nIntento ${attemptsToRecord}/5.`);
+            // Si llegamos aquí, el código único es válido y el pedido pertenece al cliente (o es nuevo)
+            logger.info(`✅ Código único válido: ${uniqueCodeFromMessage} para pedido ${orderWithCode.order_number}`);
+        } catch (error) {
+            logger.error('❌ Error al buscar pedido por código único:', error);
+            await sendMessage(from, `⚠️ *Error de validación*\n\nNo se pudo verificar el código del pedido.\n\nPor favor, intentá nuevamente.`);
             return { valid: false };
         }
         
@@ -2395,7 +2367,7 @@ async function validateOrderQueryWithIUC(from, messageText, customerJid) {
             }
         }
         
-        return { valid: true, iuc: iucFromMessage };
+        return { valid: true, uniqueCode: uniqueCodeFromMessage };
     } catch (error) {
         logger.error('❌ Error validando consulta de pedido con IUC:', error);
         logger.error('❌ Stack:', error.stack);

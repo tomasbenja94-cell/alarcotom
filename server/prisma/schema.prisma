@@ -105,6 +105,7 @@ model Order {
   notes               String?
   deliveryCode        String?                    @map("delivery_code") // Código de entrega
   trackingToken       String?                    @unique @map("tracking_token") // Token único para tracking público
+  uniqueCode          String?                    @unique @map("unique_code") // Código único de 4 dígitos para el mensaje de confirmación
   deliveryPersonId    String?                    @unique @map("delivery_person_id")
   deliveryPerson      DeliveryPerson?            @relation(fields: [deliveryPersonId], references: [id], onDelete: SetNull)
   items               OrderItem[]

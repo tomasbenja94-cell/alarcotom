@@ -130,6 +130,34 @@ async function generateUniqueIUC() {
   return fallback;
 }
 
+// ========== FUNCIONES CÓDIGO ÚNICO DE PEDIDO ==========
+// Generar código único de 4 dígitos para pedidos
+async function generateUniqueOrderCode() {
+  let attempts = 0;
+  const maxAttempts = 100;
+  
+  while (attempts < maxAttempts) {
+    // Generar número aleatorio de 4 dígitos (1000-9999)
+    const code = String(Math.floor(1000 + Math.random() * 9000));
+    
+    // Verificar que no exista en ningún pedido
+    const existing = await prisma.order.findFirst({
+      where: { uniqueCode: code }
+    });
+    
+    if (!existing) {
+      return code;
+    }
+    
+    attempts++;
+  }
+  
+  // Si no se encuentra después de 100 intentos, usar timestamp + random
+  const fallback = String(Date.now()).slice(-4).padStart(4, '0');
+  console.warn(`⚠️ No se pudo generar código único de pedido después de ${maxAttempts} intentos, usando fallback: ${fallback}`);
+  return fallback;
+}
+
 // Asignar IUC al cliente si no tiene uno y el pedido es válido (approved/paid)
 async function assignIUCIfNeeded(customerPhone) {
   if (!customerPhone) return null;
@@ -784,6 +812,9 @@ app.post('/api/orders', async (req, res) => {
       orderNumber = `#${String(lastNum + 1).padStart(4, '0')}`;
     }
 
+    // Generar código único de 4 dígitos para el pedido
+    const uniqueCode = await generateUniqueOrderCode();
+
     // Convertir snake_case a camelCase para Prisma
     const orderData = {
       customerName: req.body.customer_name || req.body.customerName,
@@ -797,6 +828,7 @@ app.post('/api/orders', async (req, res) => {
       total: req.body.total,
       notes: req.body.notes,
       orderNumber,
+      uniqueCode,
       items: {
         create: (req.body.items || []).map(item => {
           // Asegurar que selectedOptions se guarde como string JSON
