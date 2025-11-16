@@ -1000,6 +1000,10 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
     let order;
     try {
       console.log('🔄 [CREATE ORDER] Intentando crear pedido...');
+      console.log('🔄 [CREATE ORDER] orderData keys:', Object.keys(orderData));
+      console.log('🔄 [CREATE ORDER] items count:', orderData.items?.create?.length || 0);
+      
+      // Crear el pedido (el include puede fallar si unique_code no existe, pero el pedido se crea igual)
       order = await prisma.order.create({
         data: orderData,
         include: {
@@ -1007,14 +1011,54 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
         }
       });
       console.log('✅ [CREATE ORDER] Pedido creado exitosamente:', order.id);
+      
+      // Si items no se incluyeron (por error de unique_code), obtenerlos por separado
+      if (!order.items || order.items.length === 0) {
+        console.warn('⚠️ [CREATE ORDER] Items no incluidos, obteniendo por separado...');
+        try {
+          const items = await prisma.orderItem.findMany({
+            where: { orderId: order.id }
+          });
+          order.items = items;
+          console.log(`✅ [CREATE ORDER] ${items.length} items obtenidos por separado`);
+        } catch (itemsError) {
+          console.error('❌ [CREATE ORDER] Error al obtener items:', itemsError.message);
+          order.items = [];
+        }
+      } else {
+        console.log(`✅ [CREATE ORDER] ${order.items.length} items incluidos en la respuesta`);
+      }
     } catch (createError) {
       console.error('❌ [CREATE ORDER] Error al crear pedido:', createError.message);
       console.error('❌ [CREATE ORDER] Error code:', createError.code);
       console.error('❌ [CREATE ORDER] Error meta:', createError.meta);
       
-      // Si tenemos uniqueCode y falla, intentar sin él (migración no aplicada)
-      if (orderData.uniqueCode) {
-        console.warn('⚠️ [CREATE ORDER] Error por uniqueCode, intentando sin uniqueCode...');
+      // Si el error es por unique_code, intentar sin él
+      if (createError.code === 'P2022' && createError.meta?.column?.includes('unique_code')) {
+        console.warn('⚠️ [CREATE ORDER] Error por unique_code, intentando sin uniqueCode...');
+        
+        const orderDataWithoutUniqueCode = { ...orderData };
+        delete orderDataWithoutUniqueCode.uniqueCode;
+        
+        try {
+          console.log('🔄 [CREATE ORDER] Reintentando sin uniqueCode...');
+          order = await prisma.order.create({
+            data: orderDataWithoutUniqueCode,
+            include: {
+              items: true
+            }
+          });
+          console.warn('✅ [CREATE ORDER] Pedido creado sin uniqueCode. Ejecuta: npx prisma migrate deploy');
+        } catch (retryError) {
+          console.error('❌ [CREATE ORDER] Error al crear pedido sin uniqueCode:', retryError.message);
+          console.error('❌ [CREATE ORDER] Retry error code:', retryError.code);
+          console.error('❌ [CREATE ORDER] Retry error meta:', retryError.meta);
+          // Si el segundo intento también falla, relanzar el error original
+          throw createError;
+        }
+      } else if (orderData.uniqueCode && createError.code !== 'P2022') {
+        // Si tenemos uniqueCode y el error NO es por unique_code, intentar sin él de todas formas
+        console.warn('⚠️ [CREATE ORDER] Error inesperado con uniqueCode, intentando sin uniqueCode...');
         
         const orderDataWithoutUniqueCode = { ...orderData };
         delete orderDataWithoutUniqueCode.uniqueCode;
@@ -1038,6 +1082,21 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
       } else {
         // Si no hay uniqueCode y falla, es otro error
         throw createError;
+      }
+    }
+    
+    // Si el pedido se creó pero el include falló por unique_code, obtener items por separado
+    if (order && (!order.items || order.items.length === 0)) {
+      try {
+        console.log('⚠️ [CREATE ORDER] Items no incluidos, obteniendo por separado...');
+        const items = await prisma.orderItem.findMany({
+          where: { orderId: order.id }
+        });
+        order.items = items;
+        console.log(`✅ [CREATE ORDER] ${items.length} items obtenidos`);
+      } catch (itemsError) {
+        console.error('❌ [CREATE ORDER] Error al obtener items:', itemsError.message);
+        // Continuar sin items, el pedido ya está creado
       }
     }
     
@@ -1074,10 +1133,14 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
     }
     
     // Verificar que el uniqueCode se haya guardado correctamente
+    console.log('📦 [CREATE ORDER] Preparando respuesta...');
     const responseOrder = objectToSnakeCase(order);
-    console.log(`📦 Pedido creado - Order Number: ${responseOrder.order_number}, Unique Code: ${responseOrder.unique_code || 'NO ASIGNADO'}`);
+    console.log(`📦 [CREATE ORDER] Pedido creado - Order Number: ${responseOrder.order_number}, Unique Code: ${responseOrder.unique_code || 'NO ASIGNADO'}`);
+    console.log(`📦 [CREATE ORDER] Items en respuesta: ${responseOrder.items?.length || 0}`);
     
+    console.log('📤 [CREATE ORDER] Enviando respuesta al cliente...');
     res.json(responseOrder);
+    console.log('✅ [CREATE ORDER] Respuesta enviada exitosamente');
   } catch (error) {
     console.error('❌ [CREATE ORDER] Error general al crear pedido:', error);
     console.error('❌ [CREATE ORDER] Error stack:', error.stack);
