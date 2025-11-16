@@ -2239,6 +2239,18 @@ async function validateOrderQueryWithIUC(from, messageText, customerJid) {
             }
         }
         
+        // Verificar si es un pedido nuevo sin IUC (desde checkout web)
+        const isNewWebOrder = messageText.includes('Código de pedido:') && 
+                             (messageText.includes('Tu identificador único (IUC) se te asignará') ||
+                              messageText.includes('se te asignará cuando el pedido sea aprobado') ||
+                              messageText.includes('PEDIDO CONFIRMADO - El Buen Menú'));
+        
+        if (isNewWebOrder) {
+            // Es un pedido nuevo desde la web, no requiere IUC aún
+            logger.info(`✅ Pedido nuevo detectado (sin IUC requerido): ${from}`);
+            return { valid: true, isNewOrder: true };
+        }
+        
         // Validar formato del mensaje: PEDIDO CONFIRMADO - XXXX - El Buen Menú
         const orderPattern = /PEDIDO CONFIRMADO\s*-\s*(\d{4})\s*-\s*El Buen Menú/i;
         const match = messageText.match(orderPattern);
@@ -3048,8 +3060,14 @@ async function handleMessage(message) {
             messageText.includes('Código de pedido:') ||
             messageText.includes('Tu pedido está registrado')
         )) {
+            // Limpiar el mensaje de caracteres especiales antes de validar
+            const cleanMessageForValidation = messageText
+                .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remover zero-width spaces y BOM
+                .replace(/\uFFFD/g, '') // Remover replacement characters
+                .trim();
+            
             // Validar formato e IUC antes de procesar
-            const validation = await validateOrderQueryWithIUC(from, messageText, customerJid);
+            const validation = await validateOrderQueryWithIUC(from, cleanMessageForValidation, customerJid);
             
             if (!validation.valid) {
                 // Si está bloqueado, no procesar
@@ -3118,7 +3136,12 @@ async function handleMessage(message) {
             
             logger.info(`🌐 Procesando pedido web confirmado de ${from}`);
             logger.info(`📋 Contenido del pedido: ${messageText}`);
-            await handleWebOrderConfirmed(from, messageText, userSession);
+            // Limpiar el mensaje antes de procesarlo
+            const cleanMessageForProcessing = messageText
+                .replace(/[\u200B-\u200D\uFEFF]/g, '')
+                .replace(/\uFFFD/g, '')
+                .trim();
+            await handleWebOrderConfirmed(from, cleanMessageForProcessing, userSession);
             return;
         }
         
@@ -3319,10 +3342,19 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
         logger.info(`🌐 Procesando pedido web confirmado de ${from}`);
         logger.info(`📋 Mensaje completo recibido: "${messageText}"`);
         
+        // Limpiar el mensaje de caracteres especiales y problemas de encoding
+        const cleanMessage = messageText
+            .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remover zero-width spaces y BOM
+            .replace(/\uFFFD/g, '') // Remover replacement characters
+            .trim();
+        
+        logger.info(`📋 Mensaje limpio: "${cleanMessage}"`);
+        
         // Extraer código de pedido del mensaje
-        const orderCodeMatch = messageText.match(/Código de pedido:\s*([#\d]+)/i);
+        const orderCodeMatch = cleanMessage.match(/Código de pedido:\s*([#\d]+)/i);
         if (!orderCodeMatch) {
-            logger.error(`❌ No se pudo extraer el código de pedido del mensaje: "${messageText}"`);
+            logger.error(`❌ No se pudo extraer el código de pedido del mensaje limpio: "${cleanMessage}"`);
+            logger.error(`❌ Mensaje original: "${messageText}"`);
             await sendMessage(from, '❌ No pude encontrar el código de pedido. Por favor, contactanos directamente.');
             return;
         }

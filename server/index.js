@@ -34,6 +34,9 @@ const __dirname = path.dirname(__filename);
 dotenv.config();
 
 const app = express();
+
+// Configurar trust proxy para rate limiting detrás de proxy/load balancer
+app.set('trust proxy', true);
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 5000;
 
