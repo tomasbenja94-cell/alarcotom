@@ -814,8 +814,14 @@ app.post('/api/orders', async (req, res) => {
     }
 
     // Generar código único de 4 dígitos para el pedido
-    const uniqueCode = await generateUniqueOrderCode();
-    console.log(`✅ Código único generado para pedido: ${uniqueCode}`);
+    let uniqueCode = null;
+    try {
+      uniqueCode = await generateUniqueOrderCode();
+      console.log(`✅ Código único generado para pedido: ${uniqueCode}`);
+    } catch (error) {
+      console.warn('⚠️ No se pudo generar código único (puede que la migración no esté aplicada):', error.message);
+      // Continuar sin uniqueCode si falla
+    }
 
     // Convertir snake_case a camelCase para Prisma
     const orderData = {
@@ -830,8 +836,14 @@ app.post('/api/orders', async (req, res) => {
       total: req.body.total,
       notes: req.body.notes,
       orderNumber,
-      uniqueCode,
-      items: {
+    };
+    
+    // Solo agregar uniqueCode si se generó correctamente
+    if (uniqueCode) {
+      orderData.uniqueCode = uniqueCode;
+    }
+    
+    orderData.items = {
         create: (req.body.items || []).map(item => {
           // Asegurar que selectedOptions se guarde como string JSON
           let selectedOptionsValue = '{}';
