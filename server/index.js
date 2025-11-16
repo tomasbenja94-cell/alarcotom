@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { PrismaClient } from '@prisma/client';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
@@ -2503,37 +2504,52 @@ app.get('/api/delivery/drivers-location', async (req, res) => {
 // Esto es más confiable que express.static para evitar problemas de CORS
 app.get('/proofs/:filename', (req, res) => {
   const filename = req.params.filename;
+  
+  // Validar que el filename no contenga rutas relativas peligrosas
+  if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+    console.error('❌ Intento de acceso a ruta inválida:', filename);
+    return res.status(400).json({ error: 'Nombre de archivo inválido' });
+  }
+  
   const filePath = path.join(__dirname, '../whatsapp-bot/proofs', filename);
   
-  // Headers CORS completos
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type');
-  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
-  res.header('Cross-Origin-Embedder-Policy', 'unsafe-none');
-  
-  // Determinar tipo de contenido
-  const ext = path.extname(filename).toLowerCase();
-  let contentType = 'application/octet-stream';
-  if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
-  else if (ext === '.png') contentType = 'image/png';
-  else if (ext === '.gif') contentType = 'image/gif';
-  else if (ext === '.pdf') contentType = 'application/pdf';
-  
-  res.header('Content-Type', contentType);
-  res.header('Cache-Control', 'public, max-age=31536000');
-  
-  // Servir el archivo usando sendFile
-  res.sendFile(filePath, (err) => {
+  // Verificar que el archivo existe usando fs
+  fs.access(filePath, fs.constants.F_OK, (err) => {
     if (err) {
-      console.error('❌ Error al servir imagen:', filePath, err);
-      if (!res.headersSent) {
-        res.status(404).json({ error: 'Imagen no encontrada' });
-      }
-    } else {
-      console.log('✅ Imagen servida correctamente:', filename);
+      console.error('❌ Archivo no encontrado:', filePath, err.message);
+      return res.status(404).json({ error: 'Imagen no encontrada', path: filePath });
     }
+    
+    // Headers CORS completos
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type');
+    res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.header('Cross-Origin-Embedder-Policy', 'unsafe-none');
+    
+    // Determinar tipo de contenido
+    const ext = path.extname(filename).toLowerCase();
+    let contentType = 'application/octet-stream';
+    if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+    else if (ext === '.png') contentType = 'image/png';
+    else if (ext === '.gif') contentType = 'image/gif';
+    else if (ext === '.pdf') contentType = 'application/pdf';
+    
+    res.header('Content-Type', contentType);
+    res.header('Cache-Control', 'public, max-age=31536000');
+    
+    // Servir el archivo usando sendFile
+    res.sendFile(filePath, (err) => {
+      if (err) {
+        console.error('❌ Error al servir imagen:', filePath, err.message);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Error al servir imagen', details: err.message });
+        }
+      } else {
+        console.log('✅ Imagen servida correctamente:', filename, 'desde:', filePath);
+      }
+    });
   });
 });
 
