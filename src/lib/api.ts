@@ -19,12 +19,23 @@ async function request(endpoint: string, options: RequestInit = {}) {
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Error desconocido' }));
+    const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
     // Mejorar mensaje de error para tokens
     if (response.status === 401 && !token) {
       throw new Error('Token no proporcionado');
     }
-    throw new Error(error.error || `HTTP ${response.status}`);
+    
+    // Construir mensaje de error con detalles si están disponibles
+    let errorMessage = errorData.error || `HTTP ${response.status}`;
+    if (errorData.details) {
+      errorMessage += `: ${errorData.details.message || JSON.stringify(errorData.details)}`;
+    }
+    
+    const error = new Error(errorMessage);
+    // Agregar detalles al error para debugging
+    (error as any).details = errorData.details;
+    (error as any).status = response.status;
+    throw error;
   }
 
   return response.json();

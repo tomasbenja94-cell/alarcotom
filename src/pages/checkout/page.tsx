@@ -199,9 +199,14 @@ Código de pedido: ${finalOrderNumber}`;
       // Ir al paso de confirmación con animación de carga
       setStep(4);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al crear pedido:', error);
-      alert('Hubo un error al crear el pedido. Por favor, intenta nuevamente.');
+      console.error('Error details:', error?.details);
+      console.error('Error status:', error?.status);
+      
+      // Mostrar mensaje de error más detallado
+      const errorMessage = error?.message || 'Hubo un error al crear el pedido. Por favor, intenta nuevamente.';
+      alert(errorMessage);
     } finally {
       setIsSubmitting(false);
     }

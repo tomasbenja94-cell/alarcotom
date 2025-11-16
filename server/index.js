@@ -823,16 +823,58 @@ app.options('/api/orders', corsMiddleware, (req, res) => {
 
 app.post('/api/orders', corsMiddleware, async (req, res) => {
   try {
-    // Generar número de pedido único
-    const lastOrder = await prisma.order.findFirst({
-      orderBy: { createdAt: 'desc' }
-    });
+    console.log('📥 [CREATE ORDER] Iniciando creación de pedido...');
+    console.log('📥 [CREATE ORDER] Body recibido:', JSON.stringify(req.body, null, 2));
     
-    let orderNumber = '#0001';
-    if (lastOrder && lastOrder.orderNumber) {
-      const lastNum = parseInt(lastOrder.orderNumber.replace('#', ''));
-      orderNumber = `#${String(lastNum + 1).padStart(4, '0')}`;
+    // Validar campos requeridos
+    if (!req.body.customer_name && !req.body.customerName) {
+      return res.status(400).json({ error: 'customer_name es requerido' });
     }
+    if (req.body.subtotal === undefined && req.body.subtotal === null) {
+      return res.status(400).json({ error: 'subtotal es requerido' });
+    }
+    if (req.body.total === undefined && req.body.total === null) {
+      return res.status(400).json({ error: 'total es requerido' });
+    }
+    if (!req.body.items || !Array.isArray(req.body.items) || req.body.items.length === 0) {
+      return res.status(400).json({ error: 'items es requerido y debe tener al menos un item' });
+    }
+    
+    // Generar número de pedido único
+    let orderNumber = '#0001';
+    let attempts = 0;
+    const maxOrderNumberAttempts = 10;
+    
+    while (attempts < maxOrderNumberAttempts) {
+      try {
+        const lastOrder = await prisma.order.findFirst({
+          orderBy: { createdAt: 'desc' }
+        });
+        
+        if (lastOrder && lastOrder.orderNumber) {
+          const lastNum = parseInt(lastOrder.orderNumber.replace('#', ''));
+          orderNumber = `#${String(lastNum + 1).padStart(4, '0')}`;
+        }
+        
+        // Verificar que el orderNumber no exista (por si acaso)
+        const existingOrder = await prisma.order.findUnique({
+          where: { orderNumber }
+        });
+        
+        if (!existingOrder) {
+          break; // El orderNumber es único, continuar
+        }
+        
+        // Si existe, generar uno nuevo
+        orderNumber = `#${String(parseInt(orderNumber.replace('#', '')) + 1).padStart(4, '0')}`;
+        attempts++;
+      } catch (error) {
+        console.error('Error al generar orderNumber:', error);
+        break;
+      }
+    }
+    
+    console.log(`✅ [CREATE ORDER] Order Number generado: ${orderNumber}`);
 
     // Convertir snake_case a camelCase para Prisma
     const orderData = {
@@ -893,36 +935,59 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
     const uniqueCode = await generateUniqueOrderCode();
     if (uniqueCode) {
       orderData.uniqueCode = uniqueCode;
-      console.log(`✅ Código único generado: ${uniqueCode}`);
+      console.log(`✅ [CREATE ORDER] Código único generado: ${uniqueCode}`);
     } else {
-      console.warn('⚠️ No se pudo generar uniqueCode (migración no aplicada), creando pedido sin código único');
+      console.warn('⚠️ [CREATE ORDER] No se pudo generar uniqueCode (migración no aplicada), creando pedido sin código único');
     }
+    
+    console.log('📦 [CREATE ORDER] Datos del pedido a crear:', JSON.stringify({
+      customerName: orderData.customerName,
+      orderNumber: orderData.orderNumber,
+      subtotal: orderData.subtotal,
+      total: orderData.total,
+      itemsCount: orderData.items.create.length,
+      hasUniqueCode: !!orderData.uniqueCode
+    }, null, 2));
     
     // Crear el pedido
     let order;
     try {
+      console.log('🔄 [CREATE ORDER] Intentando crear pedido...');
       order = await prisma.order.create({
         data: orderData,
         include: {
           items: true
         }
       });
+      console.log('✅ [CREATE ORDER] Pedido creado exitosamente:', order.id);
     } catch (createError) {
+      console.error('❌ [CREATE ORDER] Error al crear pedido:', createError.message);
+      console.error('❌ [CREATE ORDER] Error code:', createError.code);
+      console.error('❌ [CREATE ORDER] Error meta:', createError.meta);
+      
       // Si tenemos uniqueCode y falla, intentar sin él (migración no aplicada)
       if (orderData.uniqueCode) {
-        console.warn('⚠️ Error al crear pedido con uniqueCode, intentando sin uniqueCode...');
-        console.warn('⚠️ Error original:', createError.message);
+        console.warn('⚠️ [CREATE ORDER] Error por uniqueCode, intentando sin uniqueCode...');
         
         const orderDataWithoutUniqueCode = { ...orderData };
         delete orderDataWithoutUniqueCode.uniqueCode;
         
-        order = await prisma.order.create({
-          data: orderDataWithoutUniqueCode,
-          include: {
-            items: true
-          }
-        });
-        console.warn('✅ Pedido creado sin uniqueCode. Ejecuta: npx prisma migrate deploy');
+        try {
+          console.log('🔄 [CREATE ORDER] Reintentando sin uniqueCode...');
+          order = await prisma.order.create({
+            data: orderDataWithoutUniqueCode,
+            include: {
+              items: true
+            }
+          });
+          console.warn('✅ [CREATE ORDER] Pedido creado sin uniqueCode. Ejecuta: npx prisma migrate deploy');
+        } catch (retryError) {
+          console.error('❌ [CREATE ORDER] Error al crear pedido sin uniqueCode:', retryError.message);
+          console.error('❌ [CREATE ORDER] Retry error code:', retryError.code);
+          console.error('❌ [CREATE ORDER] Retry error meta:', retryError.meta);
+          // Si el segundo intento también falla, relanzar el error original
+          throw createError;
+        }
       } else {
         // Si no hay uniqueCode y falla, es otro error
         throw createError;
@@ -967,18 +1032,41 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
     
     res.json(responseOrder);
   } catch (error) {
-    console.error('❌ Error creating order:', error);
-    console.error('❌ Error stack:', error.stack);
-    console.error('❌ Error message:', error.message);
-    console.error('❌ Error code:', error.code);
-    console.error('❌ Request body:', JSON.stringify(req.body, null, 2));
+    console.error('❌ [CREATE ORDER] Error general al crear pedido:', error);
+    console.error('❌ [CREATE ORDER] Error stack:', error.stack);
+    console.error('❌ [CREATE ORDER] Error message:', error.message);
+    console.error('❌ [CREATE ORDER] Error code:', error.code);
+    console.error('❌ [CREATE ORDER] Error meta:', error.meta);
+    console.error('❌ [CREATE ORDER] Request body:', JSON.stringify(req.body, null, 2));
     
-    // El error ya debería haber sido manejado en el catch interno
-    // Si llegamos aquí, es un error diferente
+    // Determinar el código de estado apropiado
+    let statusCode = 500;
+    let errorMessage = 'Error al crear pedido';
     
-    res.status(500).json({ 
-      error: 'Error al crear pedido',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    // Errores de Prisma
+    if (error.code === 'P2002') {
+      statusCode = 409; // Conflict
+      errorMessage = 'Ya existe un pedido con este número o código único';
+    } else if (error.code === 'P2003') {
+      statusCode = 400; // Bad Request
+      errorMessage = 'Referencia inválida en los datos del pedido';
+    } else if (error.code === 'P2011') {
+      statusCode = 400; // Bad Request
+      errorMessage = 'Campo requerido faltante: ' + (error.meta?.target || 'desconocido');
+    } else if (error.message) {
+      // Si hay un mensaje de error, usarlo (al menos en desarrollo)
+      if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV !== 'production') {
+        errorMessage = error.message;
+      }
+    }
+    
+    res.status(statusCode).json({ 
+      error: errorMessage,
+      details: (process.env.NODE_ENV === 'development' || process.env.NODE_ENV !== 'production') ? {
+        message: error.message,
+        code: error.code,
+        meta: error.meta
+      } : undefined
     });
   }
 });
