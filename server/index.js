@@ -902,19 +902,34 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
         }
       });
     } catch (createError) {
-      // Si el error es porque uniqueCode no existe en el esquema, intentar sin ese campo
-      if (createError.message && createError.message.includes('uniqueCode') && uniqueCode) {
+      // Si el error es porque uniqueCode/unique_code no existe en el esquema, intentar sin ese campo
+      const errorMessage = createError.message || '';
+      const isUniqueCodeError = (
+        errorMessage.includes('uniqueCode') || 
+        errorMessage.includes('unique_code') ||
+        errorMessage.includes('Unknown argument') ||
+        (createError.code && createError.code.includes('P2002'))
+      );
+      
+      if (isUniqueCodeError && uniqueCode) {
         console.warn('⚠️ Error al crear pedido con uniqueCode (migración no aplicada), intentando sin uniqueCode...');
+        console.warn('⚠️ Error original:', errorMessage);
+        
         const orderDataWithoutUniqueCode = { ...orderData };
         delete orderDataWithoutUniqueCode.uniqueCode;
         
-        order = await prisma.order.create({
-          data: orderDataWithoutUniqueCode,
-          include: {
-            items: true
-          }
-        });
-        console.warn('⚠️ Pedido creado sin uniqueCode. Ejecuta la migración: npx prisma migrate deploy');
+        try {
+          order = await prisma.order.create({
+            data: orderDataWithoutUniqueCode,
+            include: {
+              items: true
+            }
+          });
+          console.warn('✅ Pedido creado sin uniqueCode. Ejecuta la migración: npx prisma migrate deploy');
+        } catch (retryError) {
+          console.error('❌ Error al crear pedido sin uniqueCode:', retryError.message);
+          throw retryError;
+        }
       } else {
         // Si es otro error, relanzarlo
         throw createError;
