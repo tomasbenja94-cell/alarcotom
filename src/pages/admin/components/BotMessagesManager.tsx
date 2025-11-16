@@ -31,7 +31,7 @@ Escribí el número o palabra clave.`,
     message_key: 'menu',
     message_text: `📋 Acá tenés nuestro menú completo 👇
 
-🌐 https://elbuenmenu.store/menu
+🌐 https://elbuenmenu.site/menu
 
 ¡Elegí tus productos favoritos y hacé tu pedido! 🍔`,
     description: 'Respuesta cuando el cliente pide ver el menú'

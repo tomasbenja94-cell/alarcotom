@@ -443,7 +443,7 @@ export default function OrdersManagement() {
   <div class="footer">
     <div class="divider"></div>
     <div>¡Gracias por tu compra!</div>
-    <div>www.elbuenmenu.store</div>
+    <div>www.elbuenmenu.site</div>
   </div>
 </body>
 </html>
