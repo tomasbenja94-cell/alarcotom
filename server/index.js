@@ -918,8 +918,25 @@ app.post('/api/orders', async (req, res) => {
     
     res.json(responseOrder);
   } catch (error) {
-    console.error('Error creating order:', error);
-    res.status(500).json({ error: 'Error al crear pedido' });
+    console.error('❌ Error creating order:', error);
+    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error code:', error.code);
+    console.error('❌ Request body:', JSON.stringify(req.body, null, 2));
+    
+    // Si es un error de Prisma relacionado con uniqueCode, dar un mensaje más específico
+    if (error.message && error.message.includes('unique_code')) {
+      console.error('⚠️ ERROR: La columna unique_code no existe en la base de datos. Ejecuta la migración: npx prisma migrate deploy');
+      return res.status(500).json({ 
+        error: 'Error al crear pedido: La migración de unique_code no está aplicada',
+        details: 'Ejecuta: npx prisma migrate deploy en el servidor'
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Error al crear pedido',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
