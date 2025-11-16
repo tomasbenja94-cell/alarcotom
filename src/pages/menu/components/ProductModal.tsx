@@ -1,6 +1,5 @@
 
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '../../../lib/supabase';
 
 interface Product {
   id: string;
@@ -66,48 +65,24 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
     try {
       setLoading(true);
       
-      // Cargar categorías del producto específico desde Supabase
-      let categoriesResult = await supabase
-        .from('product_option_categories')
-        .select('*')
-        .eq('product_id', product.id)
-        .order('display_order', { ascending: true });
-
-      // Si falla, intentar con order_index
-      if (categoriesResult.error) {
-        console.warn('⚠️ Error con display_order, intentando con order_index:', categoriesResult.error);
-        categoriesResult = await supabase
-          .from('product_option_categories')
-          .select('*')
-          .eq('product_id', product.id)
-          .order('order_index', { ascending: true });
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
+      
+      // Cargar categorías de opciones del producto desde la API del backend
+      const categoriesResponse = await fetch(`${apiUrl}/product-option-categories?productId=${product.id}`);
+      if (!categoriesResponse.ok) {
+        throw new Error(`Error loading option categories: ${categoriesResponse.statusText}`);
       }
-
-      // Si aún falla, intentar sin filtro de is_active y sin orden
-      if (categoriesResult.error) {
-        console.warn('⚠️ Error con order_index, intentando sin orden:', categoriesResult.error);
-        categoriesResult = await supabase
-          .from('product_option_categories')
-          .select('*')
-          .eq('product_id', product.id);
-      }
-
-      if (categoriesResult.error) {
-        console.error('❌ Error loading categories:', categoriesResult.error);
-        setCategories([]);
-        setOptions([]);
-        setLoading(false);
-        return;
-      }
-
-      // Mapear para compatibilidad y filtrar solo las activas si existe is_active
-      const productCategories = (categoriesResult.data || [])
-        .filter(cat => cat.is_active !== false) // Solo filtrar si is_active existe y es false
-        .map(cat => ({
+      const categoriesData = await categoriesResponse.json();
+      
+      // Mapear para compatibilidad
+      const productCategories = (categoriesData || [])
+        .filter((cat: any) => cat.is_active !== false)
+        .map((cat: any) => ({
           ...cat,
           display_order: cat.display_order || cat.order_index || 0,
           order_index: cat.order_index || cat.display_order || 0
-        }));
+        }))
+        .sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0));
       
       console.log('✅ Loaded option categories:', productCategories.length);
       setCategories(productCategories);
@@ -118,85 +93,29 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
         return;
       }
 
-      // Obtener los IDs de las categorías
-      const categoryIds = productCategories.map(cat => cat.id);
+      // Extraer todas las opciones de todas las categorías
+      const allOptions: any[] = [];
+      productCategories.forEach((cat: any) => {
+        if (cat.options && Array.isArray(cat.options)) {
+          cat.options.forEach((opt: any) => {
+            allOptions.push({
+              ...opt,
+              price: opt.price_modifier || opt.price || 0,
+              display_order: opt.display_order || opt.order_index || 0,
+              order_index: opt.order_index || opt.display_order || 0,
+              // Asegurar que ambas propiedades estén disponibles para el filtro
+              category_id: opt.category_id || opt.option_category_id || cat.id,
+              option_category_id: opt.option_category_id || opt.category_id || cat.id
+            });
+          });
+        }
+      });
       
-      if (categoryIds.length === 0) {
-        console.log('⚠️ No hay categorías de opciones para este producto');
-        setOptions([]);
-        setLoading(false);
-        return;
-      }
-
-      // Cargar opciones de esas categorías desde Supabase
-      // Intentar primero con category_id
-      let optionsResult = await supabase
-        .from('product_options')
-        .select('*')
-        .in('category_id', categoryIds)
-        .order('display_order', { ascending: true });
-
-      // Si falla con category_id, intentar con option_category_id
-      if (optionsResult.error) {
-        console.warn('⚠️ Error con category_id, intentando con option_category_id:', optionsResult.error);
-        optionsResult = await supabase
-          .from('product_options')
-          .select('*')
-          .in('option_category_id', categoryIds)
-          .order('display_order', { ascending: true });
-      }
-
-      // Si falla, intentar con order_index
-      if (optionsResult.error) {
-        console.warn('⚠️ Error con display_order, intentando con order_index:', optionsResult.error);
-        optionsResult = await supabase
-          .from('product_options')
-          .select('*')
-          .in('category_id', categoryIds)
-          .order('order_index', { ascending: true });
-        
-        if (optionsResult.error) {
-          optionsResult = await supabase
-            .from('product_options')
-            .select('*')
-            .in('option_category_id', categoryIds)
-            .order('order_index', { ascending: true });
-        }
-      }
-
-      // Si aún falla, intentar sin orden
-      if (optionsResult.error) {
-        console.warn('⚠️ Error con order_index, intentando sin orden:', optionsResult.error);
-        optionsResult = await supabase
-          .from('product_options')
-          .select('*')
-          .in('category_id', categoryIds);
-        
-        if (optionsResult.error) {
-          optionsResult = await supabase
-            .from('product_options')
-            .select('*')
-            .in('option_category_id', categoryIds);
-        }
-      }
-
-      if (optionsResult.error) {
-        console.error('❌ Error loading options:', optionsResult.error);
-        setOptions([]);
-      } else {
-        // Mapear price_modifier a price y display_order para compatibilidad
-        const mappedOptions = (optionsResult.data || []).map(opt => ({
-          ...opt,
-          price: opt.price_modifier || opt.price || 0,
-          display_order: opt.display_order || opt.order_index || 0,
-          order_index: opt.order_index || opt.display_order || 0,
-          // Asegurar que ambas propiedades estén disponibles para el filtro
-          category_id: opt.category_id || opt.option_category_id,
-          option_category_id: opt.option_category_id || opt.category_id
-        }));
-        console.log('✅ Loaded product options:', mappedOptions.length);
-        setOptions(mappedOptions);
-      }
+      // Ordenar opciones por display_order
+      allOptions.sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0));
+      
+      console.log('✅ Loaded product options:', allOptions.length);
+      setOptions(allOptions);
       
       setSelectedOptions({});
       setValidationErrors([]);

@@ -10,11 +10,8 @@ interface CheckoutConfirmationProps {
 export default function CheckoutConfirmation({ orderNumber, whatsappUrl, onBackToMenu }: CheckoutConfirmationProps) {
   const [loading, setLoading] = useState(true);
   const [confirmed, setConfirmed] = useState(false);
-  const [redirecting, setRedirecting] = useState(false);
-  const [countdown, setCountdown] = useState(3);
   const [progress, setProgress] = useState(0);
   const navigate = useNavigate();
-  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -38,32 +35,6 @@ export default function CheckoutConfirmation({ orderNumber, whatsappUrl, onBackT
         // Mostrar confirmación verde progresiva
         setTimeout(() => {
           setConfirmed(true);
-          
-          // Iniciar aviso de redirección después de 1.5 segundos
-          setTimeout(() => {
-            setRedirecting(true);
-            setCountdown(3);
-            
-            // Contador regresivo de 3 segundos
-            countdownIntervalRef.current = setInterval(() => {
-              setCountdown((prev) => {
-                const newCount = prev - 1;
-                
-                if (newCount <= 0) {
-                  if (countdownIntervalRef.current) {
-                    clearInterval(countdownIntervalRef.current);
-                  }
-                  // Redirigir a WhatsApp
-                  if (whatsappUrl) {
-                    window.open(whatsappUrl, '_blank');
-                  }
-                  return 0;
-                }
-                
-                return newCount;
-              });
-            }, 1000);
-          }, 1500);
         }, 200);
       }
     }, interval);
@@ -72,13 +43,10 @@ export default function CheckoutConfirmation({ orderNumber, whatsappUrl, onBackT
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
       }
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
-      }
     };
-  }, [whatsappUrl]);
+  }, []);
 
-  const handleOpenWhatsApp = () => {
+  const handleCompletePayment = () => {
     if (whatsappUrl) {
       try {
         window.open(whatsappUrl, '_blank');
@@ -246,76 +214,30 @@ export default function CheckoutConfirmation({ orderNumber, whatsappUrl, onBackT
               </div>
             </div>
 
-            {/* Aviso de redirección */}
-            {redirecting && (
-              <div className="bg-gradient-to-r from-green-100 via-green-50 to-blue-50 border-3 border-green-400 rounded-2xl p-6 animate-fadeIn shadow-lg mb-4">
-                <div className="flex items-center justify-center space-x-4 mb-4">
-                  <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-xl animate-pulse">
-                    <i className="ri-whatsapp-fill text-white text-3xl"></i>
-                  </div>
-                  <div className="text-center flex-1">
-                    <h3 className="font-extrabold text-green-800 text-xl mb-2">
-                      Redirigiendo a WhatsApp...
-                    </h3>
-                    <div className="flex items-center justify-center space-x-2 mb-2">
-                      <span className="text-5xl font-extrabold text-green-600 animate-pulse drop-shadow-lg">
-                        {countdown}
-                      </span>
-                      <span className="text-xl text-gray-600 font-semibold">
-                        {countdown === 1 ? 'segundo' : 'segundos'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="w-full bg-green-200 rounded-full h-4 overflow-hidden shadow-inner mb-4">
-                  <div 
-                    className="bg-gradient-to-r from-green-500 via-green-600 to-green-700 h-full rounded-full transition-all duration-1000 ease-out shadow-lg"
-                    style={{ width: `${((3 - countdown) / 3) * 100}%` }}
-                  ></div>
-                </div>
-                <p className="text-sm text-gray-600 text-center mb-4 font-semibold">
-                  Te redirigiremos automáticamente a WhatsApp
-                </p>
-                <button
-                  onClick={() => {
-                    if (countdownIntervalRef.current) {
-                      clearInterval(countdownIntervalRef.current);
-                    }
-                    setRedirecting(false);
-                  }}
-                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-md border-2 border-gray-200 text-sm"
-                >
-                  Cancelar redirección
-                </button>
-              </div>
-            )}
-
             {/* Botones de acción con animaciones */}
-            {!redirecting && (
-              <div className="space-y-4 animate-slideUp pt-2">
-                <button
-                  onClick={handleOpenWhatsApp}
-                  className="w-full bg-gradient-to-r from-green-500 via-green-600 to-green-700 hover:from-green-600 hover:via-green-700 hover:to-green-800 text-white font-extrabold py-5 px-6 rounded-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-2xl hover:shadow-green-500/50 flex items-center justify-center space-x-3 text-lg animate-glow"
-                >
-                  <i className="ri-whatsapp-fill text-3xl"></i>
-                  <span>Abrir WhatsApp</span>
-                  <i className="ri-arrow-right-line text-2xl animate-pulse"></i>
-                </button>
+            <div className="space-y-4 animate-slideUp pt-2">
+              <button
+                onClick={handleCompletePayment}
+                className="w-full bg-gradient-to-r from-green-500 via-green-600 to-green-700 hover:from-green-600 hover:via-green-700 hover:to-green-800 text-white font-extrabold py-5 px-6 rounded-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-2xl hover:shadow-green-500/50 flex items-center justify-center space-x-3 text-lg animate-glow"
+              >
+                <i className="ri-whatsapp-fill text-3xl"></i>
+                <span>Completar Pago</span>
+                <i className="ri-arrow-right-line text-2xl animate-pulse"></i>
+              </button>
 
-                <button
-                  onClick={() => {
-                    if (onBackToMenu) {
-                      onBackToMenu();
-                    } else {
-                      navigate('/menu');
-                    }
-                  }}
-                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-xl transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-md border-2 border-gray-200"
-                >
-                  Volver al Menú
-                </button>
-              </div>
-            )}
+              <button
+                onClick={() => {
+                  if (onBackToMenu) {
+                    onBackToMenu();
+                  } else {
+                    navigate('/menu');
+                  }
+                }}
+                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-xl transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-md border-2 border-gray-200"
+              >
+                Volver al Menú
+              </button>
+            </div>
           </div>
         )}
       </div>

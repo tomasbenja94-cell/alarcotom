@@ -345,23 +345,56 @@ export default function TransfersPending() {
                       <div className="flex-1">
                         <h4 className="text-xs font-medium text-[#111111] mb-2 uppercase tracking-wider">Comprobante de Transferencia:</h4>
                         <div className="bg-white p-3 rounded-sm border border-[#C7C7C7]">
-                          <img 
-                            src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'https://elbuenmenu.site'}${transfer.proof_image_url}`}
-                            alt="Comprobante de transferencia"
-                            className="max-w-full h-auto rounded-sm cursor-pointer hover:opacity-90 transition-opacity max-h-96 border border-[#C7C7C7]"
-                            onClick={() => window.open(`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'https://elbuenmenu.site'}${transfer.proof_image_url}`, '_blank')}
-                            onError={(e) => {
-                              console.error('❌ Error al cargar imagen:', transfer.proof_image_url, e);
-                              (e.target as HTMLImageElement).style.display = 'none';
-                              const parent = (e.target as HTMLImageElement).parentElement;
-                              if (parent) {
-                                parent.innerHTML = `<p className="text-xs text-[#C7C7C7]">⚠️ Imagen no disponible<br/>URL: ${transfer.proof_image_url}</p>`;
-                              }
-                            }}
-                            onLoad={() => {
-                              console.log('✅ Imagen cargada correctamente:', transfer.proof_image_url);
-                            }}
-                          />
+                          {(() => {
+                            // Construir URL correcta para la imagen
+                            let imageUrl = transfer.proof_image_url || '';
+                            
+                            // Si la URL ya es completa (http/https), usarla directamente
+                            if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+                              // URL completa, usar tal cual
+                            } else if (imageUrl.startsWith('/')) {
+                              // Ruta relativa que empieza con /
+                              const apiUrl = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
+                              const baseUrl = apiUrl.replace('/api', '') || 'https://api.elbuenmenu.site';
+                              imageUrl = `${baseUrl}${imageUrl}`;
+                            } else if (imageUrl) {
+                              // Ruta relativa sin /
+                              const apiUrl = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
+                              const baseUrl = apiUrl.replace('/api', '') || 'https://api.elbuenmenu.site';
+                              imageUrl = `${baseUrl}/${imageUrl}`;
+                            }
+                            
+                            if (!imageUrl) {
+                              return <p className="text-xs text-[#C7C7C7]">⚠️ URL de imagen no disponible</p>;
+                            }
+                            
+                            return (
+                              <img 
+                                src={imageUrl}
+                                alt="Comprobante de transferencia"
+                                className="max-w-full h-auto rounded-sm cursor-pointer hover:opacity-90 transition-opacity max-h-96 border border-[#C7C7C7]"
+                                onClick={() => window.open(imageUrl, '_blank')}
+                                onError={(e) => {
+                                  // Silenciar el error en consola, solo mostrar mensaje visual
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                  const parent = target.parentElement;
+                                  if (parent && !parent.querySelector('.error-message')) {
+                                    const errorMsg = document.createElement('p');
+                                    errorMsg.className = 'text-xs text-[#C7C7C7] error-message';
+                                    errorMsg.innerHTML = `⚠️ Imagen no disponible<br/><span class="text-[10px] opacity-75">${imageUrl}</span>`;
+                                    parent.appendChild(errorMsg);
+                                  }
+                                }}
+                                onLoad={() => {
+                                  // Solo loggear en desarrollo
+                                  if (import.meta.env.DEV) {
+                                    console.log('✅ Imagen cargada correctamente:', imageUrl);
+                                  }
+                                }}
+                              />
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>

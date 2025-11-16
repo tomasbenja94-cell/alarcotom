@@ -814,6 +814,7 @@ app.post('/api/orders', async (req, res) => {
 
     // Generar código único de 4 dígitos para el pedido
     const uniqueCode = await generateUniqueOrderCode();
+    console.log(`✅ Código único generado para pedido: ${uniqueCode}`);
 
     // Convertir snake_case a camelCase para Prisma
     const orderData = {
@@ -910,7 +911,11 @@ app.post('/api/orders', async (req, res) => {
       }
     }
     
-    res.json(objectToSnakeCase(order));
+    // Verificar que el uniqueCode se haya guardado correctamente
+    const responseOrder = objectToSnakeCase(order);
+    console.log(`📦 Pedido creado - Order Number: ${responseOrder.order_number}, Unique Code: ${responseOrder.unique_code || 'NO ASIGNADO'}`);
+    
+    res.json(responseOrder);
   } catch (error) {
     console.error('Error creating order:', error);
     res.status(500).json({ error: 'Error al crear pedido' });
@@ -1222,6 +1227,9 @@ app.put('/api/pending-transfers/:id', async (req, res) => {
     }
     if (req.body.status !== undefined) {
       transferData.status = req.body.status;
+    }
+    if (req.body.proof_image_url !== undefined || req.body.proofImageUrl !== undefined) {
+      transferData.proofImageUrl = req.body.proof_image_url || req.body.proofImageUrl || null;
     }
     if (req.body.verified_at !== undefined || req.body.verifiedAt !== undefined) {
       transferData.verifiedAt = req.body.verified_at ? new Date(req.body.verified_at) : new Date(req.body.verifiedAt);

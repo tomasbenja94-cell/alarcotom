@@ -133,11 +133,18 @@ export default function MenuManagement() {
         .order('name');
       
       if (ingredientsResult.error) {
-        // Si la tabla no existe, usar datos vacíos sin mostrar error
-        if (ingredientsResult.error.code === 'PGRST116' || ingredientsResult.error.code === 'PGRST205' || ingredientsResult.error.message?.includes('does not exist')) {
+        // Si la tabla no existe (404), usar datos vacíos sin mostrar error
+        if (ingredientsResult.error.code === 'PGRST116' || 
+            ingredientsResult.error.code === 'PGRST205' || 
+            ingredientsResult.error.status === 404 ||
+            ingredientsResult.error.message?.includes('does not exist') ||
+            ingredientsResult.error.message?.includes('relation') ||
+            ingredientsResult.error.message?.includes('not found')) {
           setIngredients([]);
           return;
         }
+        // Solo loggear otros errores
+        console.error('Error loading ingredients:', ingredientsResult.error);
       }
       
       if (ingredientsResult.data) {
@@ -147,7 +154,12 @@ export default function MenuManagement() {
       }
     } catch (error: any) {
       // Solo loggear si no es por tabla no existente
-      if (error.code !== 'PGRST116' && error.code !== 'PGRST205' && !error.message?.includes('does not exist')) {
+      if (error.code !== 'PGRST116' && 
+          error.code !== 'PGRST205' && 
+          error.status !== 404 &&
+          !error.message?.includes('does not exist') &&
+          !error.message?.includes('relation') &&
+          !error.message?.includes('not found')) {
         console.error('Error loading ingredients:', error);
       }
       setIngredients([]);
@@ -162,12 +174,18 @@ export default function MenuManagement() {
         .order('created_at', { ascending: false });
       
       if (recipesResult.error) {
-        // Si la tabla no existe, usar datos vacíos sin mostrar error
-        if (recipesResult.error.code === 'PGRST116' || recipesResult.error.code === 'PGRST205' || recipesResult.error.message?.includes('does not exist')) {
+        // Si la tabla no existe (404), usar datos vacíos sin mostrar error
+        if (recipesResult.error.code === 'PGRST116' || 
+            recipesResult.error.code === 'PGRST205' || 
+            recipesResult.error.status === 404 ||
+            recipesResult.error.message?.includes('does not exist') ||
+            recipesResult.error.message?.includes('relation') ||
+            recipesResult.error.message?.includes('not found')) {
           setRecipes([]);
           return;
         }
-        throw recipesResult.error;
+        // Solo loggear otros errores
+        console.error('Error loading recipes:', recipesResult.error);
       }
       
       if (recipesResult.data) {
@@ -180,7 +198,12 @@ export default function MenuManagement() {
       }
     } catch (error: any) {
       // Solo loggear si no es por tabla no existente
-      if (error.code !== 'PGRST116' && error.code !== 'PGRST205' && !error.message?.includes('does not exist')) {
+      if (error.code !== 'PGRST116' && 
+          error.code !== 'PGRST205' && 
+          error.status !== 404 &&
+          !error.message?.includes('does not exist') &&
+          !error.message?.includes('relation') &&
+          !error.message?.includes('not found')) {
         console.error('Error loading recipes:', error);
       }
       setRecipes([]);

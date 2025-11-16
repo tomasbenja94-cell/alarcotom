@@ -4,7 +4,6 @@ import MenuHeader from './components/MenuHeader';
 import CategoryTabs from './components/CategoryTabs';
 import ProductGrid from './components/ProductGrid';
 import CartSummary from './components/CartSummary';
-import { supabase } from '../../lib/supabase';
 
 interface Product {
   id: string;
@@ -49,83 +48,40 @@ export default function MenuPage() {
 
   const loadMenuData = async () => {
     try {
-      // Cargar categorías desde Supabase - usando display_order (como en Prisma)
-      const { data: categoriesData, error: categoriesError } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('is_active', true)
-        .order('display_order', { ascending: true });
-
-      if (categoriesError) {
-        console.error('Error loading categories:', categoriesError);
-        throw categoriesError;
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
+      
+      // Cargar categorías desde la API del backend
+      const categoriesResponse = await fetch(`${apiUrl}/categories`);
+      if (!categoriesResponse.ok) {
+        throw new Error(`Error loading categories: ${categoriesResponse.statusText}`);
       }
-
-      // Mapear para compatibilidad
-      const activeCategories = (categoriesData || []).map(cat => ({
-        ...cat,
-        display_order: cat.display_order || cat.order_index || 0,
-        order_index: cat.order_index || cat.display_order || 0
-      }));
+      const categoriesData = await categoriesResponse.json();
+      
+      // Filtrar solo categorías activas y mapear para compatibilidad
+      const activeCategories = (categoriesData || [])
+        .filter((cat: any) => cat.is_active !== false)
+        .map((cat: any) => ({
+          ...cat,
+          display_order: cat.display_order || cat.order_index || 0,
+          order_index: cat.order_index || cat.display_order || 0
+        }))
+        .sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0));
 
       setCategories(activeCategories);
 
-      // Cargar productos desde Supabase - simplificado para evitar errores de columnas
-      let productsData: any[] = [];
-      
-      // Primero intentar cargar solo productos básicos sin relaciones anidadas
-      let productsResult = await supabase
-        .from('products')
-        .select('*')
-        .eq('is_available', true)
-        .order('display_order', { ascending: true });
-
-      if (productsResult.error) {
-        // Si falla con display_order, intentar con order_index
-        productsResult = await supabase
-          .from('products')
-          .select('*')
-          .eq('is_available', true)
-          .order('order_index', { ascending: true });
-        
-        if (productsResult.error) {
-          // Si ambos fallan, intentar sin order
-          productsResult = await supabase
-            .from('products')
-            .select('*')
-            .eq('is_available', true);
-          
-          if (productsResult.error) {
-            console.error('Error loading products:', productsResult.error);
-            throw productsResult.error;
-          }
-        }
+      // Cargar productos desde la API del backend
+      const productsResponse = await fetch(`${apiUrl}/products`);
+      if (!productsResponse.ok) {
+        throw new Error(`Error loading products: ${productsResponse.statusText}`);
       }
-      
-      productsData = productsResult.data || [];
+      const productsData = await productsResponse.json();
 
-      // Ahora cargar las categorías de los productos
-      if (productsData.length > 0) {
-        const categoryIds = [...new Set(productsData.map(p => p.category_id).filter(Boolean))];
-        if (categoryIds.length > 0) {
-          const { data: categoriesData } = await supabase
-            .from('categories')
-            .select('*')
-            .in('id', categoryIds);
-          
-          const categoriesMap = new Map((categoriesData || []).map(cat => [cat.id, cat]));
-          
-          // Agregar la categoría a cada producto
-          productsData = productsData.map(product => ({
-            ...product,
-            category: categoriesMap.get(product.category_id) || null
-          }));
-        }
-      }
+      // Crear mapa de categorías para asociar a productos
+      const categoriesMap = new Map(activeCategories.map((cat: any) => [cat.id, cat]));
 
       // Mapear los datos para compatibilidad con el frontend
-      const availableProducts = productsData
-        .filter((product: any) => product && product.id && product.name) // Filtrar productos inválidos primero
+      const availableProducts = (productsData || [])
+        .filter((product: any) => product && product.id && product.name && product.is_available !== false) // Filtrar productos inválidos y no disponibles
         .map((product: any) => ({
           ...product,
           id: product.id || '',
@@ -134,13 +90,14 @@ export default function MenuPage() {
           price: typeof product.price === 'number' ? product.price : parseFloat(String(product.price)) || 0,
           image_url: product.image_url || product.imageUrl || 'https://via.placeholder.com/300x300?text=Sin+Imagen',
           category_id: product.category_id || product.categoryId || '',
-          is_available: product.is_available !== false && product.isAvailable !== false, // Por defecto true
+          is_available: product.is_available !== false && product.isAvailable !== false,
           display_order: product.display_order || product.displayOrder || product.order_index || product.orderIndex || 0,
-          sales_count: 0 // Por ahora 0, se puede calcular después si es necesario
+          sales_count: 0, // Por ahora 0, se puede calcular después si es necesario
+          category: categoriesMap.get(product.category_id || product.categoryId) || null
         }))
+        .sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0));
 
-      console.log('✅ Loaded products from Supabase:', availableProducts.length);
-      console.log('📦 Products data:', availableProducts);
+      console.log('✅ Loaded products from API:', availableProducts.length);
       
       // Verificar que los productos tengan los campos necesarios
       const validProducts = availableProducts.filter(p => {
@@ -156,9 +113,10 @@ export default function MenuPage() {
       
     } catch (error: any) {
       console.error('❌ Error loading menu data:', error);
-      console.error('Error details:', error?.message, error?.details, error?.hint);
+      console.error('Error details:', error?.message);
       // Aún así establecer productos vacíos para no quedar en loading infinito
       setProducts([]);
+      setCategories([]);
     } finally {
       setLoading(false);
     }

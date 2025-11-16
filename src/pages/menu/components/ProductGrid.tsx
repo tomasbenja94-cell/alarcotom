@@ -1,7 +1,6 @@
 
 import { useState, useEffect } from 'react';
 import ProductModal from './ProductModal';
-import { supabase } from '../../../lib/supabase';
 
 interface Product {
   id: string;
@@ -38,29 +37,36 @@ export default function ProductGrid({ products, onAddToCart }: ProductGridProps)
       const productIds = products.map(p => p.id).filter(Boolean);
       if (productIds.length === 0) return;
 
-      // Primero obtener las categorías de opciones que pertenecen a estos productos
-      const { data: optionCategories, error: catError } = await supabase
-        .from('product_option_categories')
-        .select('product_id')
-        .in('product_id', productIds)
-        .eq('is_active', true);
-
-      if (catError) {
-        console.error('Error loading option categories:', catError);
-        return;
-      }
-
-      if (optionCategories && optionCategories.length > 0) {
-        // Extraer los product_ids únicos
-        const productIdsWithOptions = new Set(
-          optionCategories
-            .map(cat => cat.product_id)
-            .filter(Boolean)
-        );
-        setProductsWithOptions(productIdsWithOptions);
-      } else {
-        setProductsWithOptions(new Set());
-      }
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
+      
+      // Obtener las categorías de opciones que pertenecen a estos productos desde la API del backend
+      // Hacer una petición por cada producto (o agrupar si el backend lo permite)
+      const productIdsWithOptions = new Set<string>();
+      
+      // Hacer peticiones en paralelo para todos los productos
+      const promises = productIds.map(async (productId) => {
+        try {
+          const response = await fetch(`${apiUrl}/product-option-categories?productId=${productId}`);
+          if (response.ok) {
+            const categories = await response.json();
+            // Si hay categorías activas, el producto tiene opciones
+            if (categories && categories.length > 0) {
+              const hasActiveCategories = categories.some((cat: any) => cat.is_active !== false);
+              if (hasActiveCategories) {
+                productIdsWithOptions.add(productId);
+              }
+            }
+          }
+        } catch (error) {
+          // Silenciar errores individuales, solo loggear si es necesario
+          if (import.meta.env.DEV) {
+            console.warn(`Error checking options for product ${productId}:`, error);
+          }
+        }
+      });
+      
+      await Promise.all(promises);
+      setProductsWithOptions(productIdsWithOptions);
     } catch (error) {
       console.error('Error checking products with options:', error);
       setProductsWithOptions(new Set());

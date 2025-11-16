@@ -170,40 +170,24 @@ export default function Checkout() {
       const finalOrderNumber = createdOrder.order_number || `#${createdOrder.id.slice(0, 8)}`;
       setOrderNumber(finalOrderNumber);
       
-      // Obtener IUC del cliente (si existe) después de crear el pedido
-      let customerIUC = '';
-      try {
-        if (createdOrder.customer_phone) {
-          const customersResponse = await fetch(`${import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api'}/api/customers`);
-          if (customersResponse.ok) {
-            const customers = await customersResponse.json();
-            const customer = customers.find((c: any) => c.phone === createdOrder.customer_phone);
-            if (customer && customer.iuc) {
-              customerIUC = customer.iuc;
-            }
-          }
-        }
-      } catch (error) {
-        console.warn('No se pudo obtener el IUC del cliente:', error);
-        // Continuar sin IUC - el bot asignará uno cuando se apruebe el pedido
+      // Obtener código único del pedido
+      const uniqueCode = createdOrder.unique_code || createdOrder.uniqueCode;
+      
+      if (!uniqueCode) {
+        console.warn('⚠️ El pedido no tiene código único asignado');
+        console.warn('📦 Respuesta completa del pedido:', createdOrder);
+      } else {
+        console.log(`✅ Código único recibido: ${uniqueCode}`);
       }
       
-      // Mensaje con IUC si está disponible, sino se asigna cuando se aprueba el pedido
-      // El formato debe ser EXACTO: PEDIDO CONFIRMADO - XXXX - El Buen Menú
-      let mensaje = '';
-      if (customerIUC) {
-        mensaje = `PEDIDO CONFIRMADO - ${customerIUC} - El Buen Menú
+      // Mensaje con formato: PEDIDO CONFIRMADO - XXXX - El Buen Menú Código de pedido: #XXXX
+      const mensaje = uniqueCode 
+        ? `PEDIDO CONFIRMADO - ${uniqueCode} - El Buen Menú
+
+Código de pedido: ${finalOrderNumber}`
+        : `PEDIDO CONFIRMADO - El Buen Menú
 
 Código de pedido: ${finalOrderNumber}`;
-      } else {
-        // Si no hay IUC aún (pedido pendiente), enviar mensaje simple
-        // El IUC se asignará cuando el pedido sea aprobado
-        mensaje = `PEDIDO CONFIRMADO - El Buen Menú
-
-Código de pedido: ${finalOrderNumber}
-
-⚠️ Tu identificador único (IUC) se te asignará cuando el pedido sea aprobado.`;
-      }
 
       const mensajeCodificado = encodeURIComponent(mensaje);
       const whatsappNumber = '5493487207406';
