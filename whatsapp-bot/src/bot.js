@@ -371,7 +371,7 @@ async function loadBotMessages() {
 Escribí el número o palabra clave.`,
             menu: `📋 Acá tenés nuestro menú completo 👇
 
-🌐 https://buenmenuapp.online/menu
+🌐 https://elbuenmenu.site/menu
 
 ¡Elegí tus productos favoritos y hacé tu pedido! 🍔`,
             hours: `🕐 NUESTROS HORARIOS:
@@ -1949,35 +1949,71 @@ async function isWithinBusinessHours() {
             });
             
             if (specialHoursResponse && specialHoursResponse.isActive) {
-                const { startTime, endTime } = specialHoursResponse;
+                const { startTime, endTime, expiresAt } = specialHoursResponse;
                 
-                // Convertir horas a minutos para comparar
-                const [startHour, startMin] = startTime.split(':').map(Number);
-                const [endHour, endMin] = endTime.split(':').map(Number);
-                const startMinutes = startHour * 60 + startMin;
-                const endMinutes = endHour * 60 + endMin;
-                const currentMinutes = hour * 60 + minute;
+                // Verificar que no haya expirado
+                if (expiresAt) {
+                    const expiresDate = new Date(expiresAt);
+                    const now = new Date();
+                    if (now > expiresDate) {
+                        logger.debug(`⚠️ Horario especial expirado (expira: ${expiresAt}, ahora: ${now.toISOString()})`);
+                        // Continuar con horario normal
+                    } else {
+                        // Convertir horas a minutos para comparar
+                        const [startHour, startMin] = startTime.split(':').map(Number);
+                        const [endHour, endMin] = endTime.split(':').map(Number);
+                        const startMinutes = startHour * 60 + startMin;
+                        const endMinutes = endHour * 60 + endMin;
+                        const currentMinutes = hour * 60 + minute;
 
-                logger.debug(`🕒 Comparando horario especial:`, {
-                    startTime,
-                    endTime,
-                    startMinutes,
-                    endMinutes,
-                    currentMinutes,
-                    crossesMidnight: endMinutes < startMinutes
-                });
+                        logger.info(`🕒 Comparando horario especial:`, {
+                            startTime,
+                            endTime,
+                            startMinutes,
+                            endMinutes,
+                            currentMinutes,
+                            currentTime: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+                            crossesMidnight: endMinutes < startMinutes,
+                            expiresAt
+                        });
 
-                // Si el horario cruza medianoche (ej: 20:00 - 02:00)
-                if (endMinutes < startMinutes) {
-                    // Horario que cruza medianoche
-                    const isWithin = currentMinutes >= startMinutes || currentMinutes <= endMinutes;
-                    logger.debug(`✅ Horario especial (cruza medianoche): ${isWithin ? 'ABIERTO' : 'CERRADO'}`);
-                    return isWithin;
+                        // Si el horario cruza medianoche (ej: 20:00 - 02:00)
+                        if (endMinutes < startMinutes) {
+                            // Horario que cruza medianoche
+                            const isWithin = currentMinutes >= startMinutes || currentMinutes <= endMinutes;
+                            logger.info(`✅ Horario especial (cruza medianoche): ${isWithin ? 'ABIERTO' : 'CERRADO'}`);
+                            return isWithin;
+                        } else {
+                            // Horario normal (no cruza medianoche)
+                            const isWithin = currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+                            logger.info(`✅ Horario especial (normal): ${isWithin ? 'ABIERTO' : 'CERRADO'}`);
+                            return isWithin;
+                        }
+                    }
                 } else {
-                    // Horario normal (no cruza medianoche)
-                    const isWithin = currentMinutes >= startMinutes && currentMinutes <= endMinutes;
-                    logger.debug(`✅ Horario especial (normal): ${isWithin ? 'ABIERTO' : 'CERRADO'}`);
-                    return isWithin;
+                    // Sin fecha de expiración, usar directamente
+                    const [startHour, startMin] = startTime.split(':').map(Number);
+                    const [endHour, endMin] = endTime.split(':').map(Number);
+                    const startMinutes = startHour * 60 + startMin;
+                    const endMinutes = endHour * 60 + endMin;
+                    const currentMinutes = hour * 60 + minute;
+
+                    logger.info(`🕒 Comparando horario especial (sin expiración):`, {
+                        startTime,
+                        endTime,
+                        currentTime: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+                        crossesMidnight: endMinutes < startMinutes
+                    });
+
+                    if (endMinutes < startMinutes) {
+                        const isWithin = currentMinutes >= startMinutes || currentMinutes <= endMinutes;
+                        logger.info(`✅ Horario especial (cruza medianoche, sin expiración): ${isWithin ? 'ABIERTO' : 'CERRADO'}`);
+                        return isWithin;
+                    } else {
+                        const isWithin = currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+                        logger.info(`✅ Horario especial (normal, sin expiración): ${isWithin ? 'ABIERTO' : 'CERRADO'}`);
+                        return isWithin;
+                    }
                 }
             } else {
                 logger.debug(`⚠️ No hay horario especial activo, usando horario normal`);
@@ -3211,7 +3247,7 @@ async function handleMessage(message) {
         
         // 10. OPCIONES DEL MENÚ PRINCIPAL
         if (body === '1' || (body.includes('menu') && !body.includes('menú principal') && !body.includes('menu principal')) || body.includes('ver menu') || body.includes('ver menú') || body.includes('productos')) {
-            const menuMessage = botMessages?.menu || `📋 *NUESTRO MENÚ COMPLETO*\n\n🌐 https://buenmenuapp.online/menu\n\n¡Elegí tus productos favoritos y hacé tu pedido! 🍔\n\n💡 Podés agregar productos al carrito y confirmar tu pedido desde la web.`;
+            const menuMessage = botMessages?.menu || `📋 *NUESTRO MENÚ COMPLETO*\n\n🌐 https://elbuenmenu.site/menu\n\n¡Elegí tus productos favoritos y hacé tu pedido! 🍔\n\n💡 Podés agregar productos al carrito y confirmar tu pedido desde la web.`;
             
             await sendMessage(from, menuMessage);
             userSession.step = 'welcome';

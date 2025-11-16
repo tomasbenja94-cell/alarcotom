@@ -38,10 +38,10 @@ serve(async (req) => {
       cvu: settingsMap.bank_cvu || "0000007900001234567890",
       mercadoPagoLink: settingsMap.mercado_pago_link || "https://mpago.la/elbuenmenu",
       horarios: `Lunes a Viernes: ${settingsMap.weekday_open || '11:00'} - ${settingsMap.weekday_close || '23:00'}\nSábados y Domingos: ${settingsMap.weekend_open || '12:00'} - ${settingsMap.weekend_close || '24:00'}`,
-      menuUrl: settingsMap.menu_url || "https://buenmenuapp.online/menu",
+      menuUrl: settingsMap.menu_url || "https://elbuenmenu.site/menu",
       mensajes: {
         bienvenida: settingsMap.welcome_message || "¡Hola! 👋 Bienvenido a El Buen Menú 🍔\n1️⃣ Ver menú\n2️⃣ Consultar pedido\n3️⃣ Horarios",
-        menu: `🛒 Podés ver nuestro menú completo aquí: ${settingsMap.menu_url || "https://buenmenuapp.online/menu"}`,
+        menu: `🛒 Podés ver nuestro menú completo aquí: ${settingsMap.menu_url || "https://elbuenmenu.site/menu"}`,
         consultar_pedido: "Por favor, enviame tu número de pedido o nombre para consultar su estado 📦",
         pago_opciones: settingsMap.order_confirmation_message || "Recibimos tu pedido 🧾\nPor favor confirmá el método de pago:\n💳 Transferencia / Mercado Pago / Efectivo",
         pago_confirmado: settingsMap.payment_confirmed_message || "💰 Transferencia confirmada. Tu pedido está en preparación 🍳",

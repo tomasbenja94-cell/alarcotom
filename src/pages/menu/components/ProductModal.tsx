@@ -189,7 +189,10 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
           ...opt,
           price: opt.price_modifier || opt.price || 0,
           display_order: opt.display_order || opt.order_index || 0,
-          order_index: opt.order_index || opt.display_order || 0
+          order_index: opt.order_index || opt.display_order || 0,
+          // Asegurar que ambas propiedades estén disponibles para el filtro
+          category_id: opt.category_id || opt.option_category_id,
+          option_category_id: opt.option_category_id || opt.category_id
         }));
         console.log('✅ Loaded product options:', mappedOptions.length);
         setOptions(mappedOptions);
@@ -507,7 +510,9 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
             ) : (
               <div className="space-y-5 pt-2">
                 {categories.map((category) => {
-                  const categoryOptions = options.filter(opt => opt.category_id === category.id);
+                  const categoryOptions = options.filter(opt => 
+                    opt.option_category_id === category.id || opt.category_id === category.id
+                  );
                   const isUnlocked = isCategoryUnlocked(category);
                   const dependencyText = getDependencyText(category);
                   const currentSelections = selectedOptions[category.id] || [];

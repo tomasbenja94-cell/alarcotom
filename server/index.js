@@ -786,7 +786,7 @@ app.post('/api/orders', async (req, res) => {
       customerPhone: req.body.customer_phone || req.body.customerPhone,
       customerAddress: req.body.customer_address || req.body.customerAddress,
       status: req.body.status || 'pending',
-      paymentMethod: req.body.payment_method || req.body.paymentMethod,
+      paymentMethod: req.body.payment_method !== undefined ? req.body.payment_method : (req.body.paymentMethod !== undefined ? req.body.paymentMethod : null),
       paymentStatus: req.body.payment_status || req.body.paymentStatus || 'pending',
       subtotal: req.body.subtotal,
       deliveryFee: req.body.delivery_fee || req.body.deliveryFee || 0,
@@ -2897,8 +2897,10 @@ app.post('/api/system/special-hours', corsMiddleware, async (req, res) => {
       data: { isActive: false }
     });
 
-    // Calcular fecha de expiración (mañana a las 00:00)
-    const expiresAt = new Date();
+    // Calcular fecha de expiración (mañana a las 00:00 en zona horaria de Argentina)
+    const now = new Date();
+    const argentinaTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
+    const expiresAt = new Date(argentinaTime);
     expiresAt.setDate(expiresAt.getDate() + 1);
     expiresAt.setHours(0, 0, 0, 0);
 

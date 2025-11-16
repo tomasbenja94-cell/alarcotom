@@ -429,7 +429,7 @@ export default function OrdersManagement() {
 
   <div class="section">
     <div class="section-title">Pago</div>
-    <div>💳 ${order.payment_method || 'Pendiente'}</div>
+    <div>💳 ${order.payment_method || 'Pendiente de selección (Web)'}</div>
     <div>Estado: ${order.payment_status === 'completed' ? '✅ Pagado' : '⏳ Pendiente'}</div>
   </div>
 
@@ -753,7 +753,7 @@ export default function OrdersManagement() {
                   <span className="font-bold text-base text-[#111111]">${order.total.toLocaleString('es-AR')}</span>
                 </div>
                 
-                <div className="text-xs text-[#C7C7C7] mb-2">💳 {order.payment_method}</div>
+                <div className="text-xs text-[#C7C7C7] mb-2">💳 {order.payment_method || 'Pendiente de selección (Web)'}</div>
 
                 {/* Dirección compacta */}
                 {order.customer_address && (

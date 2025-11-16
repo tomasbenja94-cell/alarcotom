@@ -149,7 +149,7 @@ export default function Checkout() {
         customer_phone: '', // Se obtendrá desde WhatsApp
         customer_address: fullAddress,
         status: 'pending',
-        payment_method: 'Pendiente',
+        payment_method: null, // Se elegirá en WhatsApp
         payment_status: 'pending',
         subtotal: total,
         delivery_fee: customerInfo.deliveryType === 'delivery' ? 3500 : 0,
