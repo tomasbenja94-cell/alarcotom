@@ -895,22 +895,29 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
         }
       });
     } catch (createError) {
-      // Si falla por uniqueCode, intentar sin él
-      const errorMessage = createError.message || '';
-      if (errorMessage.includes('uniqueCode') || errorMessage.includes('unique_code') || errorMessage.includes('Unknown argument')) {
-        console.warn('⚠️ Error por uniqueCode, intentando crear pedido sin uniqueCode...');
+      // Si tenemos uniqueCode y falla, intentar sin él (migración no aplicada)
+      if (orderData.uniqueCode) {
+        console.warn('⚠️ Error al crear pedido con uniqueCode, intentando sin uniqueCode...');
+        console.warn('⚠️ Error original:', createError.message);
+        
         const orderDataWithoutUniqueCode = { ...orderData };
         delete orderDataWithoutUniqueCode.uniqueCode;
         
-        order = await prisma.order.create({
-          data: orderDataWithoutUniqueCode,
-          include: {
-            items: true
-          }
-        });
-        console.warn('✅ Pedido creado sin uniqueCode. Ejecuta: npx prisma migrate deploy');
+        try {
+          order = await prisma.order.create({
+            data: orderDataWithoutUniqueCode,
+            include: {
+              items: true
+            }
+          });
+          console.warn('✅ Pedido creado sin uniqueCode. Ejecuta: npx prisma migrate deploy');
+        } catch (retryError) {
+          console.error('❌ Error al crear pedido sin uniqueCode:', retryError.message);
+          // Si el segundo intento también falla, relanzar el error original
+          throw createError;
+        }
       } else {
-        // Si es otro error, relanzarlo
+        // Si no hay uniqueCode y falla, es otro error
         throw createError;
       }
     }
@@ -959,14 +966,8 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
     console.error('❌ Error code:', error.code);
     console.error('❌ Request body:', JSON.stringify(req.body, null, 2));
     
-    // Si es un error de Prisma relacionado con uniqueCode, dar un mensaje más específico
-    if (error.message && error.message.includes('unique_code')) {
-      console.error('⚠️ ERROR: La columna unique_code no existe en la base de datos. Ejecuta la migración: npx prisma migrate deploy');
-      return res.status(500).json({ 
-        error: 'Error al crear pedido: La migración de unique_code no está aplicada',
-        details: 'Ejecuta: npx prisma migrate deploy en el servidor'
-      });
-    }
+    // El error ya debería haber sido manejado en el catch interno
+    // Si llegamos aquí, es un error diferente
     
     res.status(500).json({ 
       error: 'Error al crear pedido',
