@@ -889,7 +889,6 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
             selectedOptions: selectedOptionsValue
           };
         })
-      }
     };
 
     // Intentar crear el pedido
