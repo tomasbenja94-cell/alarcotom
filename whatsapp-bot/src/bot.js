@@ -47,7 +47,10 @@ async function apiRequest(endpoint, options = {}) {
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            const response = await fetch(`${API_CONFIG.url}${endpoint}`, {
+            const url = `${API_CONFIG.url}${endpoint}`;
+            logger.debug(`📡 [API Request] ${options.method || 'GET'} ${url} (intento ${attempt}/${maxRetries})`);
+            
+            const response = await fetch(url, {
                 headers: {
                     'Content-Type': 'application/json',
                     ...options.headers
@@ -55,16 +58,22 @@ async function apiRequest(endpoint, options = {}) {
                 ...options
             });
 
+            logger.debug(`📡 [API Response] Status: ${response.status}, Content-Type: ${response.headers.get('content-type')}`);
+
             if (!response.ok) {
                 const errorText = await response.text();
+                logger.error(`❌ [API Error] HTTP ${response.status} para ${endpoint}: ${errorText.substring(0, 200)}`);
                 throw new Error(`HTTP ${response.status}: ${errorText}`);
             }
 
             // Si la respuesta es 204 No Content, response.json() would fail; handle that
             const contentType = response.headers.get('content-type');
             if (contentType && contentType.includes('application/json')) {
-                return await response.json();
+                const data = await response.json();
+                logger.debug(`✅ [API Success] ${endpoint} devolvió:`, typeof data, Array.isArray(data) ? `array[${data.length}]` : 'objeto');
+                return data;
             } else {
+                logger.warn(`⚠️ [API Warning] ${endpoint} no devolvió JSON, Content-Type: ${contentType}`);
                 return null; // No JSON body
             }
         } catch (error) {
@@ -3380,16 +3389,24 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
         let allOrders;
         try {
             allOrders = await apiRequest('/orders');
-            logger.info(`✅ Recibidos ${allOrders?.length || 0} pedidos de la API`);
+            logger.info(`📦 Respuesta de API - Tipo: ${typeof allOrders}, Es array: ${Array.isArray(allOrders)}, Valor:`, JSON.stringify(allOrders).substring(0, 200));
+            
+            if (allOrders === null || allOrders === undefined) {
+                logger.error('❌ La API devolvió null o undefined');
+                throw new Error('La API no devolvió datos (null/undefined)');
+            }
+            
+            if (!Array.isArray(allOrders)) {
+                logger.error(`❌ La respuesta de la API no es un array. Tipo: ${typeof allOrders}, Valor:`, allOrders);
+                throw new Error(`La respuesta del servidor no tiene el formato esperado. Tipo recibido: ${typeof allOrders}`);
+            }
+            
+            logger.info(`✅ Recibidos ${allOrders.length} pedidos de la API`);
         } catch (apiError) {
             logger.error('❌ Error al obtener pedidos de la API:', apiError);
             logger.error('❌ Stack:', apiError.stack);
+            logger.error('❌ API URL:', `${API_CONFIG.url}/orders`);
             throw new Error(`Error al conectar con el servidor: ${apiError.message}`);
-        }
-        
-        if (!Array.isArray(allOrders)) {
-            logger.error(`❌ La respuesta de la API no es un array:`, typeof allOrders, allOrders);
-            throw new Error('La respuesta del servidor no tiene el formato esperado');
         }
         
         const orders = allOrders.filter(order => {
