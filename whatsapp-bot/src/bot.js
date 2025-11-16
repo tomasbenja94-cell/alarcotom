@@ -3317,10 +3317,12 @@ async function handleMessage(message) {
 async function handleWebOrderConfirmed(from, messageText, userSession) {
     try {
         logger.info(`🌐 Procesando pedido web confirmado de ${from}`);
+        logger.info(`📋 Mensaje completo recibido: "${messageText}"`);
         
         // Extraer código de pedido del mensaje
         const orderCodeMatch = messageText.match(/Código de pedido:\s*([#\d]+)/i);
         if (!orderCodeMatch) {
+            logger.error(`❌ No se pudo extraer el código de pedido del mensaje: "${messageText}"`);
             await sendMessage(from, '❌ No pude encontrar el código de pedido. Por favor, contactanos directamente.');
             return;
         }
@@ -3329,14 +3331,34 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
         logger.info(`🔍 Buscando pedido con código: ${orderCode}`);
         
         // Buscar el pedido en la base de datos
-        const allOrders = await apiRequest('/orders');
+        logger.info(`📡 Haciendo request a /orders...`);
+        let allOrders;
+        try {
+            allOrders = await apiRequest('/orders');
+            logger.info(`✅ Recibidos ${allOrders?.length || 0} pedidos de la API`);
+        } catch (apiError) {
+            logger.error('❌ Error al obtener pedidos de la API:', apiError);
+            logger.error('❌ Stack:', apiError.stack);
+            throw new Error(`Error al conectar con el servidor: ${apiError.message}`);
+        }
+        
+        if (!Array.isArray(allOrders)) {
+            logger.error(`❌ La respuesta de la API no es un array:`, typeof allOrders, allOrders);
+            throw new Error('La respuesta del servidor no tiene el formato esperado');
+        }
+        
         const orders = allOrders.filter(order => {
             const orderNum = order.order_number?.replace('#', '') || '';
-            return orderNum === orderCode;
+            const matches = orderNum === orderCode;
+            if (matches) {
+                logger.info(`✅ Pedido encontrado: ${order.order_number} (ID: ${order.id})`);
+            }
+            return matches;
         });
         
         if (orders.length === 0) {
-            await sendMessage(from, `❌ No encontré el pedido con código ${orderCode}. Por favor, verificá el código o contactanos directamente.`);
+            logger.warn(`⚠️ No se encontró pedido con código ${orderCode}. Pedidos disponibles:`, allOrders.map(o => o.order_number));
+            await sendMessage(from, `❌ No encontré el pedido con código #${orderCode}. Por favor, verificá el código o contactanos directamente.`);
             return;
         }
         
@@ -3528,7 +3550,23 @@ ${itemsText}
         
     } catch (error) {
         logger.error('❌ Error al procesar pedido web confirmado:', error);
-        await sendMessage(from, '❌ Hubo un error al procesar tu pedido. Por favor, contactanos directamente.');
+        logger.error('❌ Stack trace:', error.stack);
+        logger.error('❌ Mensaje recibido:', messageText);
+        logger.error('❌ From:', from);
+        
+        // Enviar mensaje más específico si es posible
+        let errorMessage = '❌ Hubo un error al procesar tu pedido. Por favor, contactanos directamente.';
+        
+        if (error.message) {
+            logger.error('❌ Error message:', error.message);
+            if (error.message.includes('fetch') || error.message.includes('network')) {
+                errorMessage = '❌ Error de conexión. Por favor, intentá nuevamente en unos momentos.';
+            } else if (error.message.includes('JSON') || error.message.includes('parse')) {
+                errorMessage = '❌ Error al procesar los datos del pedido. Por favor, contactanos directamente.';
+            }
+        }
+        
+        await sendMessage(from, errorMessage);
     }
 }
 
