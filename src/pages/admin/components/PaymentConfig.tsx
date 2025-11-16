@@ -212,7 +212,7 @@ export default function PaymentConfig() {
 
       // Guardar configuración en el backend para que Mercado Pago funcione
       try {
-        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const API_URL = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
         const response = await fetch(`${API_URL}/api/admin/payment-config`, {
           method: 'POST',
           headers: {

@@ -23,7 +23,7 @@ export default function DailyChecklist() {
   const [tasks, setTasks] = useState<ChecklistTask[]>([]);
   const [newTask, setNewTask] = useState<ChecklistTask>({ title: '', isCompleted: false, priority: 0 });
   const [isLoading, setIsLoading] = useState(false);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const API_URL = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
 
   useEffect(() => {
     loadTodayTasks();

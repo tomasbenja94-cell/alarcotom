@@ -13,7 +13,7 @@ export default function SpecialHoursButton() {
   const [showModal, setShowModal] = useState(false);
   const [startTime, setStartTime] = useState('18:00');
   const [endTime, setEndTime] = useState('00:00');
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const API_URL = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
 
   // Cargar estado actual al montar
   useEffect(() => {

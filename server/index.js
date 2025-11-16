@@ -1281,7 +1281,7 @@ app.post('/api/delivery-persons/:id/accept-order', async (req, res) => {
     // Notificar al cliente
     if (order.customerPhone && order.customerPhone.trim() !== '') {
       try {
-        const webhookUrl = process.env.BOT_WEBHOOK_URL || 'http://localhost:3001';
+        const webhookUrl = process.env.BOT_WEBHOOK_URL || 'https://elbuenmenu.site';
         console.log(`📤 Enviando notificación a ${order.customerPhone} para pedido ${order.orderNumber}`);
         const response = await fetch(`${webhookUrl}/notify-order`, {
           method: 'POST',
@@ -1292,7 +1292,7 @@ app.post('/api/delivery-persons/:id/accept-order', async (req, res) => {
             customerPhone: order.customerPhone,
             status: 'assigned',
             deliveryCode: deliveryCode,
-            message: `🛵 ¡Tu pedido va en camino!\n\n🔐 *Código de entrega: ${deliveryCode}*\n\n📍 Podés seguir al repartidor en tiempo real:\n${process.env.FRONTEND_URL || 'https://elbuenmenu.store'}/track/${trackingToken}\n\n⏰ Llegada estimada: 15-20 minutos\n\n¡Gracias por elegirnos! ❤️`
+            message: `🛵 ¡Tu pedido va en camino!\n\n🔐 *Código de entrega: ${deliveryCode}*\n\n📍 Podés seguir al repartidor en tiempo real:\n${process.env.FRONTEND_URL || 'https://elbuenmenu.site'}/track/${trackingToken}\n\n⏰ Llegada estimada: 15-20 minutos\n\n¡Gracias por elegirnos! ❤️`
           })
         });
         
@@ -1418,7 +1418,7 @@ app.post('/api/delivery-persons/:id/deliver-order', async (req, res) => {
     // Notificar al cliente
     if (order.customerPhone && order.customerPhone.trim() !== '') {
       try {
-        const webhookUrl = process.env.BOT_WEBHOOK_URL || 'http://localhost:3001';
+        const webhookUrl = process.env.BOT_WEBHOOK_URL || 'https://elbuenmenu.site';
         console.log(`📤 [NOTIFICACIÓN] Enviando notificación de entrega a ${order.customerPhone} para pedido ${order.orderNumber}`);
         const response = await fetch(`${webhookUrl}/notify-order`, {
           method: 'POST',
@@ -1577,7 +1577,7 @@ app.post('/api/orders/:id/approve',
           where: { phone: order.customerPhone }
         });
         
-        const webhookUrl = process.env.BOT_WEBHOOK_URL || 'http://localhost:3001';
+        const webhookUrl = process.env.BOT_WEBHOOK_URL || 'https://elbuenmenu.site';
         let message = `✅ ¡Tu pedido ${order.orderNumber} ha sido aprobado!\n\n🍔 Estamos preparando tu pedido\n⏰ Tiempo estimado: 20-30 minutos\n📱 Te avisaremos cuando esté listo\n\n`;
         
         // Incluir IUC en el mensaje si está disponible
@@ -1681,7 +1681,7 @@ app.post('/api/orders/:id/reject',
     // Notificar al cliente
     if (order.customerPhone && order.customerPhone.trim() !== '') {
       try {
-        const webhookUrl = process.env.BOT_WEBHOOK_URL || 'http://localhost:3001';
+        const webhookUrl = process.env.BOT_WEBHOOK_URL || 'https://elbuenmenu.site';
         const rejectionMessage = reason 
           ? `❌ Lamentamos informarte que tu pedido ${order.orderNumber} ha sido rechazado.\n\n📝 Motivo: ${reason}\n\n💬 Si tenés alguna consulta o necesitás ayuda, no dudés en contactarnos.\n\nEstamos aquí para ayudarte. ❤️`
           : `❌ Lamentamos informarte que tu pedido ${order.orderNumber} ha sido rechazado.\n\n💬 Si tenés alguna consulta o necesitás ayuda, no dudés en contactarnos.\n\nEstamos aquí para ayudarte. ❤️`;
@@ -1745,7 +1745,7 @@ app.post('/api/orders/:id/cancel', async (req, res) => {
     // Notificar al cliente
     if (order.customerPhone && order.customerPhone.trim() !== '') {
       try {
-        const webhookUrl = process.env.BOT_WEBHOOK_URL || 'http://localhost:3001';
+        const webhookUrl = process.env.BOT_WEBHOOK_URL || 'https://elbuenmenu.site';
         console.log(`📤 Enviando notificación a ${order.customerPhone} para pedido ${order.orderNumber}`);
         const response = await fetch(`${webhookUrl}/notify-order`, {
           method: 'POST',
@@ -1973,8 +1973,8 @@ app.post('/api/delivery/accept-order',
       // Notificar al cliente vía WhatsApp
       if (order.customerPhone && order.customerPhone.trim() !== '') {
         try {
-          const webhookUrl = process.env.BOT_WEBHOOK_URL || 'http://localhost:3001';
-          const trackingUrl = `${process.env.FRONTEND_URL || 'https://elbuenmenu.store'}/track/${trackingToken}`;
+          const webhookUrl = process.env.BOT_WEBHOOK_URL || 'https://elbuenmenu.site';
+          const trackingUrl = `${process.env.FRONTEND_URL || 'https://elbuenmenu.site'}/track/${trackingToken}`;
           
           await fetch(`${webhookUrl}/notify-order`, {
             method: 'POST',
@@ -1996,7 +1996,7 @@ app.post('/api/delivery/accept-order',
       // Notificar al repartidor si debe cobrar en efectivo
       if (needsCashCollection && driver.phone) {
         try {
-          const webhookUrl = process.env.BOT_WEBHOOK_URL || 'http://localhost:3001';
+          const webhookUrl = process.env.BOT_WEBHOOK_URL || 'https://elbuenmenu.site';
           const formattedAmount = new Intl.NumberFormat('es-AR', {
             style: 'currency',
             currency: 'ARS',
@@ -2222,7 +2222,7 @@ app.post('/api/delivery/deliver-order',
       // 4. Notificar al cliente
       if (order.customerPhone && order.customerPhone.trim() !== '') {
         try {
-          const webhookUrl = process.env.BOT_WEBHOOK_URL || 'http://localhost:3001';
+          const webhookUrl = process.env.BOT_WEBHOOK_URL || 'https://elbuenmenu.site';
           await fetch(`${webhookUrl}/notify-order`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-API-Key': process.env.INTERNAL_API_KEY || '' },
@@ -2691,13 +2691,13 @@ app.post('/api/payments/mercadopago/create-preference', corsMiddleware, async (r
         }
       ],
       back_urls: {
-        success: process.env.MERCADOPAGO_SUCCESS_URL || 'https://elbuenmenu.store/success',
-        failure: process.env.MERCADOPAGO_FAILURE_URL || 'https://elbuenmenu.store/failure',
-        pending: process.env.MERCADOPAGO_PENDING_URL || 'https://elbuenmenu.store/pending'
+        success: process.env.MERCADOPAGO_SUCCESS_URL || 'https://elbuenmenu.site/success',
+        failure: process.env.MERCADOPAGO_FAILURE_URL || 'https://elbuenmenu.site/failure',
+        pending: process.env.MERCADOPAGO_PENDING_URL || 'https://elbuenmenu.site/pending'
       },
       auto_return: 'approved',
       external_reference: orderNumber || `ORDER-${Date.now()}`,
-      notification_url: process.env.MERCADOPAGO_WEBHOOK_URL || `${process.env.API_URL || 'http://localhost:5000'}/api/payments/mercadopago/webhook`,
+      notification_url: process.env.MERCADOPAGO_WEBHOOK_URL || `${process.env.API_URL || 'https://elbuenmenu.site'}/api/payments/mercadopago/webhook`,
       statement_descriptor: 'EL BUEN MENU'
     };
 
@@ -4308,7 +4308,7 @@ async function validateReferral(referredId, orderId) {
     
     // ========== ENVIAR NOTIFICACIONES POR WHATSAPP ==========
     try {
-      const API_URL = process.env.API_URL || 'http://localhost:5000';
+      const API_URL = process.env.API_URL || 'https://elbuenmenu.site';
       
       // Notificar al invitador (Cliente A)
       const referrerMessage = `🎉 *¡Tu invitado hizo su primera compra!*\n\n` +
@@ -4698,7 +4698,7 @@ app.use(errorHandler);
 
 // ========== INICIAR SERVIDOR ==========
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
+  console.log(`🚀 Servidor corriendo en https://elbuenmenu.site`);
   console.log(`🔒 Seguridad habilitada: JWT, bcrypt, rate limiting, validación`);
 });
 

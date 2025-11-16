@@ -28,7 +28,7 @@ export default function CustomerLoyalty() {
   const [filterTier, setFilterTier] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'totalSpent' | 'totalOrders' | 'points'>('totalSpent');
   const [isLoading, setIsLoading] = useState(false);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const API_URL = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
 
   useEffect(() => {
     loadCustomers();

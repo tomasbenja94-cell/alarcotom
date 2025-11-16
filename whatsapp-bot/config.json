@@ -4,10 +4,10 @@
   "cvu": "0000007900001234567890",
   "mercadoPagoLink": "https://mpago.la/elbuenmenu",
   "horarios": "Lunes a Domingo de 11:00 a 23:00",
-  "menuUrl": "https://elbuenmenu.store/menu",
+  "menuUrl": "https://elbuenmenu.site/menu",
   "mensajes": {
     "bienvenida": "¡Hola! 👋 Bienvenido a El Buen Menú 🍔\n\n¿En qué te puedo ayudar?\n\n1️⃣ Ver menú completo\n2️⃣ Consultar mi pedido\n3️⃣ Horarios de atención\n4️⃣ Hacer un pedido\n\nEscribí el número de la opción que te interesa 😊",
-    "menu": "🛒 **NUESTRO MENÚ COMPLETO:**\n\nPodés ver todos nuestros productos aquí: https://elbuenmenu.store/menu\n\n🍔 Hamburguesas desde $1800\n🍕 Pizzas desde $2500\n🥟 Empanadas (docena) $2000\n🍗 Milanesas desde $2200\n🥤 Bebidas desde $600\n\n¿Te interesa algo en particular?",
+    "menu": "🛒 **NUESTRO MENÚ COMPLETO:**\n\nPodés ver todos nuestros productos aquí: https://elbuenmenu.site/menu\n\n🍔 Hamburguesas desde $1800\n🍕 Pizzas desde $2500\n🥟 Empanadas (docena) $2000\n🍗 Milanesas desde $2200\n🥤 Bebidas desde $600\n\n¿Te interesa algo en particular?",
     "consultar_pedido": "📦 **CONSULTAR PEDIDO:**\n\nPor favor enviame:\n• Tu número de pedido (4 dígitos)\n• O tu nombre completo\n\nY te digo el estado actual de tu pedido 😊",
     "horarios": "🕕 **NUESTROS HORARIOS:**\n\nLunes a Domingo\n11:00 a 23:00 hs\n\n¡Estamos abiertos ahora! 😊\n\nPodés hacer tu pedido cuando quieras 🍔",
     "pago_opciones": "💰 **MÉTODOS DE PAGO:**\n\nRecibimos tu pedido 🧾\nPor favor elegí cómo querés pagar:\n\n💳 Transferencia bancaria\n💚 Mercado Pago\n💵 Efectivo (al recibir)\n\nEnviame el comprobante si pagás por transferencia 📸",

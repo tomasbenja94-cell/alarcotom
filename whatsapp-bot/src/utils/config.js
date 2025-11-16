@@ -14,10 +14,10 @@ const DEFAULT_CONFIG = {
     cvu: "0000007900001234567890",
     mercadoPagoLink: "https://mpago.la/elbuenmenu",
     horarios: "Lunes a Domingo de 11:00 a 23:00",
-    menuUrl: "https://elbuenmenu.store/menu",
+    menuUrl: "https://elbuenmenu.site/menu",
     mensajes: {
         bienvenida: "¡Hola! 👋 Bienvenido a El Buen Menú 🍔\\n1️⃣ Ver menú\\n2️⃣ Consultar pedido\\n3️⃣ Horarios",
-        menu: "🛒 Podés ver nuestro menú completo aquí: https://elbuenmenu.store/menu",
+        menu: "🛒 Podés ver nuestro menú completo aquí: https://elbuenmenu.site/menu",
         consultar_pedido: "Por favor, enviame tu número de pedido o nombre para consultar su estado 📦",
         pago_opciones: "Recibimos tu pedido 🧾\\nPor favor confirmá el método de pago:\\n💳 Transferencia / Mercado Pago / Efectivo",
         pago_confirmado: "💰 Transferencia confirmada. Tu pedido está en preparación 🍳",

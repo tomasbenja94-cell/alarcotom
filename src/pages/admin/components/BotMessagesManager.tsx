@@ -338,7 +338,7 @@ export default function BotMessagesManager() {
 
   const notifyBotReload = async () => {
     try {
-      await fetch('http://localhost:3001/reload-messages', {
+      await fetch('https://elbuenmenu.site/reload-messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

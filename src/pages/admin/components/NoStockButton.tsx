@@ -7,7 +7,7 @@ interface NoStockButtonProps {
 export default function NoStockButton({ onStateChange }: NoStockButtonProps) {
   const [isActive, setIsActive] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const API_URL = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
 
   // Cargar estado actual al montar
   useEffect(() => {

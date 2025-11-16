@@ -15,7 +15,7 @@ interface DailyCashStats {
   }>;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
 
 export default function DailyCash() {
   const [stats, setStats] = useState<DailyCashStats | null>(null);

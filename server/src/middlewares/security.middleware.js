@@ -9,8 +9,8 @@ export const securityHeaders = helmet({
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "https://api.mapbox.com"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://api.mapbox.com"],
-      imgSrc: ["'self'", "data:", "https://api.mapbox.com", "http://localhost:5000", "http://localhost:5173", "https://elbuenmenu.store"],
-      connectSrc: ["'self'", "https://api.mapbox.com", "http://localhost:5000", "http://localhost:5173", "https://elbuenmenu.store"]
+      imgSrc: ["'self'", "data:", "https://api.mapbox.com", "https://elbuenmenu.site"],
+      connectSrc: ["'self'", "https://api.mapbox.com", "https://elbuenmenu.site"]
     }
   },
   crossOriginResourcePolicy: { policy: "cross-origin" },
@@ -26,8 +26,8 @@ export const securityHeaders = helmet({
 const corsOptions = {
   origin: (origin, callback) => {
     const allowedOrigins = [
-      process.env.FRONTEND_URL || 'http://localhost:5173',
-      'https://elbuenmenu.store',
+      process.env.FRONTEND_URL || 'https://elbuenmenu.site',
+      'https://elbuenmenu.site',
       'https://buenmenuapp.online' // Mantener por compatibilidad
     ];
     

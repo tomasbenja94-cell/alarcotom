@@ -1,5 +1,5 @@
 // API Client para reemplazar Supabase
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
 
 async function request(endpoint: string, options: RequestInit = {}) {
   // Obtener token de autenticación si existe (admin o driver)

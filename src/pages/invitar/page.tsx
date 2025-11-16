@@ -5,7 +5,7 @@ export default function InvitarPage() {
   const [searchParams] = useSearchParams();
   const ref = searchParams.get('ref');
   const [isRegistered, setIsRegistered] = useState(false);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const API_URL = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
 
   useEffect(() => {
     // Guardar referencia pendiente cuando alguien entra al link
@@ -24,7 +24,7 @@ export default function InvitarPage() {
       
       // Intentar registrar en el backend si tenemos el ID del visitante
       // Esto se completará cuando el cliente haga su primer pedido desde WhatsApp
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const API_URL = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
       
       // Nota: El backend registrará el referido cuando se cree el pedido
       // usando el customerPhone del pedido como referredId

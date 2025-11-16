@@ -140,7 +140,7 @@ export default function TransfersPending() {
           alert(warningMsg);
         } else if (order.customer_phone && order.customer_phone.trim() !== '') {
           try {
-            const webhookUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3001';
+            const webhookUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'https://elbuenmenu.site';
             const notificationData = {
               customerPhone: order.customer_phone,
               orderNumber: order.order_number,
@@ -346,10 +346,10 @@ export default function TransfersPending() {
                         <h4 className="text-xs font-medium text-[#111111] mb-2 uppercase tracking-wider">Comprobante de Transferencia:</h4>
                         <div className="bg-white p-3 rounded-sm border border-[#C7C7C7]">
                           <img 
-                            src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'https://elbuenmenu.store'}${transfer.proof_image_url}`}
+                            src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'https://elbuenmenu.site'}${transfer.proof_image_url}`}
                             alt="Comprobante de transferencia"
                             className="max-w-full h-auto rounded-sm cursor-pointer hover:opacity-90 transition-opacity max-h-96 border border-[#C7C7C7]"
-                            onClick={() => window.open(`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'https://elbuenmenu.store'}${transfer.proof_image_url}`, '_blank')}
+                            onClick={() => window.open(`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'https://elbuenmenu.site'}${transfer.proof_image_url}`, '_blank')}
                             onError={(e) => {
                               console.error('❌ Error al cargar imagen:', transfer.proof_image_url, e);
                               (e.target as HTMLImageElement).style.display = 'none';

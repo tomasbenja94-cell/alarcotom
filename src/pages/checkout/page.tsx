@@ -174,7 +174,7 @@ export default function Checkout() {
       let customerIUC = '';
       try {
         if (createdOrder.customer_phone) {
-          const customersResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/customers`);
+          const customersResponse = await fetch(`${import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api'}/api/customers`);
           if (customersResponse.ok) {
             const customers = await customersResponse.json();
             const customer = customers.find((c: any) => c.phone === createdOrder.customer_phone);

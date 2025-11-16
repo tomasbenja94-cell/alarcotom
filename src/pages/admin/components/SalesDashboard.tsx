@@ -74,7 +74,7 @@ interface SalesStats {
   }>;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
 
 async function fetchStats(): Promise<SalesStats> {
   const token = localStorage.getItem('adminToken');

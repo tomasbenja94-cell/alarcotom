@@ -186,7 +186,7 @@ export default function OrdersManagement() {
       }
 
       // URL del webhook del bot (usar variable de entorno o default)
-      const webhookUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3001';
+      const webhookUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'https://elbuenmenu.site';
       
       // Mensaje de notificación
       const message = `✅ ¡Tu pedido está listo para retirar!\n\n📦 Pedido: ${order.order_number}\n\n📍 Podés pasar a retirarlo cuando gustes.\n\n¡Gracias por tu compra! ❤️`;

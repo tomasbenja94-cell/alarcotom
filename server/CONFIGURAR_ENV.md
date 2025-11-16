@@ -17,9 +17,9 @@ JWT_SECRET=Qz8sIlMMZqSvcdEBoP4WOXCwroE4tHh+qVZvfbf2gelN5PoEqKsQaNjtTx6vthUXBVWsX
 INTERNAL_API_KEY=668359c31083026603093da790d09c789bc8f45a6e14b06949c21bf92dd5d3e6
 
 # URLs de Producción
-FRONTEND_URL=https://elbuenmenu.store
-BOT_WEBHOOK_URL=http://localhost:3001
-CORS_ORIGIN=https://elbuenmenu.store
+FRONTEND_URL=https://elbuenmenu.site
+BOT_WEBHOOK_URL=https://elbuenmenu.site
+CORS_ORIGIN=https://elbuenmenu.site
 
 # Supabase
 SUPABASE_URL=https://fnpzoqjnisgkhgnlwzic.supabase.co
@@ -29,10 +29,10 @@ SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 MERCADOPAGO_ACCESS_TOKEN=tu_access_token_de_mercadopago
 
 # URLs Mercado Pago
-MERCADOPAGO_SUCCESS_URL=https://elbuenmenu.store/success
-MERCADOPAGO_FAILURE_URL=https://elbuenmenu.store/failure
-MERCADOPAGO_PENDING_URL=https://elbuenmenu.store/pending
-MERCADOPAGO_WEBHOOK_URL=https://elbuenmenu.store/api/payments/mercadopago/webhook
+MERCADOPAGO_SUCCESS_URL=https://elbuenmenu.site/success
+MERCADOPAGO_FAILURE_URL=https://elbuenmenu.site/failure
+MERCADOPAGO_PENDING_URL=https://elbuenmenu.site/pending
+MERCADOPAGO_WEBHOOK_URL=https://elbuenmenu.site/api/payments/mercadopago/webhook
 
 # Logging
 LOG_LEVEL=info
