@@ -3129,11 +3129,17 @@ async function handleMessage(message) {
                         const order = orders[0];
                         const status = order.status?.toLowerCase() || '';
                         
-                        // Verificar que el pedido pertenezca al cliente (si hay IUC validado)
-                        if (validation.valid && order.customer_phone !== customerJid) {
-                            logger.warn(`⚠️ Pedido ${orderCode} pertenece a otro cliente`);
+                        // Verificar que el pedido pertenezca al cliente (solo si el pedido ya tiene customer_phone asignado)
+                        // Si customer_phone es null o vacío, es un pedido nuevo desde la web y se puede procesar
+                        if (validation.valid && !validation.isNewOrder && order.customer_phone && order.customer_phone !== '' && order.customer_phone !== customerJid) {
+                            logger.warn(`⚠️ Pedido ${orderCode} pertenece a otro cliente. Order phone: "${order.customer_phone}", Customer JID: "${customerJid}"`);
                             await sendMessage(from, `⚠️ *Error de validación*\n\nEste pedido no pertenece a tu cuenta.\n\nSolo podés consultar tus propios pedidos.`);
                             return;
+                        }
+                        
+                        // Si es un pedido nuevo (sin customer_phone), permitir procesarlo
+                        if (!order.customer_phone || order.customer_phone === '') {
+                            logger.info(`✅ Pedido ${orderCode} es nuevo (sin customer_phone), se puede procesar`);
                         }
                         
                         // Estados finales: no procesar nuevamente
