@@ -796,6 +796,40 @@ app.get('/api/orders', async (req, res) => {
     });
     res.json(objectToSnakeCase(orders));
   } catch (error) {
+    // Si el error es por unique_code no existir, usar select explícito
+    if (error.code === 'P2022' && error.meta?.column?.includes('unique_code')) {
+      console.warn('⚠️ unique_code no existe, obteniendo pedidos sin unique_code...');
+      try {
+        const orders = await prisma.order.findMany({
+          select: {
+            id: true,
+            orderNumber: true,
+            customerName: true,
+            customerPhone: true,
+            customerAddress: true,
+            status: true,
+            paymentMethod: true,
+            paymentStatus: true,
+            subtotal: true,
+            deliveryFee: true,
+            total: true,
+            notes: true,
+            deliveryCode: true,
+            trackingToken: true,
+            deliveryPersonId: true,
+            createdAt: true,
+            updatedAt: true,
+            items: true
+            // Excluir unique_code explícitamente
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+        res.json(objectToSnakeCase(orders));
+        return;
+      } catch (fallbackError) {
+        console.error('Error con fallback:', fallbackError);
+      }
+    }
     console.error('Error fetching orders:', error);
     res.status(500).json({ error: 'Error al obtener pedidos' });
   }
@@ -841,13 +875,19 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
     }
     
     // Generar número de pedido único
+    // Usar select para evitar problemas con unique_code si la migración no está aplicada
     let orderNumber = '#0001';
     let attempts = 0;
     const maxOrderNumberAttempts = 10;
     
     while (attempts < maxOrderNumberAttempts) {
       try {
+        // Usar select para obtener solo orderNumber y createdAt, evitando unique_code
         const lastOrder = await prisma.order.findFirst({
+          select: {
+            orderNumber: true,
+            createdAt: true
+          },
           orderBy: { createdAt: 'desc' }
         });
         
@@ -856,9 +896,10 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
           orderNumber = `#${String(lastNum + 1).padStart(4, '0')}`;
         }
         
-        // Verificar que el orderNumber no exista (por si acaso)
-        const existingOrder = await prisma.order.findUnique({
-          where: { orderNumber }
+        // Verificar que el orderNumber no exista (usando select para evitar unique_code)
+        const existingOrder = await prisma.order.findFirst({
+          where: { orderNumber },
+          select: { id: true } // Solo necesitamos saber si existe
         });
         
         if (!existingOrder) {
@@ -866,10 +907,16 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
         }
         
         // Si existe, generar uno nuevo
-        orderNumber = `#${String(parseInt(orderNumber.replace('#', '')) + 1).padStart(4, '0')}`;
+        const currentNum = parseInt(orderNumber.replace('#', ''));
+        orderNumber = `#${String(currentNum + 1).padStart(4, '0')}`;
         attempts++;
+        console.log(`⚠️ [CREATE ORDER] Order Number ${orderNumber} ya existe, intentando siguiente...`);
       } catch (error) {
-        console.error('Error al generar orderNumber:', error);
+        console.error('❌ [CREATE ORDER] Error al generar orderNumber:', error.message);
+        // Si falla, usar timestamp como fallback
+        const timestampNum = String(Date.now()).slice(-4);
+        orderNumber = `#${timestampNum}`;
+        console.warn(`⚠️ [CREATE ORDER] Usando orderNumber de fallback: ${orderNumber}`);
         break;
       }
     }
@@ -1327,19 +1374,88 @@ app.post('/api/whatsapp-messages', async (req, res) => {
 
 // ========== TRANSFERENCIAS PENDIENTES ==========
 app.get('/api/pending-transfers', async (req, res) => {
+  // Si hay query param status, filtrar por ese estado, sino devolver todas
+  const whereClause = req.query.status 
+    ? { status: req.query.status }
+    : {};
+  
   try {
-    // Si hay query param status, filtrar por ese estado, sino devolver todas
-    const whereClause = req.query.status 
-      ? { status: req.query.status }
-      : {};
-    
     const transfers = await prisma.pendingTransfer.findMany({
       where: whereClause,
-      include: { order: true },
+      include: { 
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            customerName: true,
+            customerPhone: true,
+            customerAddress: true,
+            status: true,
+            paymentMethod: true,
+            paymentStatus: true,
+            subtotal: true,
+            deliveryFee: true,
+            total: true,
+            notes: true,
+            deliveryCode: true,
+            trackingToken: true,
+            deliveryPersonId: true,
+            createdAt: true,
+            updatedAt: true
+            // Excluir unique_code explícitamente
+          }
+        }
+      },
       orderBy: { createdAt: 'desc' }
     });
     res.json(objectToSnakeCase(transfers));
   } catch (error) {
+    // Si el error es por unique_code, intentar sin include order
+    if (error.code === 'P2022' && error.meta?.column?.includes('unique_code')) {
+      console.warn('⚠️ unique_code no existe, obteniendo transferencias sin unique_code...');
+      try {
+        const transfers = await prisma.pendingTransfer.findMany({
+          where: whereClause,
+          orderBy: { createdAt: 'desc' }
+        });
+        // Obtener orders por separado sin unique_code
+        const transfersWithOrders = await Promise.all(
+          transfers.map(async (transfer) => {
+            try {
+              const order = await prisma.order.findUnique({
+                where: { id: transfer.orderId },
+                select: {
+                  id: true,
+                  orderNumber: true,
+                  customerName: true,
+                  customerPhone: true,
+                  customerAddress: true,
+                  status: true,
+                  paymentMethod: true,
+                  paymentStatus: true,
+                  subtotal: true,
+                  deliveryFee: true,
+                  total: true,
+                  notes: true,
+                  deliveryCode: true,
+                  trackingToken: true,
+                  deliveryPersonId: true,
+                  createdAt: true,
+                  updatedAt: true
+                }
+              });
+              return { ...transfer, order };
+            } catch (orderError) {
+              return { ...transfer, order: null };
+            }
+          })
+        );
+        res.json(objectToSnakeCase(transfersWithOrders));
+        return;
+      } catch (fallbackError) {
+        console.error('Error con fallback:', fallbackError);
+      }
+    }
     console.error('Error fetching pending transfers:', error);
     res.status(500).json({ error: 'Error al obtener transferencias' });
   }
