@@ -134,29 +134,45 @@ async function generateUniqueIUC() {
 // ========== FUNCIONES CÓDIGO ÚNICO DE PEDIDO ==========
 // Generar código único de 4 dígitos para pedidos
 async function generateUniqueOrderCode() {
-  let attempts = 0;
-  const maxAttempts = 100;
-  
-  while (attempts < maxAttempts) {
-    // Generar número aleatorio de 4 dígitos (1000-9999)
-    const code = String(Math.floor(1000 + Math.random() * 9000));
+  try {
+    let attempts = 0;
+    const maxAttempts = 100;
     
-    // Verificar que no exista en ningún pedido
-    const existing = await prisma.order.findFirst({
-      where: { uniqueCode: code }
-    });
-    
-    if (!existing) {
-      return code;
+    while (attempts < maxAttempts) {
+      // Generar número aleatorio de 4 dígitos (1000-9999)
+      const code = String(Math.floor(1000 + Math.random() * 9000));
+      
+      // Verificar que no exista en ningún pedido
+      // Si la migración no está aplicada, esto fallará y retornará null
+      try {
+        const existing = await prisma.order.findFirst({
+          where: { uniqueCode: code }
+        });
+        
+        if (!existing) {
+          return code;
+        }
+      } catch (queryError) {
+        // Si la query falla (migración no aplicada), retornar null
+        if (queryError.message && (queryError.message.includes('uniqueCode') || queryError.message.includes('unique_code') || queryError.message.includes('Unknown argument'))) {
+          console.warn('⚠️ No se puede verificar uniqueCode (migración no aplicada)');
+          return null;
+        }
+        throw queryError;
+      }
+      
+      attempts++;
     }
     
-    attempts++;
+    // Si no se encuentra después de 100 intentos, usar timestamp + random
+    const fallback = String(Date.now()).slice(-4).padStart(4, '0');
+    console.warn(`⚠️ No se pudo generar código único de pedido después de ${maxAttempts} intentos, usando fallback: ${fallback}`);
+    return fallback;
+  } catch (error) {
+    // Si hay cualquier error, retornar null (migración no aplicada)
+    console.warn('⚠️ Error al generar uniqueCode:', error.message);
+    return null;
   }
-  
-  // Si no se encuentra después de 100 intentos, usar timestamp + random
-  const fallback = String(Date.now()).slice(-4).padStart(4, '0');
-  console.warn(`⚠️ No se pudo generar código único de pedido después de ${maxAttempts} intentos, usando fallback: ${fallback}`);
-  return fallback;
 }
 
 // Asignar IUC al cliente si no tiene uno y el pedido es válido (approved/paid)
@@ -873,21 +889,18 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
       }
     };
 
-    // Intentar crear el pedido
-    // Primero intentar con uniqueCode si está disponible, si falla crear sin él
+    // Intentar generar uniqueCode (retorna null si la migración no está aplicada)
+    const uniqueCode = await generateUniqueOrderCode();
+    if (uniqueCode) {
+      orderData.uniqueCode = uniqueCode;
+      console.log(`✅ Código único generado: ${uniqueCode}`);
+    } else {
+      console.warn('⚠️ No se pudo generar uniqueCode (migración no aplicada), creando pedido sin código único');
+    }
+    
+    // Crear el pedido
     let order;
     try {
-      // Intentar generar y agregar uniqueCode
-      try {
-        const uniqueCode = await generateUniqueOrderCode();
-        orderData.uniqueCode = uniqueCode;
-        console.log(`✅ Código único generado: ${uniqueCode}`);
-      } catch (codeError) {
-        // Si falla al generar (migración no aplicada), continuar sin uniqueCode
-        console.warn('⚠️ No se pudo generar uniqueCode (migración no aplicada), creando pedido sin código único');
-      }
-      
-      // Crear el pedido
       order = await prisma.order.create({
         data: orderData,
         include: {
@@ -903,19 +916,13 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
         const orderDataWithoutUniqueCode = { ...orderData };
         delete orderDataWithoutUniqueCode.uniqueCode;
         
-        try {
-          order = await prisma.order.create({
-            data: orderDataWithoutUniqueCode,
-            include: {
-              items: true
-            }
-          });
-          console.warn('✅ Pedido creado sin uniqueCode. Ejecuta: npx prisma migrate deploy');
-        } catch (retryError) {
-          console.error('❌ Error al crear pedido sin uniqueCode:', retryError.message);
-          // Si el segundo intento también falla, relanzar el error original
-          throw createError;
-        }
+        order = await prisma.order.create({
+          data: orderDataWithoutUniqueCode,
+          include: {
+            items: true
+          }
+        });
+        console.warn('✅ Pedido creado sin uniqueCode. Ejecuta: npx prisma migrate deploy');
       } else {
         // Si no hay uniqueCode y falla, es otro error
         throw createError;
