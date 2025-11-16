@@ -2504,6 +2504,7 @@ app.get('/api/delivery/drivers-location', async (req, res) => {
 // Esto es más confiable que express.static para evitar problemas de CORS
 app.get('/proofs/:filename', (req, res) => {
   const filename = req.params.filename;
+  console.log(`📸 [PROOFS] Solicitud de imagen: ${filename}`);
   
   // Validar que el filename no contenga rutas relativas peligrosas
   if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
@@ -2512,12 +2513,27 @@ app.get('/proofs/:filename', (req, res) => {
   }
   
   const filePath = path.join(__dirname, '../whatsapp-bot/proofs', filename);
+  console.log(`📂 [PROOFS] Ruta completa del archivo: ${filePath}`);
+  console.log(`📂 [PROOFS] __dirname: ${__dirname}`);
   
   // Verificar que el archivo existe usando fs
   fs.access(filePath, fs.constants.F_OK, (err) => {
     if (err) {
-      console.error('❌ Archivo no encontrado:', filePath, err.message);
-      return res.status(404).json({ error: 'Imagen no encontrada', path: filePath });
+      console.error('❌ [PROOFS] Archivo no encontrado:', filePath);
+      console.error('❌ [PROOFS] Error:', err.message);
+      console.error('❌ [PROOFS] Código de error:', err.code);
+      
+      // Intentar listar el directorio para debugging
+      const proofsDir = path.join(__dirname, '../whatsapp-bot/proofs');
+      fs.readdir(proofsDir, (readErr, files) => {
+        if (readErr) {
+          console.error('❌ [PROOFS] No se pudo leer el directorio:', proofsDir, readErr.message);
+        } else {
+          console.log(`📁 [PROOFS] Archivos en el directorio (${files.length}):`, files.slice(0, 10));
+        }
+      });
+      
+      return res.status(404).json({ error: 'Imagen no encontrada', path: filePath, filename: filename });
     }
     
     // Headers CORS completos
