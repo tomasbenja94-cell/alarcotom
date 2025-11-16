@@ -76,6 +76,18 @@ model ProductOption {
   @@map("product_options")
 }
 
+// Extras globales (modelo/plantilla)
+model Extra {
+  id         String   @id @default(uuid())
+  name       String
+  basePrice  Float    @default(0) @map("base_price")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("extras")
+}
+
 model Order {
   id                  String                     @id @default(uuid())
   orderNumber         String                     @unique @map("order_number")

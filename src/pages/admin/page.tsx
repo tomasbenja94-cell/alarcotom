@@ -35,6 +35,7 @@ interface AdvancedMenuItem {
 }
 
 export default function AdminPage() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'orders' | 'transfers' | 'customers' | 'menu-admin'>('orders');
   const [advancedMenuOpen, setAdvancedMenuOpen] = useState(false);
   const [advancedMenuItem, setAdvancedMenuItem] = useState<string | null>(null);
@@ -42,6 +43,9 @@ export default function AdminPage() {
   const [clearing, setClearing] = useState(false);
   const [clearConfirmText, setClearConfirmText] = useState('');
   const advancedMenuRef = useRef<HTMLDivElement>(null);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState<string>('');
 
   const advancedMenuItems: AdvancedMenuItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊', component: SalesDashboard },
@@ -105,6 +109,12 @@ export default function AdminPage() {
 
   // Cerrar el dropdown cuando se hace click fuera
   useEffect(() => {
+    // Auth init
+    try {
+      const flag = localStorage.getItem('adminAuth');
+      setIsAuthenticated(flag === 'true');
+    } catch {}
+
     const handleClickOutside = (event: MouseEvent) => {
       if (
         advancedMenuRef.current &&
@@ -120,6 +130,72 @@ export default function AdminPage() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [advancedMenuOpen]);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (username === 'admin' && password === 'adminroti123') {
+      try {
+        localStorage.setItem('adminAuth', 'true');
+      } catch {}
+      setIsAuthenticated(true);
+      setLoginError('');
+      return;
+    }
+    setLoginError('Credenciales inválidas');
+  };
+
+  const handleLogout = () => {
+    try {
+      localStorage.removeItem('adminAuth');
+    } catch {}
+    setIsAuthenticated(false);
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F9F9F9] px-4">
+        <div className="w-full max-w-sm bg-white border border-[#E5E5E5] rounded-sm p-6 shadow-sm">
+          <div className="mb-6 text-center">
+            <div className="w-12 h-12 bg-[#111111] rounded-sm mx-auto flex items-center justify-center mb-3">
+              <span className="text-white text-lg font-bold">BM</span>
+            </div>
+            <h2 className="text-xl font-bold text-[#111111]">Panel Administrativo</h2>
+            <p className="text-xs text-[#9CA3AF] mt-1">Acceso restringido</p>
+          </div>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm text-[#111111] mb-1">Usuario</label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full px-3 py-2 border border-[#E5E5E5] rounded-sm focus:outline-none focus:ring-2 focus:ring-[#FFC300]"
+                placeholder="admin"
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-[#111111] mb-1">Contraseña</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-3 py-2 border border-[#E5E5E5] rounded-sm focus:outline-none focus:ring-2 focus:ring-[#FFC300]"
+                placeholder="********"
+              />
+            </div>
+            {loginError && <p className="text-sm text-red-600">{loginError}</p>}
+            <button
+              type="submit"
+              className="w-full bg-[#111111] hover:bg-[#1A1A1A] text-white font-medium py-2 rounded-sm transition-all border border-[#111111]"
+            >
+              Ingresar
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -249,6 +325,13 @@ export default function AdminPage() {
                 className="px-4 py-2 text-xs font-medium text-[#111111] hover:bg-[#F9F9F9] rounded transition-all border border-[#C7C7C7]"
               >
                 🗑️ Limpiar Todo
+              </button>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 text-xs font-medium text-white bg-[#111111] hover:bg-[#1A1A1A] rounded transition-all border border-[#111111]"
+                title="Cerrar sesión"
+              >
+                Salir
               </button>
             </div>
           </div>

@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from 'react';
+import { categoriesApi, productsApi, productOptionsApi, extrasApi } from '../../../lib/api';
 import { supabase } from '../../../lib/supabase';
 import { useToast } from '../../../hooks/useToast';
 
@@ -104,6 +105,19 @@ export default function MenuManagement() {
   const [editingOption, setEditingOption] = useState<any>(null);
   const [savingOption, setSavingOption] = useState(false);
 
+  // Extras globales (UX mejorada)
+  const [extrasManagerOpen, setExtrasManagerOpen] = useState(false);
+  const [extrasName, setExtrasName] = useState('');
+  const [extrasPrice, setExtrasPrice] = useState<number>(0);
+  const [extrasActive, setExtrasActive] = useState<boolean>(true);
+  const [extrasSaving, setExtrasSaving] = useState(false);
+  const [allExtras, setAllExtras] = useState<any[]>([]);
+  // Asignación de extra existente a categoría de un producto
+  const [selectedExistingExtraId, setSelectedExistingExtraId] = useState<string>('');
+  const [selectedTargetCategoryId, setSelectedTargetCategoryId] = useState<string>('');
+  const [selectedExistingExtraPrice, setSelectedExistingExtraPrice] = useState<number>(0);
+  const [selectedExistingExtraActive, setSelectedExistingExtraActive] = useState<boolean>(true);
+
   useEffect(() => {
     loadData();
     loadIngredients();
@@ -173,56 +187,14 @@ export default function MenuManagement() {
     }
   };
 
-  // Cargar datos usando Supabase directamente
+  // Cargar datos usando backend API (seguro)
   const loadData = async () => {
     setLoading(true);
     try {
-      // Cargar categorías desde Supabase - intentar primero con display_order
-      let categoriesResult = await supabase
-        .from('categories')
-        .select('*')
-        .order('display_order', { ascending: true });
-
-      if (categoriesResult.error) {
-        // Si falla, intentar con order_index
-        categoriesResult = await supabase
-          .from('categories')
-          .select('*')
-          .order('order_index', { ascending: true });
-        
-        if (categoriesResult.error) {
-          console.error('Error loading categories:', categoriesResult.error);
-          throw categoriesResult.error;
-        }
-      }
-
-      // Cargar productos desde Supabase - intentar primero con display_order
-      let productsResult = await supabase
-        .from('products')
-        .select(`
-          *,
-          category:categories(*)
-        `)
-        .order('display_order', { ascending: true });
-
-      if (productsResult.error) {
-        // Si falla, intentar con order_index
-        productsResult = await supabase
-          .from('products')
-          .select(`
-            *,
-            category:categories(*)
-          `)
-          .order('order_index', { ascending: true });
-        
-        if (productsResult.error) {
-          console.error('Error loading products:', productsResult.error);
-          throw productsResult.error;
-        }
-      }
-
-      setCategories(categoriesResult.data || []);
-      setProducts(productsResult.data || []);
+      const categoriesData = await categoriesApi.getAll();
+      const productsData = await productsApi.getAll();
+      setCategories(categoriesData || []);
+      setProducts(productsData || []);
     } catch (error) {
       console.error('Error al cargar datos:', error);
       if (showError) {
@@ -233,66 +205,66 @@ export default function MenuManagement() {
     }
   };
 
-  // Cargar extras de un producto específico usando Supabase directamente
+  // Cargar extras de un producto específico usando backend API
   const loadProductExtras = async (productId: string) => {
     try {
-      // Cargar categorías de extras del producto desde Supabase - intentar primero con display_order
-      let categoriesResult = await supabase
-        .from('product_option_categories')
-        .select('*')
-        .eq('product_id', productId)
-        .order('display_order', { ascending: true });
-
-      if (categoriesResult.error) {
-        // Si falla, intentar con order_index
-        categoriesResult = await supabase
-          .from('product_option_categories')
-          .select('*')
-          .eq('product_id', productId)
-          .order('order_index', { ascending: true });
-        
-        if (categoriesResult.error) {
-          console.error('Error loading option categories:', categoriesResult.error);
-          throw categoriesResult.error;
-        }
+      const categoriesData = await productOptionsApi.getCategories(productId);
+      setProductOptionCategories(categoriesData || []);
+      let allOptions: any[] = [];
+      for (const cat of categoriesData || []) {
+        const opts = await productOptionsApi.getOptions(cat.id);
+        allOptions = allOptions.concat(opts || []);
       }
-
-      const categoriesData = categoriesResult.data || [];
-
-      // Cargar opciones de extras del producto desde Supabase - intentar primero con display_order
-      let optionsResult = await supabase
-        .from('product_options')
-        .select(`
-          *,
-          category:product_option_categories(*)
-        `)
-        .in('category_id', categoriesData.map(cat => cat.id))
-        .order('display_order', { ascending: true });
-
-      if (optionsResult.error) {
-        // Si falla, intentar con order_index
-        optionsResult = await supabase
-          .from('product_options')
-          .select(`
-            *,
-            category:product_option_categories(*)
-          `)
-          .in('category_id', categoriesData.map(cat => cat.id))
-          .order('order_index', { ascending: true });
-        
-        if (optionsResult.error) {
-          console.error('Error loading product options:', optionsResult.error);
-          throw optionsResult.error;
-        }
-      }
-
-      setProductOptionCategories(categoriesData);
-      setProductOptions(optionsResult.data || []);
+      setProductOptions(allOptions);
     } catch (error) {
       console.error('Error al cargar extras:', error);
       if (showError) {
         showError('Error al cargar extras del producto');
       }
+    }
+  };
+
+  // Cargar lista agregada de extras (todas las opciones de todos los productos)
+  const loadAllExtras = async () => {
+    try {
+      const extras = await extrasApi.getAll();
+      setAllExtras(extras || []);
+    } catch (e) {
+      console.error('Error cargando extras globales:', e);
+      setAllExtras([]);
+    }
+  };
+
+  // Abrir el gestor global de extras
+  const openExtrasManager = () => {
+    setExtrasManagerOpen(true);
+    setExtrasName('');
+    setExtrasPrice(0);
+    setExtrasActive(true);
+  };
+
+  // Crear extra global (solo creación)
+  const createGlobalExtra = async () => {
+    if (!extrasName.trim()) {
+      showError && showError('El nombre del extra es obligatorio');
+      return;
+    }
+    try {
+      setExtrasSaving(true);
+      const extra = await extrasApi.create({
+        name: extrasName.trim(),
+        basePrice: Number(extrasPrice) || 0,
+        isActive: !!extrasActive
+      });
+      void extra; // reservado para futuras ediciones
+      showSuccess && showSuccess('Extra creado correctamente');
+      setExtrasManagerOpen(false);
+      await loadAllExtras();
+    } catch (e: any) {
+      console.error('Error creando extra global:', e);
+      showError && showError(e?.message || 'Error al crear el extra');
+    } finally {
+      setExtrasSaving(false);
     }
   };
 
@@ -359,16 +331,12 @@ export default function MenuManagement() {
 
     try {
       setSavingCategory(true);
-      const { error } = await supabase
-        .from('categories')
-        .insert({
-          name: newCategoryName.trim(),
-          display_order: categories.length,
-          order_index: categories.length, // Para compatibilidad
-          is_active: true
-        });
-
-      if (error) throw error;
+      await categoriesApi.create({
+        name: newCategoryName.trim(),
+        display_order: categories.length,
+        order_index: categories.length,
+        is_active: true
+      });
 
       if (showSuccess) showSuccess('Categoría creada exitosamente');
       closeCategoryModal();
@@ -408,15 +376,9 @@ export default function MenuManagement() {
 
     try {
       setSavingCategory(true);
-      const { error } = await supabase
-        .from('categories')
-        .update({
-          name: editCategoryName.trim(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', editingCategory.id);
-
-      if (error) throw error;
+      await categoriesApi.update(editingCategory.id, {
+        name: editCategoryName.trim()
+      });
 
       if (showSuccess) showSuccess('Categoría actualizada exitosamente');
       closeCategoryModal();
@@ -443,12 +405,7 @@ export default function MenuManagement() {
     }
 
     try {
-      const { error } = await supabase
-        .from('categories')
-        .delete()
-        .eq('id', categoryId);
-
-      if (error) throw error;
+      await categoriesApi.delete(categoryId);
 
       if (showSuccess) showSuccess('Categoría eliminada exitosamente');
       loadData();
@@ -475,20 +432,16 @@ export default function MenuManagement() {
 
     try {
       setSavingProduct(true);
-      const { error } = await supabase
-        .from('products')
-        .insert({
-          name: newProduct.name.trim(),
-          description: newProduct.description.trim(),
-          price: newProduct.price,
-          image_url: newProduct.image_url,
-          category_id: newProduct.category_id,
-          display_order: products.filter(p => p.category_id === newProduct.category_id).length,
-          order_index: products.filter(p => p.category_id === newProduct.category_id).length, // Para compatibilidad
-          is_available: true
-        });
-
-      if (error) throw error;
+      await productsApi.create({
+        name: newProduct.name.trim(),
+        description: newProduct.description.trim(),
+        price: newProduct.price,
+        image_url: newProduct.image_url,
+        category_id: newProduct.category_id,
+        display_order: products.filter(p => p.category_id === newProduct.category_id).length,
+        order_index: products.filter(p => p.category_id === newProduct.category_id).length,
+        is_available: true
+      });
 
       if (showSuccess) showSuccess('Producto creado exitosamente');
       setNewProduct({
@@ -542,8 +495,7 @@ export default function MenuManagement() {
         name: editProduct.name.trim(),
         description: editProduct.description.trim(),
         price: editProduct.price,
-        category_id: editProduct.category_id,
-        updated_at: new Date().toISOString()
+        category_id: editProduct.category_id
       };
       
       // Solo incluir image_url si tiene un valor (no vacío)
@@ -553,12 +505,7 @@ export default function MenuManagement() {
         updateData.image_url = editImagePreview;
       }
 
-      const { error } = await supabase
-        .from('products')
-        .update(updateData)
-        .eq('id', editingProduct.id);
-
-      if (error) throw error;
+      await productsApi.update(editingProduct.id, updateData);
 
       if (showSuccess) showSuccess('Producto actualizado exitosamente');
       setEditingProduct(null);
@@ -598,12 +545,7 @@ export default function MenuManagement() {
     }
 
     try {
-      const { error } = await supabase
-        .from('products')
-        .delete()
-        .eq('id', productId);
-
-      if (error) throw error;
+      await productsApi.delete(productId);
 
       if (showSuccess) showSuccess('Producto eliminado exitosamente');
       loadData();
@@ -651,11 +593,7 @@ export default function MenuManagement() {
         order_index: productOptionCategories.length // Para compatibilidad
       };
 
-      const { error } = await supabase
-        .from('product_option_categories')
-        .insert([categoryData]);
-
-      if (error) throw error;
+      await productOptionsApi.createCategory(categoryData);
 
       if (showSuccess) showSuccess('Categoría de extra creada correctamente');
       setNewOptionCategory({ name: '', is_required: false, max_selections: 1, product_id: '' });
@@ -676,16 +614,11 @@ export default function MenuManagement() {
 
     setSavingCategory(true);
     try {
-      const { error } = await supabase
-        .from('product_option_categories')
-        .update({
-          name: editingOptionCategory.name,
-          is_required: editingOptionCategory.is_required,
-          max_selections: editingOptionCategory.max_selections
-        })
-        .eq('id', editingOptionCategory.id);
-
-      if (error) throw error;
+      await productOptionsApi.updateCategory(editingOptionCategory.id, {
+        name: editingOptionCategory.name,
+        is_required: editingOptionCategory.is_required,
+        max_selections: editingOptionCategory.max_selections
+      });
 
       if (showSuccess) showSuccess('Categoría actualizada correctamente');
       setEditingOptionCategory(null);
@@ -705,12 +638,7 @@ export default function MenuManagement() {
 
     setSavingCategory(true);
     try {
-      const { error } = await supabase
-        .from('product_option_categories')
-        .delete()
-        .eq('id', categoryId);
-
-      if (error) throw error;
+      await productOptionsApi.deleteCategory(categoryId);
 
       if (showSuccess) showSuccess('Categoría eliminada correctamente');
       loadProductExtras(selectedProductForExtras!.id);
@@ -742,11 +670,7 @@ export default function MenuManagement() {
         order_index: productOptions.filter(opt => opt.category_id === newOption.category_id).length // Para compatibilidad
       };
 
-      const { error } = await supabase
-        .from('product_options')
-        .insert([optionData]);
-
-      if (error) throw error;
+      await productOptionsApi.createOption(optionData);
 
       if (showSuccess) showSuccess('Extra creado correctamente');
       setNewOption({ name: '', price: 0, category_id: '' });
@@ -768,15 +692,10 @@ export default function MenuManagement() {
 
     setSavingOption(true);
     try {
-      const { error } = await supabase
-        .from('product_options')
-        .update({
-          name: editingOption.name,
-          price: Number(editingOption.price)
-        })
-        .eq('id', editingOption.id);
-
-      if (error) throw error;
+      await productOptionsApi.updateOption(editingOption.id, {
+        name: editingOption.name,
+        price: Number(editingOption.price)
+      });
 
       if (showSuccess) showSuccess('Extra actualizado correctamente');
       setEditingOption(null);
@@ -796,12 +715,7 @@ export default function MenuManagement() {
 
     setSavingOption(true);
     try {
-      const { error } = await supabase
-        .from('product_options')
-        .delete()
-        .eq('id', optionId);
-
-      if (error) throw error;
+      await productOptionsApi.deleteOption(optionId);
 
       if (showSuccess) showSuccess('Extra eliminado correctamente');
       loadProductExtras(selectedProductForExtras!.id);
@@ -1160,8 +1074,66 @@ export default function MenuManagement() {
           {activeTab === 'extras' && (
             <div className="space-y-6">
               <div className="bg-white border border-[#C7C7C7] rounded-sm p-6">
-                <h3 className="text-base font-bold text-[#111111] mb-2">GESTIÓN DE EXTRAS</h3>
-                <p className="text-xs text-[#C7C7C7] mb-4">Selecciona un producto para gestionar sus extras y opciones</p>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-base font-bold text-[#111111]">GESTIÓN DE EXTRAS</h3>
+                    <p className="text-xs text-[#C7C7C7]">Crea un extra y asígnalo a múltiples productos</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      openExtrasManager();
+                    }}
+                    className="px-4 py-2 text-sm font-medium bg-[#111111] hover:bg-[#1A1A1A] text-white rounded-sm transition-all border border-[#FFC300]"
+                  >
+                    + Crear Extra
+                  </button>
+                </div>
+                <div className="mb-4">
+                  <button
+                    onClick={loadAllExtras}
+                    className="px-3 py-2 text-xs border border-[#C7C7C7] rounded-sm hover:bg-[#F9F9F9]"
+                  >
+                    Refrescar lista
+                  </button>
+                </div>
+                {/* Lista de extras globales */}
+                {allExtras.length === 0 ? (
+                  <div className="text-sm text-[#C7C7C7]">No hay extras aún. Crea el primero.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-[#C7C7C7]">
+                          <th className="py-2 pr-4">Extra</th>
+                          <th className="py-2 pr-4">Precio base</th>
+                          <th className="py-2 pr-4">Estado</th>
+                          <th className="py-2 pr-4">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {allExtras.map((e) => {
+                          const price = Number(e.base_price ?? e.basePrice ?? 0);
+                          const active = e.is_active ?? e.isActive ?? true;
+                          return (
+                            <tr key={e.id} className="border-b border-[#F0F0F0]">
+                              <td className="py-2 pr-4">{e.name}</td>
+                              <td className="py-2 pr-4">${new Intl.NumberFormat('es-AR').format(price)}</td>
+                              <td className="py-2 pr-4">{active ? 'Activo' : 'Inactivo'}</td>
+                              <td className="py-2 pr-4">
+                                <span className="text-xs text-[#C7C7C7]">Editar/Asignar desde cada producto</span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Acceso por producto (gestión por categoría del producto) */}
+              <div className="bg-white border border-[#C7C7C7] rounded-sm p-6">
+                <p className="text-xs text-[#C7C7C7] mb-4">O gestiona extras de un producto específico:</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {products.map((product) => (
                     <button
@@ -1174,7 +1146,7 @@ export default function MenuManagement() {
                       className="p-4 border border-[#C7C7C7] rounded-sm hover:border-[#FFC300] transition-all text-left"
                     >
                       <h4 className="text-sm font-medium text-[#111111]">{product.name}</h4>
-                      <p className="text-xs text-[#C7C7C7] mt-1">Click para gestionar extras</p>
+                      <p className="text-xs text-[#C7C7C7] mt-1">Gestionar extras</p>
                     </button>
                   ))}
                 </div>
@@ -1219,6 +1191,112 @@ export default function MenuManagement() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Panel izquierdo - Formularios */}
                 <div className="space-y-6">
+                  {/* Agregar extra existente desde lista global a una categoría del producto */}
+                  <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border border-amber-200 rounded-xl p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
+                        <i className="ri-play-list-add-line text-amber-600"></i>
+                      </div>
+                      <h3 className="font-semibold text-gray-900">Agregar extra existente</h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Categoría del producto</label>
+                        <select
+                          value={selectedTargetCategoryId}
+                          onChange={(e) => setSelectedTargetCategoryId(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                        >
+                          <option value="">Seleccionar...</option>
+                          {productOptionCategories.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Extra global</label>
+                        <select
+                          value={selectedExistingExtraId}
+                          onChange={(e) => {
+                            const id = e.target.value;
+                            setSelectedExistingExtraId(id);
+                            const extra = allExtras.find(x => x.id === id);
+                            const base = Number(extra?.base_price ?? extra?.basePrice ?? 0);
+                            setSelectedExistingExtraPrice(base);
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                        >
+                          <option value="">Seleccionar...</option>
+                          {allExtras.map((x) => (
+                            <option key={x.id} value={x.id}>{x.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Precio a mostrar</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={selectedExistingExtraPrice}
+                          onChange={(e) => setSelectedExistingExtraPrice(parseFloat(e.target.value) || 0)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          id="extra-existing-active"
+                          type="checkbox"
+                          checked={selectedExistingExtraActive}
+                          onChange={(e) => setSelectedExistingExtraActive(e.target.checked)}
+                        />
+                        <label htmlFor="extra-existing-active" className="text-sm text-gray-700">Activo</label>
+                      </div>
+                    </div>
+                    <div className="flex justify-end mt-4">
+                      <button
+                        onClick={async () => {
+                          if (!selectedProductForExtras) {
+                            showError && showError('Selecciona un producto');
+                            return;
+                          }
+                          if (!selectedTargetCategoryId) {
+                            showError && showError('Selecciona una categoría');
+                            return;
+                          }
+                          if (!selectedExistingExtraId) {
+                            showError && showError('Selecciona un extra');
+                            return;
+                          }
+                          try {
+                            setSavingOption(true);
+                            const extra = allExtras.find(x => x.id === selectedExistingExtraId);
+                            await productOptionsApi.createOption({
+                              optionCategoryId: selectedTargetCategoryId,
+                              name: extra?.name || 'Extra',
+                              priceModifier: Number(selectedExistingExtraPrice) || 0,
+                              isAvailable: !!selectedExistingExtraActive,
+                              displayOrder: 0
+                            });
+                            showSuccess && showSuccess('Extra agregado a la categoría');
+                            setSelectedExistingExtraId('');
+                            setSelectedTargetCategoryId('');
+                            setSelectedExistingExtraPrice(0);
+                            setSelectedExistingExtraActive(true);
+                            await loadProductExtras(selectedProductForExtras.id);
+                          } catch (err: any) {
+                            console.error(err);
+                            showError && showError(err?.message || 'Error al agregar el extra');
+                          } finally {
+                            setSavingOption(false);
+                          }
+                        }}
+                        disabled={savingOption}
+                        className="px-4 py-2 bg-[#111111] hover:bg-[#1A1A1A] text-white rounded-sm border border-[#FFC300] disabled:opacity-50"
+                      >
+                        {savingOption ? 'Guardando...' : 'Agregar'}
+                      </button>
+                    </div>
+                  </div>
                   {/* Crear/Editar categoría de extras */}
                   <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5">
                     <div className="flex items-center gap-2 mb-4">
@@ -1592,6 +1670,61 @@ export default function MenuManagement() {
         </div>
       )}
 
+      {/* Modal: Crear Extra Global y asignar a productos */}
+      {extrasManagerOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-sm shadow-xl p-8 w-full max-w-3xl border border-[#FFC300]">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-[#111111]">Crear Extra</h3>
+              <button onClick={() => setExtrasManagerOpen(false)} className="text-[#C7C7C7] hover:text-[#111111] text-2xl">×</button>
+            </div>
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-xs text-[#C7C7C7] font-medium mb-1 uppercase tracking-wider">Nombre</label>
+                  <input
+                    type="text"
+                    value={extrasName}
+                    onChange={(e) => setExtrasName(e.target.value)}
+                    className="w-full px-4 py-2 border border-[#C7C7C7] rounded-sm focus:ring-2 focus:ring-[#FFC300] focus:border-[#FFC300] text-sm text-[#111111]"
+                    placeholder="Ej: Extra queso"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-[#C7C7C7] font-medium mb-1 uppercase tracking-wider">Precio</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={extrasPrice}
+                    onChange={(e) => setExtrasPrice(parseFloat(e.target.value) || 0)}
+                    className="w-full px-4 py-2 border border-[#C7C7C7] rounded-sm focus:ring-2 focus:ring-[#FFC300] focus:border-[#FFC300] text-sm text-[#111111]"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input id="extra-active" type="checkbox" checked={extrasActive} onChange={(e) => setExtrasActive(e.target.checked)} />
+                <label htmlFor="extra-active" className="text-sm text-[#111111]">Activo</label>
+              </div>
+              <div className="flex gap-3 pt-4 border-t border-[#C7C7C7]">
+                <button
+                  onClick={() => setExtrasManagerOpen(false)}
+                  className="px-4 py-2 bg-white hover:bg-[#F9F9F9] text-[#111111] text-sm font-medium rounded-sm transition-all border border-[#C7C7C7]"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={createGlobalExtra}
+                  disabled={extrasSaving}
+                  className="px-4 py-2 bg-[#111111] hover:bg-[#1A1A1A] text-white text-sm font-medium rounded-sm transition-all border border-[#FFC300] disabled:opacity-50"
+                >
+                  {extrasSaving ? 'Guardando...' : 'Crear'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Modal: Crear/Editar Receta */}
       {showRecipeModal && selectedProductForRecipe && (
         <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50">

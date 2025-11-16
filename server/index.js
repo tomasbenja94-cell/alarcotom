@@ -669,6 +669,73 @@ app.delete('/api/product-options/:id', async (req, res) => {
   }
 });
 
+// ========== EXTRAS GLOBALES ==========
+app.get('/api/extras', async (req, res) => {
+  try {
+    const extras = await prisma.extra.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(objectToSnakeCase(extras));
+  } catch (error) {
+    console.error('Error fetching extras:', error);
+    res.status(500).json({ error: 'Error al obtener extras' });
+  }
+});
+
+app.post('/api/extras', async (req, res) => {
+  try {
+    const name = (req.body.name || '').trim();
+    const basePrice = Number(req.body.basePrice ?? req.body.base_price ?? req.body.price ?? 0);
+    const isActive = req.body.isActive !== undefined ? req.body.isActive : (req.body.is_active !== undefined ? req.body.is_active : true);
+    if (!name) {
+      return res.status(400).json({ error: 'El nombre es obligatorio' });
+    }
+    if (Number.isNaN(basePrice) || basePrice < 0) {
+      return res.status(400).json({ error: 'Precio inválido' });
+    }
+    const extra = await prisma.extra.create({
+      data: { name, basePrice, isActive }
+    });
+    res.json(objectToSnakeCase(extra));
+  } catch (error) {
+    console.error('Error creating extra:', error);
+    res.status(500).json({ error: 'Error al crear extra' });
+  }
+});
+
+app.put('/api/extras/:id', async (req, res) => {
+  try {
+    const data = {};
+    if (req.body.name !== undefined) data.name = String(req.body.name);
+    if (req.body.basePrice !== undefined || req.body.base_price !== undefined || req.body.price !== undefined) {
+      const price = Number(req.body.basePrice ?? req.body.base_price ?? req.body.price);
+      if (Number.isNaN(price) || price < 0) return res.status(400).json({ error: 'Precio inválido' });
+      data.basePrice = price;
+    }
+    if (req.body.isActive !== undefined || req.body.is_active !== undefined) {
+      data.isActive = req.body.isActive !== undefined ? req.body.isActive : req.body.is_active;
+    }
+    const extra = await prisma.extra.update({
+      where: { id: req.params.id },
+      data
+    });
+    res.json(objectToSnakeCase(extra));
+  } catch (error) {
+    console.error('Error updating extra:', error);
+    res.status(500).json({ error: 'Error al actualizar extra' });
+  }
+});
+
+app.delete('/api/extras/:id', async (req, res) => {
+  try {
+    await prisma.extra.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting extra:', error);
+    res.status(500).json({ error: 'Error al eliminar extra' });
+  }
+});
+
 // ========== PEDIDOS ==========
 app.get('/api/orders', async (req, res) => {
   try {

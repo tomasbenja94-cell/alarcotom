@@ -127,6 +127,14 @@ export const adminApi = {
   clearRateLimit: () => request('/admin/clear-rate-limit', { method: 'POST' }),
 };
 
+// Extras globales
+export const extrasApi = {
+  getAll: () => request('/extras'),
+  create: (data: any) => request('/extras', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: any) => request(`/extras/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request(`/extras/${id}`, { method: 'DELETE' }),
+};
+
 // Compatibilidad con código existente (simula Supabase)
 export const supabase = {
   from: (table: string) => ({
