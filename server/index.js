@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { PrismaClient } from '@prisma/client';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
@@ -1033,54 +1034,103 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
       console.error('❌ [CREATE ORDER] Error code:', createError.code);
       console.error('❌ [CREATE ORDER] Error meta:', createError.meta);
       
-      // Si el error es por unique_code, intentar sin él
+      // Si el error es por unique_code, usar raw SQL para crear el pedido
       if (createError.code === 'P2022' && createError.meta?.column?.includes('unique_code')) {
-        console.warn('⚠️ [CREATE ORDER] Error por unique_code, intentando sin uniqueCode...');
-        
-        const orderDataWithoutUniqueCode = { ...orderData };
-        delete orderDataWithoutUniqueCode.uniqueCode;
+        console.warn('⚠️ [CREATE ORDER] Error por unique_code, usando raw SQL...');
         
         try {
-          console.log('🔄 [CREATE ORDER] Reintentando sin uniqueCode...');
-          order = await prisma.order.create({
-            data: orderDataWithoutUniqueCode,
-            include: {
-              items: true
+          // Crear el pedido usando raw SQL (sin unique_code)
+          const orderId = crypto.randomUUID();
+          const now = new Date().toISOString();
+          
+          const orderResult = await prisma.$queryRawUnsafe(`
+            INSERT INTO orders (
+              id, order_number, customer_name, customer_phone, customer_address,
+              status, payment_method, payment_status, subtotal, delivery_fee, total, notes,
+              created_at, updated_at
+            ) VALUES (
+              '${orderId}', '${orderData.orderNumber}', '${(orderData.customerName || '').replace(/'/g, "''")}', 
+              ${orderData.customerPhone ? `'${orderData.customerPhone.replace(/'/g, "''")}'` : 'NULL'}, 
+              ${orderData.customerAddress ? `'${orderData.customerAddress.replace(/'/g, "''")}'` : 'NULL'}, 
+              '${orderData.status || 'pending'}', 
+              ${orderData.paymentMethod ? `'${orderData.paymentMethod.replace(/'/g, "''")}'` : 'NULL'}, 
+              '${orderData.paymentStatus || 'pending'}', 
+              ${orderData.subtotal}, 
+              ${orderData.deliveryFee || 0}, 
+              ${orderData.total}, 
+              ${orderData.notes ? `'${orderData.notes.replace(/'/g, "''")}'` : 'NULL'}, 
+              '${now}', 
+              '${now}'
+            ) RETURNING *
+          `);
+          
+          const createdOrder = orderResult[0];
+          console.log('✅ [CREATE ORDER] Pedido creado con raw SQL:', createdOrder.id);
+          
+          // Crear los items usando raw SQL
+          const items = [];
+          if (orderData.items && orderData.items.create && orderData.items.create.length > 0) {
+            for (const item of orderData.items.create) {
+              const itemId = crypto.randomUUID();
+              const itemResult = await prisma.$queryRawUnsafe(`
+                INSERT INTO order_items (
+                  id, order_id, product_id, product_name, quantity, unit_price, subtotal, selected_options, created_at
+                ) VALUES (
+                  '${itemId}', 
+                  '${createdOrder.id}', 
+                  ${item.productId ? `'${item.productId}'` : 'NULL'}, 
+                  '${(item.productName || '').replace(/'/g, "''")}', 
+                  ${item.quantity}, 
+                  ${item.unitPrice}, 
+                  ${item.subtotal}, 
+                  '${(item.selectedOptions || '{}').replace(/'/g, "''")}', 
+                  '${now}'
+                ) RETURNING *
+              `);
+              
+              items.push(itemResult[0]);
             }
-          });
-          console.warn('✅ [CREATE ORDER] Pedido creado sin uniqueCode. Ejecuta: npx prisma migrate deploy');
-        } catch (retryError) {
-          console.error('❌ [CREATE ORDER] Error al crear pedido sin uniqueCode:', retryError.message);
-          console.error('❌ [CREATE ORDER] Retry error code:', retryError.code);
-          console.error('❌ [CREATE ORDER] Retry error meta:', retryError.meta);
-          // Si el segundo intento también falla, relanzar el error original
-          throw createError;
-        }
-      } else if (orderData.uniqueCode && createError.code !== 'P2022') {
-        // Si tenemos uniqueCode y el error NO es por unique_code, intentar sin él de todas formas
-        console.warn('⚠️ [CREATE ORDER] Error inesperado con uniqueCode, intentando sin uniqueCode...');
-        
-        const orderDataWithoutUniqueCode = { ...orderData };
-        delete orderDataWithoutUniqueCode.uniqueCode;
-        
-        try {
-          console.log('🔄 [CREATE ORDER] Reintentando sin uniqueCode...');
-          order = await prisma.order.create({
-            data: orderDataWithoutUniqueCode,
-            include: {
-              items: true
-            }
-          });
-          console.warn('✅ [CREATE ORDER] Pedido creado sin uniqueCode. Ejecuta: npx prisma migrate deploy');
-        } catch (retryError) {
-          console.error('❌ [CREATE ORDER] Error al crear pedido sin uniqueCode:', retryError.message);
-          console.error('❌ [CREATE ORDER] Retry error code:', retryError.code);
-          console.error('❌ [CREATE ORDER] Retry error meta:', retryError.meta);
-          // Si el segundo intento también falla, relanzar el error original
+            console.log(`✅ [CREATE ORDER] ${items.length} items creados con raw SQL`);
+          }
+          
+          // Construir el objeto order en el formato esperado
+          order = {
+            id: createdOrder.id,
+            orderNumber: createdOrder.order_number,
+            customerName: createdOrder.customer_name,
+            customerPhone: createdOrder.customer_phone,
+            customerAddress: createdOrder.customer_address,
+            status: createdOrder.status,
+            paymentMethod: createdOrder.payment_method,
+            paymentStatus: createdOrder.payment_status,
+            subtotal: parseFloat(createdOrder.subtotal),
+            deliveryFee: parseFloat(createdOrder.delivery_fee || 0),
+            total: parseFloat(createdOrder.total),
+            notes: createdOrder.notes,
+            createdAt: createdOrder.created_at,
+            updatedAt: createdOrder.updated_at,
+            items: items.map(item => ({
+              id: item.id,
+              orderId: item.order_id,
+              productId: item.product_id,
+              productName: item.product_name,
+              quantity: item.quantity,
+              unitPrice: parseFloat(item.unit_price),
+              subtotal: parseFloat(item.subtotal),
+              selectedOptions: item.selected_options,
+              createdAt: item.created_at
+            }))
+          };
+          
+          console.warn('✅ [CREATE ORDER] Pedido creado sin uniqueCode usando raw SQL. Ejecuta: npx prisma migrate deploy');
+        } catch (rawError) {
+          console.error('❌ [CREATE ORDER] Error al crear pedido con raw SQL:', rawError.message);
+          console.error('❌ [CREATE ORDER] Raw SQL error:', rawError);
+          // Si el raw SQL también falla, relanzar el error original
           throw createError;
         }
       } else {
-        // Si no hay uniqueCode y falla, es otro error
+        // Si no es por unique_code, relanzar el error
         throw createError;
       }
     }
