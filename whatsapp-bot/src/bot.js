@@ -37,7 +37,7 @@ const CONFIG = {
 // API LOCAL CONFIG (Base de datos local)
 // ---------------------------------------------------------------------------
 const API_CONFIG = {
-    url: process.env.API_URL || 'https://elbuenmenu.site/api'
+    url: process.env.API_URL || 'https://api.elbuenmenu.site/api'
 };
 
 // Función para hacer requests a la API local con retry y mejor manejo de errores
