@@ -68,12 +68,82 @@ export default function PaymentConfig() {
           .single();
 
         if (!error && data?.value) {
-          setConfig(data.value as PaymentConfig);
+          const loadedConfig = data.value as any;
+          // Validar y mergear con valores por defecto para asegurar estructura completa
+          const defaultConfig = loadConfig();
+          const mergedConfig: PaymentConfig = {
+            mercadoPago: {
+              ...defaultConfig.mercadoPago,
+              ...(loadedConfig.mercadoPago || {}),
+              // Asegurar que enabled existe, si no está presente, usar el valor por defecto
+              enabled: loadedConfig.mercadoPago?.enabled !== undefined 
+                ? loadedConfig.mercadoPago.enabled 
+                : defaultConfig.mercadoPago.enabled
+            },
+            transferencia: {
+              ...defaultConfig.transferencia,
+              ...(loadedConfig.transferencia || {}),
+              // Asegurar que enabled existe, si no está presente, usar el valor por defecto
+              enabled: loadedConfig.transferencia?.enabled !== undefined 
+                ? loadedConfig.transferencia.enabled 
+                : defaultConfig.transferencia.enabled
+            },
+            efectivo: {
+              ...defaultConfig.efectivo,
+              ...(loadedConfig.efectivo || {}),
+              // Asegurar que enabled existe, si no está presente, usar el valor por defecto
+              enabled: loadedConfig.efectivo?.enabled !== undefined 
+                ? loadedConfig.efectivo.enabled 
+                : defaultConfig.efectivo.enabled
+            }
+          };
+          setConfig(mergedConfig);
           // También actualizar localStorage
-          localStorage.setItem('payment_config', JSON.stringify(data.value));
+          localStorage.setItem('payment_config', JSON.stringify(mergedConfig));
+        } else {
+          // Si no hay datos en Supabase, verificar localStorage primero
+          const localConfig = localStorage.getItem('payment_config');
+          if (localConfig) {
+            try {
+              const parsed = JSON.parse(localConfig);
+              // Validar que tenga la estructura correcta
+              if (parsed.mercadoPago && parsed.transferencia && parsed.efectivo) {
+                const defaultConfig = loadConfig();
+                const mergedConfig: PaymentConfig = {
+                  mercadoPago: {
+                    ...defaultConfig.mercadoPago,
+                    ...parsed.mercadoPago,
+                    enabled: parsed.mercadoPago.enabled !== undefined ? parsed.mercadoPago.enabled : defaultConfig.mercadoPago.enabled
+                  },
+                  transferencia: {
+                    ...defaultConfig.transferencia,
+                    ...parsed.transferencia,
+                    enabled: parsed.transferencia.enabled !== undefined ? parsed.transferencia.enabled : defaultConfig.transferencia.enabled
+                  },
+                  efectivo: {
+                    ...defaultConfig.efectivo,
+                    ...parsed.efectivo,
+                    enabled: parsed.efectivo.enabled !== undefined ? parsed.efectivo.enabled : defaultConfig.efectivo.enabled
+                  }
+                };
+                setConfig(mergedConfig);
+                localStorage.setItem('payment_config', JSON.stringify(mergedConfig));
+                return;
+              }
+            } catch (e) {
+              // Si hay error parseando localStorage, usar valores por defecto
+            }
+          }
+          // Si no hay datos válidos, usar valores por defecto y guardarlos
+          const defaultConfig = loadConfig();
+          setConfig(defaultConfig);
+          localStorage.setItem('payment_config', JSON.stringify(defaultConfig));
         }
       } catch (error) {
         console.warn('No se pudo cargar configuración de Supabase:', error);
+        // Si falla, usar valores por defecto
+        const defaultConfig = loadConfig();
+        setConfig(defaultConfig);
       }
     };
 
@@ -81,13 +151,34 @@ export default function PaymentConfig() {
   }, []);
 
   const handleConfigChange = (section: keyof PaymentConfig, field: string, value: string | boolean) => {
-    setConfig(prev => ({
-      ...prev,
-      [section]: {
-        ...prev[section],
-        [field]: value
+    setConfig(prev => {
+      if (!prev || !prev[section]) {
+        // Si no hay configuración previa, usar valores por defecto
+        const defaultConfig = loadConfig();
+        return {
+          ...defaultConfig,
+          [section]: {
+            ...defaultConfig[section],
+            [field]: value
+          }
+        };
       }
-    }));
+      return {
+        ...prev,
+        [section]: {
+          ...prev[section],
+          [field]: value
+        }
+      };
+    });
+  };
+
+  const resetToDefaults = () => {
+    const defaultConfig = loadConfig();
+    setConfig(defaultConfig);
+    localStorage.setItem('payment_config', JSON.stringify(defaultConfig));
+    setSavedMessage('Configuración restablecida a valores por defecto ✅');
+    setTimeout(() => setSavedMessage(''), 3000);
   };
 
   const handleSave = async () => {
@@ -129,8 +220,8 @@ export default function PaymentConfig() {
           },
           body: JSON.stringify({
             mercadoPago: {
-              accessToken: config.mercadoPago.accessToken,
-              publicKey: config.mercadoPago.publicKey
+              accessToken: config?.mercadoPago?.accessToken || '',
+              publicKey: config?.mercadoPago?.publicKey || ''
             }
           })
         });
@@ -174,12 +265,12 @@ export default function PaymentConfig() {
         },
         body: JSON.stringify({
           mercadoPago: {
-            accessToken: config.mercadoPago.accessToken,
-            publicKey: config.mercadoPago.publicKey,
-            enabled: config.mercadoPago.enabled
+            accessToken: config?.mercadoPago?.accessToken || '',
+            publicKey: config?.mercadoPago?.publicKey || '',
+            enabled: config?.mercadoPago?.enabled ?? false
           },
-          transferencia: config.transferencia,
-          efectivo: config.efectivo
+          transferencia: config?.transferencia || { alias: '', cvu: '', titular: '', enabled: false },
+          efectivo: config?.efectivo || { enabled: false, message: '' }
         })
       });
       
@@ -251,14 +342,23 @@ export default function PaymentConfig() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-gray-800">Configuración de Pagos</h2>
-        <button
-          onClick={handleSave}
-          disabled={isLoading}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center space-x-2"
-        >
-          <i className="ri-save-line w-4 h-4"></i>
-          <span>{isLoading ? 'Guardando...' : 'Guardar'}</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={resetToDefaults}
+            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors flex items-center space-x-2"
+          >
+            <i className="ri-refresh-line"></i>
+            <span>Restablecer por Defecto</span>
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={isLoading}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center space-x-2"
+          >
+            <i className="ri-save-line w-4 h-4"></i>
+            <span>{isLoading ? 'Guardando...' : 'Guardar'}</span>
+          </button>
+        </div>
       </div>
 
       {savedMessage && (
@@ -286,7 +386,7 @@ export default function PaymentConfig() {
           <label className="relative inline-flex items-center cursor-pointer">
             <input
               type="checkbox"
-              checked={config.mercadoPago.enabled}
+              checked={config?.mercadoPago?.enabled ?? false}
               onChange={(e) => handleConfigChange('mercadoPago', 'enabled', e.target.checked)}
               className="sr-only peer"
             />
@@ -301,7 +401,7 @@ export default function PaymentConfig() {
             </label>
             <input
               type="text"
-              value={config.mercadoPago.publicKey}
+              value={config?.mercadoPago?.publicKey || ''}
               onChange={(e) => handleConfigChange('mercadoPago', 'publicKey', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
               placeholder="APP_USR-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
@@ -315,7 +415,7 @@ export default function PaymentConfig() {
             <div className="relative">
               <input
                 type={showTokens ? "text" : "password"}
-                value={config.mercadoPago.accessToken}
+                value={config?.mercadoPago?.accessToken || ''}
                 onChange={(e) => handleConfigChange('mercadoPago', 'accessToken', e.target.value)}
                 className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
                 placeholder="APP_USR-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-xxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-xxxxxxxxx"
@@ -354,7 +454,7 @@ export default function PaymentConfig() {
           <label className="relative inline-flex items-center cursor-pointer">
             <input
               type="checkbox"
-              checked={config.transferencia.enabled}
+              checked={config?.transferencia?.enabled ?? false}
               onChange={(e) => handleConfigChange('transferencia', 'enabled', e.target.checked)}
               className="sr-only peer"
             />
@@ -369,7 +469,7 @@ export default function PaymentConfig() {
             </label>
             <input
               type="text"
-              value={config.transferencia.alias}
+              value={config?.transferencia?.alias || ''}
               onChange={(e) => handleConfigChange('transferencia', 'alias', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
               placeholder="elbuenmenu.mp"
@@ -382,7 +482,7 @@ export default function PaymentConfig() {
             </label>
             <input
               type="text"
-              value={config.transferencia.cvu}
+              value={config?.transferencia?.cvu || ''}
               onChange={(e) => handleConfigChange('transferencia', 'cvu', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
               placeholder="0000003100059183029153"
@@ -395,7 +495,7 @@ export default function PaymentConfig() {
             </label>
             <input
               type="text"
-              value={config.transferencia.titular}
+              value={config?.transferencia?.titular || ''}
               onChange={(e) => handleConfigChange('transferencia', 'titular', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
               placeholder="El Buen Menú"
@@ -419,7 +519,7 @@ export default function PaymentConfig() {
           <label className="relative inline-flex items-center cursor-pointer">
             <input
               type="checkbox"
-              checked={config.efectivo.enabled}
+              checked={config?.efectivo?.enabled ?? false}
               onChange={(e) => handleConfigChange('efectivo', 'enabled', e.target.checked)}
               className="sr-only peer"
             />
@@ -432,7 +532,7 @@ export default function PaymentConfig() {
             Mensaje para el cliente
           </label>
           <textarea
-            value={config.efectivo.message}
+            value={config?.efectivo?.message || ''}
             onChange={(e) => handleConfigChange('efectivo', 'message', e.target.value)}
             rows={3}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all resize-none"
