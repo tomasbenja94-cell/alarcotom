@@ -2204,6 +2204,22 @@ async function showMainMenu(from, customerId) {
 // ---------------------------------------------------------------------------
 async function validateOrderQueryWithIUC(from, messageText, customerJid) {
     try {
+        logger.info(`🔍 [VALIDATE IUC] Validando mensaje de ${from}`);
+        logger.info(`🔍 [VALIDATE IUC] Mensaje: "${messageText}"`);
+        logger.info(`🔍 [VALIDATE IUC] JID: ${customerJid}`);
+        
+        // Verificar si es un pedido nuevo sin IUC (desde checkout web) - PRIMERO
+        const isNewWebOrder = messageText.includes('Código de pedido:') && 
+                             (messageText.includes('Tu identificador único (IUC) se te asignará') ||
+                              messageText.includes('se te asignará cuando el pedido sea aprobado') ||
+                              messageText.includes('PEDIDO CONFIRMADO - El Buen Menú'));
+        
+        if (isNewWebOrder) {
+            // Es un pedido nuevo desde la web, no requiere IUC aún
+            logger.info(`✅ [VALIDATE IUC] Pedido nuevo detectado (sin IUC requerido): ${from}`);
+            return { valid: true, isNewOrder: true };
+        }
+        
         // Verificar si el cliente está bloqueado
         const customers = await apiRequest('/customers');
         const customer = customers.find(c => c.phone === customerJid);
@@ -2237,18 +2253,6 @@ async function validateOrderQueryWithIUC(from, messageText, customerJid) {
                     logger.error('Error desbloqueando cliente:', error);
                 }
             }
-        }
-        
-        // Verificar si es un pedido nuevo sin IUC (desde checkout web)
-        const isNewWebOrder = messageText.includes('Código de pedido:') && 
-                             (messageText.includes('Tu identificador único (IUC) se te asignará') ||
-                              messageText.includes('se te asignará cuando el pedido sea aprobado') ||
-                              messageText.includes('PEDIDO CONFIRMADO - El Buen Menú'));
-        
-        if (isNewWebOrder) {
-            // Es un pedido nuevo desde la web, no requiere IUC aún
-            logger.info(`✅ Pedido nuevo detectado (sin IUC requerido): ${from}`);
-            return { valid: true, isNewOrder: true };
         }
         
         // Validar formato del mensaje: PEDIDO CONFIRMADO - XXXX - El Buen Menú
@@ -2385,7 +2389,16 @@ async function validateOrderQueryWithIUC(from, messageText, customerJid) {
         return { valid: true, iuc: iucFromMessage };
     } catch (error) {
         logger.error('❌ Error validando consulta de pedido con IUC:', error);
-        return { valid: false };
+        logger.error('❌ Stack:', error.stack);
+        logger.error('❌ Mensaje que causó el error:', messageText);
+        
+        // Si hay un error pero el mensaje parece ser un pedido nuevo, permitirlo
+        if (messageText && messageText.includes('Código de pedido:')) {
+            logger.warn('⚠️ Error en validación pero mensaje parece ser pedido nuevo, permitiendo...');
+            return { valid: true, isNewOrder: true, error: true };
+        }
+        
+        return { valid: false, error: true };
     }
 }
 

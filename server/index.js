@@ -36,7 +36,8 @@ dotenv.config();
 const app = express();
 
 // Configurar trust proxy para rate limiting detrás de proxy/load balancer
-app.set('trust proxy', true);
+// Solo confiar en el primer proxy (más seguro que trust proxy: true)
+app.set('trust proxy', 1);
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 5000;
 
