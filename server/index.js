@@ -800,7 +800,12 @@ app.get('/api/orders/:id', async (req, res) => {
   }
 });
 
-app.post('/api/orders', async (req, res) => {
+// Manejar preflight OPTIONS para /api/orders
+app.options('/api/orders', corsMiddleware, (req, res) => {
+  res.sendStatus(200);
+});
+
+app.post('/api/orders', corsMiddleware, async (req, res) => {
   try {
     // Generar número de pedido único
     const lastOrder = await prisma.order.findFirst({
