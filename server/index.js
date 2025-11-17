@@ -181,21 +181,16 @@ async function assignIUCIfNeeded(customerPhone) {
   if (!customerPhone) return null;
   
   try {
-    // Buscar o crear cliente
-    let customer = await prisma.customer.findUnique({
-      where: { phone: customerPhone }
+    // Usar upsert para evitar errores de duplicado (race condition)
+    let customer = await prisma.customer.upsert({
+      where: { phone: customerPhone },
+      update: {}, // Si existe, no actualizar nada
+      create: {
+        phone: customerPhone,
+        name: null,
+        isBlocked: false
+      }
     });
-    
-    if (!customer) {
-      // Crear cliente si no existe
-      customer = await prisma.customer.create({
-        data: {
-          phone: customerPhone,
-          name: null,
-          isBlocked: false
-        }
-      });
-    }
     
     // Si ya tiene IUC, retornarlo
     if (customer.iuc) {
