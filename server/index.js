@@ -1685,7 +1685,17 @@ app.get('/api/pending-transfers', async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
     console.log(`✅ [PENDING TRANSFERS] ${transfers.length} transferencias encontradas`);
-    res.json(objectToSnakeCase(transfers));
+    
+    // Normalizar URLs de comprobantes (corregir api.elbuenmenu.site a elbuenmenu.site)
+    const normalizedTransfers = transfers.map(transfer => {
+      if (transfer.proofImageUrl && transfer.proofImageUrl.includes('api.elbuenmenu.site')) {
+        transfer.proofImageUrl = transfer.proofImageUrl.replace('https://api.elbuenmenu.site', 'https://elbuenmenu.site');
+        transfer.proofImageUrl = transfer.proofImageUrl.replace('http://api.elbuenmenu.site', 'https://elbuenmenu.site');
+      }
+      return transfer;
+    });
+    
+    res.json(objectToSnakeCase(normalizedTransfers));
   } catch (error) {
     console.error('❌ [PENDING TRANSFERS] Error:', error.message);
     console.error('❌ [PENDING TRANSFERS] Error code:', error.code);
@@ -1735,7 +1745,17 @@ app.get('/api/pending-transfers', async (req, res) => {
           })
         );
         console.log(`✅ [PENDING TRANSFERS] ${transfersWithOrders.length} transferencias con orders obtenidas`);
-        res.json(objectToSnakeCase(transfersWithOrders));
+        
+        // Normalizar URLs de comprobantes (corregir api.elbuenmenu.site a elbuenmenu.site)
+        const normalizedTransfers = transfersWithOrders.map(transfer => {
+          if (transfer.proofImageUrl && transfer.proofImageUrl.includes('api.elbuenmenu.site')) {
+            transfer.proofImageUrl = transfer.proofImageUrl.replace('https://api.elbuenmenu.site', 'https://elbuenmenu.site');
+            transfer.proofImageUrl = transfer.proofImageUrl.replace('http://api.elbuenmenu.site', 'https://elbuenmenu.site');
+          }
+          return transfer;
+        });
+        
+        res.json(objectToSnakeCase(normalizedTransfers));
         return;
       } catch (fallbackError) {
         console.error('❌ [PENDING TRANSFERS] Error con fallback:', fallbackError.message);
