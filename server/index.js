@@ -1652,6 +1652,9 @@ app.get('/api/pending-transfers', async (req, res) => {
     ? { status: req.query.status }
     : {};
   
+  console.log('📥 [PENDING TRANSFERS] Obteniendo transferencias pendientes...');
+  console.log('📥 [PENDING TRANSFERS] Where clause:', whereClause);
+  
   try {
     const transfers = await prisma.pendingTransfer.findMany({
       where: whereClause,
@@ -1681,16 +1684,23 @@ app.get('/api/pending-transfers', async (req, res) => {
       },
       orderBy: { createdAt: 'desc' }
     });
+    console.log(`✅ [PENDING TRANSFERS] ${transfers.length} transferencias encontradas`);
     res.json(objectToSnakeCase(transfers));
   } catch (error) {
+    console.error('❌ [PENDING TRANSFERS] Error:', error.message);
+    console.error('❌ [PENDING TRANSFERS] Error code:', error.code);
+    console.error('❌ [PENDING TRANSFERS] Error meta:', error.meta);
+    
     // Si el error es por unique_code, intentar sin include order
     if (error.code === 'P2022' && error.meta?.column?.includes('unique_code')) {
-      console.warn('⚠️ unique_code no existe, obteniendo transferencias sin unique_code...');
+      console.warn('⚠️ [PENDING TRANSFERS] unique_code no existe, obteniendo transferencias sin unique_code...');
       try {
         const transfers = await prisma.pendingTransfer.findMany({
           where: whereClause,
           orderBy: { createdAt: 'desc' }
         });
+        console.log(`✅ [PENDING TRANSFERS] ${transfers.length} transferencias encontradas (sin include)`);
+        
         // Obtener orders por separado sin unique_code
         const transfersWithOrders = await Promise.all(
           transfers.map(async (transfer) => {
@@ -1719,18 +1729,21 @@ app.get('/api/pending-transfers', async (req, res) => {
               });
               return { ...transfer, order };
             } catch (orderError) {
+              console.warn(`⚠️ [PENDING TRANSFERS] Error obteniendo order ${transfer.orderId}:`, orderError.message);
               return { ...transfer, order: null };
             }
           })
         );
+        console.log(`✅ [PENDING TRANSFERS] ${transfersWithOrders.length} transferencias con orders obtenidas`);
         res.json(objectToSnakeCase(transfersWithOrders));
         return;
       } catch (fallbackError) {
-        console.error('Error con fallback:', fallbackError);
+        console.error('❌ [PENDING TRANSFERS] Error con fallback:', fallbackError.message);
+        console.error('❌ [PENDING TRANSFERS] Fallback error code:', fallbackError.code);
       }
     }
-    console.error('Error fetching pending transfers:', error);
-    res.status(500).json({ error: 'Error al obtener transferencias' });
+    console.error('❌ [PENDING TRANSFERS] Error fetching pending transfers:', error);
+    res.status(500).json({ error: 'Error al obtener transferencias', details: process.env.NODE_ENV !== 'production' ? error.message : undefined });
   }
 });
 
