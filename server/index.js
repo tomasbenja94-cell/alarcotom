@@ -1686,11 +1686,19 @@ app.get('/api/pending-transfers', async (req, res) => {
     });
     console.log(`✅ [PENDING TRANSFERS] ${transfers.length} transferencias encontradas`);
     
-    // Normalizar URLs de comprobantes (corregir api.elbuenmenu.site a elbuenmenu.site)
+    // Normalizar URLs de comprobantes
     const normalizedTransfers = transfers.map(transfer => {
-      if (transfer.proofImageUrl && transfer.proofImageUrl.includes('api.elbuenmenu.site')) {
-        transfer.proofImageUrl = transfer.proofImageUrl.replace('https://api.elbuenmenu.site', 'https://elbuenmenu.site');
-        transfer.proofImageUrl = transfer.proofImageUrl.replace('http://api.elbuenmenu.site', 'https://elbuenmenu.site');
+      if (transfer.proofImageUrl) {
+        // Si la URL es relativa (empieza con /), construirla completa
+        if (transfer.proofImageUrl.startsWith('/')) {
+          transfer.proofImageUrl = `https://elbuenmenu.site${transfer.proofImageUrl}`;
+        }
+        // Si contiene el dominio incorrecto api.elbuenmenu.site, corregirlo
+        else if (transfer.proofImageUrl.includes('api.elbuenmenu.site')) {
+          transfer.proofImageUrl = transfer.proofImageUrl.replace('https://api.elbuenmenu.site', 'https://elbuenmenu.site');
+          transfer.proofImageUrl = transfer.proofImageUrl.replace('http://api.elbuenmenu.site', 'https://elbuenmenu.site');
+        }
+        // Si ya es una URL completa correcta, dejarla como está
       }
       return transfer;
     });
@@ -1746,11 +1754,19 @@ app.get('/api/pending-transfers', async (req, res) => {
         );
         console.log(`✅ [PENDING TRANSFERS] ${transfersWithOrders.length} transferencias con orders obtenidas`);
         
-        // Normalizar URLs de comprobantes (corregir api.elbuenmenu.site a elbuenmenu.site)
+        // Normalizar URLs de comprobantes
         const normalizedTransfers = transfersWithOrders.map(transfer => {
-          if (transfer.proofImageUrl && transfer.proofImageUrl.includes('api.elbuenmenu.site')) {
-            transfer.proofImageUrl = transfer.proofImageUrl.replace('https://api.elbuenmenu.site', 'https://elbuenmenu.site');
-            transfer.proofImageUrl = transfer.proofImageUrl.replace('http://api.elbuenmenu.site', 'https://elbuenmenu.site');
+          if (transfer.proofImageUrl) {
+            // Si la URL es relativa (empieza con /), construirla completa
+            if (transfer.proofImageUrl.startsWith('/')) {
+              transfer.proofImageUrl = `https://elbuenmenu.site${transfer.proofImageUrl}`;
+            }
+            // Si contiene el dominio incorrecto api.elbuenmenu.site, corregirlo
+            else if (transfer.proofImageUrl.includes('api.elbuenmenu.site')) {
+              transfer.proofImageUrl = transfer.proofImageUrl.replace('https://api.elbuenmenu.site', 'https://elbuenmenu.site');
+              transfer.proofImageUrl = transfer.proofImageUrl.replace('http://api.elbuenmenu.site', 'https://elbuenmenu.site');
+            }
+            // Si ya es una URL completa correcta, dejarla como está
           }
           return transfer;
         });
