@@ -349,9 +349,14 @@ export default function TransfersPending() {
                             // Construir URL correcta para la imagen
                             let imageUrl = transfer.proof_image_url || '';
                             
-                            // Si la URL ya es completa (http/https), usarla directamente
+                            // Si la URL ya es completa (http/https), verificar y corregir si es necesario
                             if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
-                              // URL completa, usar tal cual
+                              // Si la URL contiene el dominio incorrecto, corregirlo
+                              if (imageUrl.includes('api.elbuenmenu.site')) {
+                                imageUrl = imageUrl.replace('https://api.elbuenmenu.site', 'https://elbuenmenu.site');
+                                imageUrl = imageUrl.replace('http://api.elbuenmenu.site', 'https://elbuenmenu.site');
+                              }
+                              // URL completa, usar tal cual (ya corregida si era necesario)
                             } else if (imageUrl) {
                               // Construir base URL del backend
                               let baseUrl = 'https://elbuenmenu.site';
