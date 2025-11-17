@@ -1260,16 +1260,176 @@ app.put('/api/orders/:id', async (req, res) => {
     console.log(`📝 [UPDATE ORDER] Actualizando pedido ${req.params.id} con datos:`, JSON.stringify(orderData, null, 2));
     
     // Obtener pedido anterior para comparar estados
-    const previousOrder = await prisma.order.findUnique({
-      where: { id: req.params.id },
-      include: { items: true }
-    });
+    let previousOrder;
+    try {
+      previousOrder = await prisma.order.findUnique({
+        where: { id: req.params.id },
+        include: { items: true }
+      });
+    } catch (findError) {
+      // Si falla por unique_code, usar select explícito
+      if (findError.code === 'P2022' && findError.meta?.column?.includes('unique_code')) {
+        console.warn('⚠️ [UPDATE ORDER] findUnique falló por unique_code, usando select...');
+        previousOrder = await prisma.order.findUnique({
+          where: { id: req.params.id },
+          select: {
+            id: true,
+            orderNumber: true,
+            customerName: true,
+            customerPhone: true,
+            customerAddress: true,
+            status: true,
+            paymentMethod: true,
+            paymentStatus: true,
+            subtotal: true,
+            deliveryFee: true,
+            total: true,
+            notes: true,
+            deliveryCode: true,
+            trackingToken: true,
+            deliveryPersonId: true,
+            createdAt: true,
+            updatedAt: true,
+            items: true
+          }
+        });
+      } else {
+        throw findError;
+      }
+    }
     
-    const order = await prisma.order.update({
-      where: { id: req.params.id },
-      data: orderData,
-      include: { items: true }
-    });
+    if (!previousOrder) {
+      return res.status(404).json({ error: 'Pedido no encontrado' });
+    }
+    
+    // Actualizar el pedido
+    let order;
+    try {
+      order = await prisma.order.update({
+        where: { id: req.params.id },
+        data: orderData,
+        include: { items: true }
+      });
+    } catch (updateError) {
+      // Si falla por unique_code, usar raw SQL
+      if (updateError.code === 'P2022' && updateError.meta?.column?.includes('unique_code')) {
+        console.warn('⚠️ [UPDATE ORDER] update falló por unique_code, usando raw SQL...');
+        
+        // Construir SET clause dinámicamente
+        const setClauses = [];
+        const values = [];
+        let paramIndex = 1;
+        
+        if (orderData.customerName !== undefined) {
+          setClauses.push(`customer_name = $${paramIndex++}`);
+          values.push(orderData.customerName);
+        }
+        if (orderData.customerPhone !== undefined) {
+          setClauses.push(`customer_phone = $${paramIndex++}`);
+          values.push(orderData.customerPhone);
+        }
+        if (orderData.customerAddress !== undefined) {
+          setClauses.push(`customer_address = $${paramIndex++}`);
+          values.push(orderData.customerAddress);
+        }
+        if (orderData.status !== undefined) {
+          setClauses.push(`status = $${paramIndex++}`);
+          values.push(orderData.status);
+        }
+        if (orderData.paymentMethod !== undefined) {
+          setClauses.push(`payment_method = $${paramIndex++}`);
+          values.push(orderData.paymentMethod);
+        }
+        if (orderData.paymentStatus !== undefined) {
+          setClauses.push(`payment_status = $${paramIndex++}`);
+          values.push(orderData.paymentStatus);
+        }
+        if (orderData.subtotal !== undefined) {
+          setClauses.push(`subtotal = $${paramIndex++}`);
+          values.push(orderData.subtotal);
+        }
+        if (orderData.deliveryFee !== undefined) {
+          setClauses.push(`delivery_fee = $${paramIndex++}`);
+          values.push(orderData.deliveryFee);
+        }
+        if (orderData.total !== undefined) {
+          setClauses.push(`total = $${paramIndex++}`);
+          values.push(orderData.total);
+        }
+        if (orderData.notes !== undefined) {
+          setClauses.push(`notes = $${paramIndex++}`);
+          values.push(orderData.notes);
+        }
+        
+        setClauses.push(`updated_at = $${paramIndex++}`);
+        values.push(new Date().toISOString());
+        
+        const whereParamIndex = paramIndex;
+        values.push(req.params.id);
+        
+        const updateQuery = `
+          UPDATE orders 
+          SET ${setClauses.join(', ')}
+          WHERE id = $${whereParamIndex}
+          RETURNING *
+        `;
+        
+        // Usar $queryRawUnsafe con parámetros escapados
+        const escapedValues = values.map((val) => {
+          if (val === null || val === undefined) return 'NULL';
+          if (typeof val === 'string') return `'${val.replace(/'/g, "''")}'`;
+          if (typeof val === 'number') return val;
+          return `'${String(val).replace(/'/g, "''")}'`;
+        });
+        
+        // Reemplazar parámetros $1, $2, etc. con valores escapados
+        let finalQuery = updateQuery;
+        for (let i = 0; i < escapedValues.length; i++) {
+          finalQuery = finalQuery.replace(`$${i + 1}`, escapedValues[i]);
+        }
+        
+        const updateResult = await prisma.$queryRawUnsafe(finalQuery);
+        const updatedOrder = updateResult[0];
+        
+        // Obtener items por separado
+        const items = await prisma.orderItem.findMany({
+          where: { orderId: updatedOrder.id }
+        });
+        
+        // Construir objeto order en formato esperado
+        order = {
+          id: updatedOrder.id,
+          orderNumber: updatedOrder.order_number,
+          customerName: updatedOrder.customer_name,
+          customerPhone: updatedOrder.customer_phone,
+          customerAddress: updatedOrder.customer_address,
+          status: updatedOrder.status,
+          paymentMethod: updatedOrder.payment_method,
+          paymentStatus: updatedOrder.payment_status,
+          subtotal: parseFloat(updatedOrder.subtotal),
+          deliveryFee: parseFloat(updatedOrder.delivery_fee || 0),
+          total: parseFloat(updatedOrder.total),
+          notes: updatedOrder.notes,
+          createdAt: updatedOrder.created_at,
+          updatedAt: updatedOrder.updated_at,
+          items: items.map(item => ({
+            id: item.id,
+            orderId: item.order_id,
+            productId: item.product_id,
+            productName: item.product_name,
+            quantity: item.quantity,
+            unitPrice: parseFloat(item.unit_price),
+            subtotal: parseFloat(item.subtotal),
+            selectedOptions: item.selected_options,
+            createdAt: item.created_at
+          }))
+        };
+        
+        console.warn('✅ [UPDATE ORDER] Pedido actualizado con raw SQL');
+      } else {
+        throw updateError;
+      }
+    }
     
     console.log(`✅ [UPDATE ORDER] Pedido actualizado:`, {
       id: order.id,
