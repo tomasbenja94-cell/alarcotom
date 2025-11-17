@@ -352,16 +352,55 @@ export default function TransfersPending() {
                             // Si la URL ya es completa (http/https), usarla directamente
                             if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
                               // URL completa, usar tal cual
-                            } else if (imageUrl.startsWith('/')) {
-                              // Ruta relativa que empieza con /
-                              const apiUrl = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
-                              const baseUrl = apiUrl.replace('/api', '') || 'https://api.elbuenmenu.site';
-                              imageUrl = `${baseUrl}${imageUrl}`;
                             } else if (imageUrl) {
-                              // Ruta relativa sin /
-                              const apiUrl = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
-                              const baseUrl = apiUrl.replace('/api', '') || 'https://api.elbuenmenu.site';
-                              imageUrl = `${baseUrl}/${imageUrl}`;
+                              // Construir base URL del backend
+                              let baseUrl = 'https://elbuenmenu.site';
+                              
+                              // Obtener API URL de las variables de entorno
+                              const apiUrl = import.meta.env.VITE_API_URL;
+                              if (apiUrl && typeof apiUrl === 'string') {
+                                try {
+                                  // Si tiene /api al final, removerlo
+                                  if (apiUrl.endsWith('/api')) {
+                                    baseUrl = apiUrl.slice(0, -4); // Remover '/api'
+                                  } else if (apiUrl.includes('/api')) {
+                                    baseUrl = apiUrl.split('/api')[0];
+                                  } else {
+                                    baseUrl = apiUrl;
+                                  }
+                                  
+                                  // Validar que baseUrl sea una URL válida
+                                  if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+                                    baseUrl = 'https://elbuenmenu.site';
+                                  }
+                                } catch (e) {
+                                  console.warn('Error procesando VITE_API_URL:', e);
+                                  baseUrl = 'https://elbuenmenu.site';
+                                }
+                              }
+                              
+                              // Asegurar que baseUrl no termine con /
+                              baseUrl = baseUrl.replace(/\/+$/, '');
+                              
+                              // Extraer el nombre del archivo de la ruta
+                              // Si imageUrl es "/proofs/proof_xxx.jpg", extraer solo "proof_xxx.jpg"
+                              // Si imageUrl es "proof_xxx.jpg", usar tal cual
+                              let filename = imageUrl;
+                              if (imageUrl.includes('/')) {
+                                // Extraer el nombre del archivo de la ruta
+                                filename = imageUrl.split('/').pop() || imageUrl;
+                              }
+                              
+                              // Construir URL final: baseUrl/proofs/filename
+                              imageUrl = `${baseUrl}/proofs/${filename}`;
+                              
+                              // Validar URL final
+                              try {
+                                new URL(imageUrl);
+                              } catch (e) {
+                                console.error('URL de imagen inválida construida:', imageUrl, 'from:', transfer.proof_image_url);
+                                return <p className="text-xs text-[#C7C7C7]">⚠️ URL de imagen inválida</p>;
+                              }
                             }
                             
                             if (!imageUrl) {

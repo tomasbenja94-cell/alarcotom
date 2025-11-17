@@ -48,7 +48,7 @@ export default function MenuPage() {
 
   const loadMenuData = async () => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
       
       // Cargar categorías desde la API del backend
       const categoriesResponse = await fetch(`${apiUrl}/categories`);

@@ -37,7 +37,7 @@ export default function ProductGrid({ products, onAddToCart }: ProductGridProps)
       const productIds = products.map(p => p.id).filter(Boolean);
       if (productIds.length === 0) return;
 
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
       
       // Obtener las categorías de opciones que pertenecen a estos productos desde la API del backend
       // Hacer una petición por cada producto (o agrupar si el backend lo permite)

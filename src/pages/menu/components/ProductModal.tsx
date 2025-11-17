@@ -65,7 +65,7 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
     try {
       setLoading(true);
       
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
       
       // Cargar categorías de opciones del producto desde la API del backend
       const categoriesResponse = await fetch(`${apiUrl}/product-option-categories?productId=${product.id}`);
