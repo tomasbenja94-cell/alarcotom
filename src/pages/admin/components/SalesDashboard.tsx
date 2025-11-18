@@ -74,7 +74,11 @@ interface SalesStats {
   }>;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
+// Corregir URL si está usando api.elbuenmenu.site (que no existe)
+const rawApiUrl = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
+const API_URL = rawApiUrl.includes('api.elbuenmenu.site') 
+  ? 'https://elbuenmenu.site/api' 
+  : rawApiUrl;
 
 async function fetchStats(): Promise<SalesStats> {
   const token = localStorage.getItem('adminToken');

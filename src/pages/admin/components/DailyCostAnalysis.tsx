@@ -21,7 +21,11 @@ export default function DailyCostAnalysis() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const API_URL = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
+  // Corregir URL si está usando api.elbuenmenu.site (que no existe)
+  const rawApiUrl = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
+  const API_URL = rawApiUrl.includes('api.elbuenmenu.site') 
+    ? 'https://elbuenmenu.site/api' 
+    : rawApiUrl;
 
   useEffect(() => {
     loadAnalysis();

@@ -196,9 +196,15 @@ export default function BotMessagesManager() {
       } else {
         setMessages(data);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al cargar mensajes:', error);
-      addToast('Error al cargar mensajes del bot', 'error');
+      // Silenciar errores de Supabase si la tabla no existe
+      if (error?.code === '42501' || error?.code === 'PGRST116' || error?.code === 'PGRST205') {
+        // Tabla no existe o sin permisos, usar mensajes por defecto
+        await initializeDefaultMessages();
+      } else if (addToast) {
+        addToast('Error al cargar mensajes del bot', 'error');
+      }
     } finally {
       setLoading(false);
     }

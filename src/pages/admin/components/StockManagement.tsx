@@ -35,30 +35,29 @@ export default function StockManagement() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('ingredients')
-        .select('*')
-        .order('name', { ascending: true });
+      // Intentar cargar desde la API del backend (si existe)
+      const API_URL = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/ingredients` : `${API_URL}/api/ingredients`;
+      const response = await fetch(endpoint);
 
-      if (error) {
-        // Si la tabla no existe, marcar y usar datos vacíos
-        if (error.code === 'PGRST116' || error.code === 'PGRST205' || error.message?.includes('does not exist')) {
+      if (!response.ok) {
+        // Si el endpoint no existe (404), usar datos vacíos sin mostrar error
+        if (response.status === 404) {
           setTableExists(false);
           setIngredients([]);
-          return; // Salir silenciosamente
-        } else {
-          throw error;
+          return;
         }
-      } else {
-        setTableExists(true);
-        setIngredients(data || []);
+        // Silenciar otros errores también
+        setTableExists(false);
+        setIngredients([]);
+        return;
       }
+
+      const data = await response.json();
+      setTableExists(true);
+      setIngredients(data || []);
     } catch (error: any) {
-      // Solo mostrar error si no es por tabla no existente
-      if (error.code !== 'PGRST116' && error.code !== 'PGRST205' && !error.message?.includes('does not exist')) {
-        console.error('Error cargando insumos:', error);
-        alert('Error al cargar los insumos: ' + (error.message || 'Error desconocido'));
-      }
+      // Silenciar errores - la tabla puede no existir
       setTableExists(false);
       setIngredients([]);
     } finally {

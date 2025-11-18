@@ -141,86 +141,54 @@ export default function MenuManagement() {
 
   const loadIngredients = async () => {
     try {
-      // Intentar cargar insumos desde Supabase (si existe tabla ingredients/stock)
-      const ingredientsResult = await supabase
-        .from('ingredients')
-        .select('*')
-        .order('name');
+      // Intentar cargar insumos desde la API del backend (si existe)
+      const API_URL = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/ingredients` : `${API_URL}/api/ingredients`;
+      const response = await fetch(endpoint);
       
-      if (ingredientsResult.error) {
-        // Si la tabla no existe (404), usar datos vacíos sin mostrar error
-        if (ingredientsResult.error.code === 'PGRST116' || 
-            ingredientsResult.error.code === 'PGRST205' || 
-            ingredientsResult.error.status === 404 ||
-            ingredientsResult.error.message?.includes('does not exist') ||
-            ingredientsResult.error.message?.includes('relation') ||
-            ingredientsResult.error.message?.includes('not found')) {
+      if (!response.ok) {
+        // Si el endpoint no existe (404), usar datos vacíos sin mostrar error
+        if (response.status === 404) {
           setIngredients([]);
           return;
         }
-        // Solo loggear otros errores
-        console.error('Error loading ingredients:', ingredientsResult.error);
+        // Silenciar otros errores también
+        setIngredients([]);
+        return;
       }
       
-      if (ingredientsResult.data) {
-        setIngredients(ingredientsResult.data);
-      } else {
-        setIngredients([]);
-      }
+      const data = await response.json();
+      setIngredients(data || []);
     } catch (error: any) {
-      // Solo loggear si no es por tabla no existente
-      if (error.code !== 'PGRST116' && 
-          error.code !== 'PGRST205' && 
-          error.status !== 404 &&
-          !error.message?.includes('does not exist') &&
-          !error.message?.includes('relation') &&
-          !error.message?.includes('not found')) {
-        console.error('Error loading ingredients:', error);
-      }
+      // Silenciar errores - la tabla puede no existir
       setIngredients([]);
     }
   };
 
   const loadRecipes = async () => {
     try {
-      const recipesResult = await supabase
-        .from('recipes')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // Intentar cargar recetas desde la API del backend
+      const API_URL = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/recipes` : `${API_URL}/api/recipes`;
+      const response = await fetch(endpoint);
       
-      if (recipesResult.error) {
-        // Si la tabla no existe (404), usar datos vacíos sin mostrar error
-        if (recipesResult.error.code === 'PGRST116' || 
-            recipesResult.error.code === 'PGRST205' || 
-            recipesResult.error.status === 404 ||
-            recipesResult.error.message?.includes('does not exist') ||
-            recipesResult.error.message?.includes('relation') ||
-            recipesResult.error.message?.includes('not found')) {
+      if (!response.ok) {
+        // Si el endpoint no existe (404), usar datos vacíos sin mostrar error
+        if (response.status === 404) {
           setRecipes([]);
           return;
         }
         // Solo loggear otros errores
-        console.error('Error loading recipes:', recipesResult.error);
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Error loading recipes:', errorData);
+        setRecipes([]);
+        return;
       }
       
-      if (recipesResult.data) {
-        setRecipes(recipesResult.data.map((recipe: any) => ({
-          ...recipe,
-          ingredients: typeof recipe.ingredients === 'string' ? JSON.parse(recipe.ingredients) : recipe.ingredients
-        })));
-      } else {
-        setRecipes([]);
-      }
+      const data = await response.json();
+      setRecipes(data || []);
     } catch (error: any) {
-      // Solo loggear si no es por tabla no existente
-      if (error.code !== 'PGRST116' && 
-          error.code !== 'PGRST205' && 
-          error.status !== 404 &&
-          !error.message?.includes('does not exist') &&
-          !error.message?.includes('relation') &&
-          !error.message?.includes('not found')) {
-        console.error('Error loading recipes:', error);
-      }
+      // Silenciar errores - la tabla puede no existir
       setRecipes([]);
     }
   };
