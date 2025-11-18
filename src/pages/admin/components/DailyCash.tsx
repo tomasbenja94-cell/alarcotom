@@ -33,7 +33,8 @@ export default function DailyCash() {
       const token = localStorage.getItem('adminToken');
       
       // Obtener estadísticas del día desde el API
-      const response = await fetch(`${API_URL}/stats/sales`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/stats/sales` : `${API_URL}/api/stats/sales`;
+      const response = await fetch(endpoint, {
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
           'Content-Type': 'application/json'

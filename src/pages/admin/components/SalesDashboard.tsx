@@ -78,7 +78,8 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
 
 async function fetchStats(): Promise<SalesStats> {
   const token = localStorage.getItem('adminToken');
-  const response = await fetch(`${API_URL}/stats/sales`, {
+  const endpoint = API_URL.endsWith('/api') ? `${API_URL}/stats/sales` : `${API_URL}/api/stats/sales`;
+  const response = await fetch(endpoint, {
     headers: {
       'Authorization': token ? `Bearer ${token}` : '',
       'Content-Type': 'application/json'

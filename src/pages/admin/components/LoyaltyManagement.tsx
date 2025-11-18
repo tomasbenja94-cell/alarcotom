@@ -382,7 +382,7 @@ export default function LoyaltyManagement() {
             filteredCustomers.map((customer) => {
               const tierConfig = TIER_CONFIG[customer.tier] || TIER_CONFIG.bronze;
               const nextTier = getNextTier(customer.tier, customer.totalPoints);
-              const progress = nextTier 
+              const progress = nextTier && nextTier.config
                 ? Math.min(100, (customer.totalPoints / nextTier.config.pointsRequired) * 100)
                 : 100;
 
@@ -391,7 +391,7 @@ export default function LoyaltyManagement() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center space-x-3 mb-2">
-                        <span className="text-2xl">{tierConfig.icon}</span>
+                        <span className="text-2xl">{tierConfig?.icon || '⭐'}</span>
                         <div>
                           <p className="text-sm font-bold text-[#111111]">
                             {customer.customerName || 'Sin nombre'}
@@ -399,10 +399,10 @@ export default function LoyaltyManagement() {
                           <p className="text-xs text-[#C7C7C7] font-mono">{customer.customerId}</p>
                         </div>
                         <span className={`px-2 py-1 rounded text-xs font-bold`} style={{ 
-                          backgroundColor: tierConfig.color + '20',
-                          color: tierConfig.color 
+                          backgroundColor: (tierConfig?.color || '#C7C7C7') + '20',
+                          color: tierConfig?.color || '#C7C7C7'
                         }}>
-                          {tierConfig.label}
+                          {tierConfig?.label || customer.tier || 'Sin nivel'}
                         </span>
                         {customer.priority && (
                           <span className="px-2 py-1 bg-[#FFC300] text-[#111111] rounded text-xs font-bold">
