@@ -173,7 +173,7 @@ export default function BotMessagesManager() {
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
-  const { addToast } = useToast();
+  const { error: showError, success: showSuccess } = useToast();
 
   useEffect(() => {
     loadMessages();
@@ -202,8 +202,8 @@ export default function BotMessagesManager() {
       if (error?.code === '42501' || error?.code === 'PGRST116' || error?.code === 'PGRST205') {
         // Tabla no existe o sin permisos, usar mensajes por defecto
         await initializeDefaultMessages();
-      } else if (addToast) {
-        addToast('Error al cargar mensajes del bot', 'error');
+      } else {
+        showError('Error al cargar mensajes del bot');
       }
     } finally {
       setLoading(false);
@@ -220,10 +220,10 @@ export default function BotMessagesManager() {
       if (error) throw error;
 
       setMessages(data || []);
-      addToast('Mensajes inicializados correctamente', 'success');
+      showSuccess('Mensajes inicializados correctamente');
     } catch (error) {
       console.error('Error al inicializar mensajes:', error);
-      addToast('Error al inicializar mensajes', 'error');
+      showError('Error al inicializar mensajes');
     }
   };
 
@@ -263,10 +263,10 @@ export default function BotMessagesManager() {
 
       setEditingId(null);
       setEditText('');
-      addToast('Mensaje actualizado correctamente', 'success');
+      showSuccess('Mensaje actualizado correctamente');
     } catch (error) {
       console.error('Error al guardar mensaje:', error);
-      addToast('Error al guardar mensaje', 'error');
+      showError('Error al guardar mensaje');
     } finally {
       setSaving(false);
     }
@@ -295,10 +295,10 @@ export default function BotMessagesManager() {
       // Notificar al bot para recargar mensajes
       await notifyBotReload();
 
-      addToast('Todos los mensajes guardados correctamente', 'success');
+      showSuccess('Todos los mensajes guardados correctamente');
     } catch (error) {
       console.error('Error al guardar todos los mensajes:', error);
-      addToast('Error al guardar mensajes', 'error');
+      showError('Error al guardar mensajes');
     } finally {
       setSaving(false);
     }
@@ -333,10 +333,10 @@ export default function BotMessagesManager() {
       // Notificar al bot para recargar mensajes
       await notifyBotReload();
 
-      addToast('Mensajes restaurados a valores por defecto', 'success');
+      showSuccess('Mensajes restaurados a valores por defecto');
     } catch (error) {
       console.error('Error al restaurar mensajes:', error);
-      addToast('Error al restaurar mensajes', 'error');
+      showError('Error al restaurar mensajes');
     } finally {
       setSaving(false);
     }
