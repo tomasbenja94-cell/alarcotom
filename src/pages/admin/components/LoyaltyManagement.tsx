@@ -417,10 +417,10 @@ export default function LoyaltyManagement() {
                       </div>
 
                       {/* Barra de progreso */}
-                      {nextTier && (
+                      {nextTier && nextTier.config && (
                         <div className="mb-3">
                           <div className="flex items-center justify-between text-xs text-[#C7C7C7] mb-1">
-                            <span>Progreso a {nextTier.tierConfig.label}</span>
+                            <span>Progreso a {nextTier.config.label || nextTier.tier}</span>
                             <span>Faltan {nextTier.pointsNeeded} pts</span>
                           </div>
                           <div className="w-full bg-[#C7C7C7] rounded-full h-2">

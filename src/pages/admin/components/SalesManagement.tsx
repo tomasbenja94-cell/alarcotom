@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../../../lib/supabase';
+import { ordersApi } from '../../../lib/api';
 
 interface Order {
   id: string;
@@ -47,89 +47,14 @@ export default function SalesManagement() {
     try {
       setLoading(true);
       
-      // Primero intentar cargar las órdenes con order_items usando la relación
-      // Si selected_options no existe o causa problemas, se intentará sin ese campo
-      let { data, error } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          order_items (
-            id,
-            product_name,
-            quantity,
-            unit_price,
-            subtotal,
-            selected_options
-          )
-        `)
-        .order('created_at', { ascending: false });
-
-      // Si falla con error 400, puede ser que la relación no esté configurada
-      // Intentar cargar solo las órdenes y luego los items por separado
-      if (error && (error.code === 'PGRST116' || error.code === 'PGRST205' || error.message?.includes('400') || error.message?.includes('Bad Request'))) {
-        console.warn('⚠️ La relación order_items no está disponible, cargando datos por separado...');
-        
-        // Cargar solo las órdenes
-        const { data: ordersData, error: ordersError } = await supabase
-          .from('orders')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (ordersError) throw ordersError;
-
-        // Cargar order_items por separado
-        const orderIds = (ordersData || []).map(order => order.id);
-        
-        if (orderIds.length > 0) {
-          // Intentar cargar order_items, pero si falla, continuar sin ellos
-          try {
-            const { data: itemsData, error: itemsError } = await supabase
-              .from('order_items')
-              .select('*')
-              .in('order_id', orderIds);
-
-            if (!itemsError && itemsData) {
-              // Combinar los datos
-              data = (ordersData || []).map(order => ({
-                ...order,
-                order_items: (itemsData || []).filter(item => item.order_id === order.id)
-              }));
-            } else {
-              // Si falla, cargar órdenes sin items
-              data = ordersData;
-            }
-          } catch (itemsError) {
-            console.warn('⚠️ No se pudieron cargar order_items:', itemsError);
-            // Continuar sin items
-            data = ordersData;
-          }
-        } else {
-          data = ordersData;
-        }
-      } else if (error) {
-        throw error;
-      }
-
-      setSales(data || []);
+      // Cargar órdenes desde la API del backend
+      const orders = await ordersApi.getAll();
+      
+      // Las órdenes ya vienen con items incluidos desde el backend
+      setSales(orders || []);
     } catch (error: any) {
       console.error('Error cargando ventas:', error);
-      
-      // Si todo falla, intentar cargar solo las órdenes sin items
-      try {
-        const { data: ordersData, error: ordersError } = await supabase
-          .from('orders')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (!ordersError && ordersData) {
-          setSales(ordersData.map(order => ({ ...order, order_items: [] })));
-        } else {
-          setSales([]);
-        }
-      } catch (fallbackError) {
-        console.error('Error en carga alternativa:', fallbackError);
-        setSales([]);
-      }
+      setSales([]);
     } finally {
       setLoading(false);
     }

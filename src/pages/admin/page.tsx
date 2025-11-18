@@ -50,8 +50,7 @@ export default function AdminPage() {
   const advancedMenuItems: AdvancedMenuItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊', component: SalesDashboard },
     { id: 'sales', label: 'Ventas', icon: '💰', component: SalesManagement },
-    { id: 'stock', label: 'Stock & Insumos', icon: '📦', component: StockManagement },
-    { id: 'menu', label: 'Menú', icon: '🍽️', component: MenuManagement },
+    { id: 'menu', label: 'Menú, Stock & Insumos', icon: '🍽️', component: MenuManagement },
     { id: 'cash', label: 'Caja diaria', icon: '💸', component: DailyCash },
     { id: 'cost-analysis', label: 'Costo Real del Día', icon: '📊', component: DailyCostAnalysis },
     { id: 'expenses', label: 'Gastos Reales', icon: '💸', component: BusinessExpenses },

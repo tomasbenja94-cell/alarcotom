@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { categoriesApi, productsApi, productOptionsApi, extrasApi } from '../../../lib/api';
 import { supabase } from '../../../lib/supabase';
 import { useToast } from '../../../hooks/useToast';
+import StockManagement from './StockManagement';
 
 interface Category {
   id: string;
@@ -45,7 +46,21 @@ export default function MenuManagement() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'categories' | 'recipes' | 'products' | 'extras'>('categories');
+  const [activeTab, setActiveTab] = useState<'categories' | 'recipes' | 'products' | 'extras' | 'stock'>('categories');
+  const [showInstructions, setShowInstructions] = useState(false);
+  
+  // Mostrar instrucciones solo una vez
+  useEffect(() => {
+    const hasSeenInstructions = localStorage.getItem('menuManagement_instructions_seen');
+    if (!hasSeenInstructions) {
+      setShowInstructions(true);
+    }
+  }, []);
+  
+  const handleCloseInstructions = () => {
+    setShowInstructions(false);
+    localStorage.setItem('menuManagement_instructions_seen', 'true');
+  };
   
   // Estados para recetas
   const [ingredients, setIngredients] = useState<any[]>([]);
@@ -808,6 +823,16 @@ export default function MenuManagement() {
           >
             ⚙️ Extras
           </button>
+          <button
+            onClick={() => setActiveTab('stock')}
+            className={`px-6 py-3 text-xs font-medium transition-all border-b-2 ${
+              activeTab === 'stock'
+                ? 'border-[#FFC300] text-[#111111] bg-[#FFF9E6]'
+                : 'border-transparent text-[#C7C7C7] hover:text-[#111111]'
+            }`}
+          >
+            📦 Stock & Insumos
+          </button>
         </div>
         <div className="p-6">
 
@@ -1176,10 +1201,71 @@ export default function MenuManagement() {
               </div>
             </div>
           )}
+
+          {/* Pestaña Stock & Insumos */}
+          {activeTab === 'stock' && (
+            <StockManagement />
+          )}
         </>
       )}
         </div>
       </div>
+
+      {/* Modal de Instrucciones */}
+      {showInstructions && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold text-[#111111]">📚 Instrucciones - Gestión de Menú</h2>
+                <button
+                  onClick={handleCloseInstructions}
+                  className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <i className="ri-close-line text-xl"></i>
+                </button>
+              </div>
+              
+              <div className="space-y-4 text-sm text-[#111111]">
+                <div>
+                  <h3 className="font-bold mb-2">📂 Categorías</h3>
+                  <p className="text-[#C7C7C7] mb-2">Organiza tus productos en categorías. Las categorías aparecen en el menú público en el orden que las crees.</p>
+                </div>
+                
+                <div>
+                  <h3 className="font-bold mb-2">🍔 Productos</h3>
+                  <p className="text-[#C7C7C7] mb-2">Crea productos simples: solo necesitas nombre, precio y categoría. Puedes agregar una imagen y descripción opcional.</p>
+                </div>
+                
+                <div>
+                  <h3 className="font-bold mb-2">⚙️ Extras</h3>
+                  <p className="text-[#C7C7C7] mb-2">Crea extras globales que puedes asignar a múltiples productos. Primero crea el extra, luego asígnalo a los productos que lo necesiten.</p>
+                </div>
+                
+                <div>
+                  <h3 className="font-bold mb-2">📦 Stock & Insumos</h3>
+                  <p className="text-[#C7C7C7] mb-2">Gestiona el inventario de insumos y controla el stock mínimo. Útil para recetas y control de costos.</p>
+                </div>
+                
+                <div className="bg-[#FFF9E6] border border-[#FFC300] rounded-sm p-4 mt-4">
+                  <p className="text-xs text-[#111111] font-medium">
+                    💡 <strong>Tip:</strong> Puedes crear productos rápidamente sin extras. Los extras son opcionales y se agregan después.
+                  </p>
+                </div>
+              </div>
+              
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={handleCloseInstructions}
+                  className="px-6 py-2 bg-[#111111] hover:bg-[#1A1A1A] text-white font-medium rounded-sm transition-all border border-[#FFC300]"
+                >
+                  Entendido
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Extras */}
       {showExtrasModal && selectedProductForExtras && (
