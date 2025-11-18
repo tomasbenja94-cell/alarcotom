@@ -54,7 +54,8 @@ export default function PromoCodeManagement() {
   const loadCodes = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/loyalty/promo-codes`);
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/loyalty/promo-codes` : `${API_URL}/api/loyalty/promo-codes`;
+      const response = await fetch(endpoint);
       if (response.ok) {
         const data = await response.json();
         setCodes(data.codes || []);
@@ -79,9 +80,10 @@ export default function PromoCodeManagement() {
 
     setIsLoading(true);
     try {
+      const baseEndpoint = API_URL.endsWith('/api') ? `${API_URL}/loyalty/promo-codes` : `${API_URL}/api/loyalty/promo-codes`;
       const url = editingCode 
-        ? `${API_URL}/api/loyalty/promo-codes/${editingCode.id}`
-        : `${API_URL}/api/loyalty/promo-codes`;
+        ? `${baseEndpoint}/${editingCode.id}`
+        : baseEndpoint;
       
       const method = editingCode ? 'PUT' : 'POST';
 
@@ -128,7 +130,8 @@ export default function PromoCodeManagement() {
     if (!confirm('¿Eliminar este código promocional?')) return;
 
     try {
-      const response = await fetch(`${API_URL}/api/loyalty/promo-codes/${codeId}`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/loyalty/promo-codes/${codeId}` : `${API_URL}/api/loyalty/promo-codes/${codeId}`;
+      const response = await fetch(endpoint, {
         method: 'DELETE'
       });
 
@@ -146,7 +149,8 @@ export default function PromoCodeManagement() {
 
   const toggleActive = async (code: PromoCode) => {
     try {
-      const response = await fetch(`${API_URL}/api/loyalty/promo-codes/${code.id}/active`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/loyalty/promo-codes/${code.id}/active` : `${API_URL}/api/loyalty/promo-codes/${code.id}/active`;
+      const response = await fetch(endpoint, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

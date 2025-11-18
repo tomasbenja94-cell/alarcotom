@@ -25,7 +25,9 @@ export default function SpecialHoursButton() {
 
   const loadSpecialHours = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/system/special-hours`);
+      // API_URL ya incluye /api, no agregar de nuevo
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/system/special-hours` : `${API_URL}/api/system/special-hours`;
+      const response = await fetch(endpoint);
       if (response.ok) {
         const data = await response.json();
         setSpecialHours(data);
@@ -43,7 +45,8 @@ export default function SpecialHoursButton() {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/system/special-hours`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/system/special-hours` : `${API_URL}/api/system/special-hours`;
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -83,7 +86,8 @@ export default function SpecialHoursButton() {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/system/special-hours`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/system/special-hours` : `${API_URL}/api/system/special-hours`;
+      const response = await fetch(endpoint, {
         method: 'DELETE',
       });
 

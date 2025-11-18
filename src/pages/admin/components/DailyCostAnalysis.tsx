@@ -30,7 +30,8 @@ export default function DailyCostAnalysis() {
   const loadAnalysis = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/business/daily-cost-analysis?date=${selectedDate}`);
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/business/daily-cost-analysis?date=${selectedDate}` : `${API_URL}/api/business/daily-cost-analysis?date=${selectedDate}`;
+      const response = await fetch(endpoint);
       if (response.ok) {
         const data = await response.json();
         setAnalysis(data.analysis || null);
@@ -51,7 +52,8 @@ export default function DailyCostAnalysis() {
 
     setIsGenerating(true);
     try {
-      const response = await fetch(`${API_URL}/api/business/daily-cost-analysis/generate`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/business/daily-cost-analysis/generate` : `${API_URL}/api/business/daily-cost-analysis/generate`;
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

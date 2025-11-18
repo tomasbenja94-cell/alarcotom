@@ -213,7 +213,8 @@ export default function PaymentConfig() {
       // Guardar configuración en el backend para que Mercado Pago funcione
       try {
         const API_URL = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
-        const response = await fetch(`${API_URL}/api/admin/payment-config`, {
+        const endpoint = API_URL.endsWith('/api') ? `${API_URL}/admin/payment-config` : `${API_URL}/api/admin/payment-config`;
+        const response = await fetch(endpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -258,7 +259,8 @@ export default function PaymentConfig() {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
       
       // Guardar configuración en el backend
-      const saveResponse = await fetch(`${API_URL}/api/admin/payment-config`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/admin/payment-config` : `${API_URL}/api/admin/payment-config`;
+      const saveResponse = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -304,7 +306,8 @@ export default function PaymentConfig() {
       }
       
       // Ahora intentar crear una preferencia de prueba
-      const testResponse = await fetch(`${API_URL}/api/payments/mercadopago/create-preference`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/payments/mercadopago/create-preference` : `${API_URL}/api/payments/mercadopago/create-preference`;
+      const testResponse = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

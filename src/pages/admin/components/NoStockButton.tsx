@@ -16,7 +16,8 @@ export default function NoStockButton({ onStateChange }: NoStockButtonProps) {
 
   const loadNoStockState = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/system/no-stock-state`);
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/system/no-stock-state` : `${API_URL}/api/system/no-stock-state`;
+      const response = await fetch(endpoint);
       if (response.ok) {
         const data = await response.json();
         setIsActive(data.noStockMode || false);
@@ -38,7 +39,8 @@ export default function NoStockButton({ onStateChange }: NoStockButtonProps) {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/system/no-stock-mode`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/system/no-stock-mode` : `${API_URL}/api/system/no-stock-mode`;
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -28,7 +28,9 @@ export default function NotificationsBell() {
   const loadNotifications = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/system/notifications`);
+      // API_URL ya incluye /api, no agregar de nuevo
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/system/notifications` : `${API_URL}/api/system/notifications`;
+      const response = await fetch(endpoint);
       if (response.ok) {
         const data = await response.json();
         setNotifications(data.notifications || []);
@@ -43,7 +45,8 @@ export default function NotificationsBell() {
 
   const markAsRead = async (notificationId: string) => {
     try {
-      await fetch(`${API_URL}/api/system/notifications/${notificationId}/read`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/system/notifications/${notificationId}/read` : `${API_URL}/api/system/notifications/${notificationId}/read`;
+      await fetch(endpoint, {
         method: 'POST'
       });
       setNotifications(notifications.map(n => 
@@ -57,7 +60,8 @@ export default function NotificationsBell() {
 
   const markAllAsRead = async () => {
     try {
-      await fetch(`${API_URL}/api/system/notifications/read-all`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/system/notifications/read-all` : `${API_URL}/api/system/notifications/read-all`;
+      await fetch(endpoint, {
         method: 'POST'
       });
       setNotifications(notifications.map(n => ({ ...n, isRead: true })));

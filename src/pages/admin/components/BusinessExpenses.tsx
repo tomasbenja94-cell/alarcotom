@@ -39,7 +39,8 @@ export default function BusinessExpenses() {
   const loadExpenses = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/business/expenses?month=${filterMonth}`);
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/business/expenses?month=${filterMonth}` : `${API_URL}/api/business/expenses?month=${filterMonth}`;
+      const response = await fetch(endpoint);
       if (response.ok) {
         const data = await response.json();
         setExpenses(data.expenses || []);
@@ -59,7 +60,8 @@ export default function BusinessExpenses() {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/business/expenses`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/business/expenses` : `${API_URL}/api/business/expenses`;
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

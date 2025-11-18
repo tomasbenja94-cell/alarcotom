@@ -21,7 +21,8 @@ export default function PeakDemandMode({ onStateChange }: PeakDemandModeProps) {
 
   const loadPeakDemandState = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/system/peak-demand-state`);
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/system/peak-demand-state` : `${API_URL}/api/system/peak-demand-state`;
+      const response = await fetch(endpoint);
       if (response.ok) {
         const data = await response.json();
         setIsActive(data.isActive || false);
@@ -51,7 +52,8 @@ export default function PeakDemandMode({ onStateChange }: PeakDemandModeProps) {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/system/peak-demand-mode`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/system/peak-demand-mode` : `${API_URL}/api/system/peak-demand-mode`;
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -91,7 +93,8 @@ export default function PeakDemandMode({ onStateChange }: PeakDemandModeProps) {
     if (isActive) {
       // Si está activo, actualizar inmediatamente
       try {
-        await fetch(`${API_URL}/api/system/peak-demand-config`, {
+        const endpoint = API_URL.endsWith('/api') ? `${API_URL}/system/peak-demand-config` : `${API_URL}/api/system/peak-demand-config`;
+        await fetch(endpoint, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',

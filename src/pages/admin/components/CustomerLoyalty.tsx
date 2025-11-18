@@ -39,7 +39,8 @@ export default function CustomerLoyalty() {
   const loadCustomers = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/customers/loyalty`);
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/customers/loyalty` : `${API_URL}/api/customers/loyalty`;
+      const response = await fetch(endpoint);
       if (response.ok) {
         const data = await response.json();
         setCustomers(data.customers || []);
@@ -53,7 +54,8 @@ export default function CustomerLoyalty() {
 
   const recalculateTiers = async () => {
     try {
-      await fetch(`${API_URL}/api/customers/loyalty/recalculate`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/customers/loyalty/recalculate` : `${API_URL}/api/customers/loyalty/recalculate`;
+      await fetch(endpoint, {
         method: 'POST'
       });
       // Recargar después de recalcular
@@ -65,7 +67,8 @@ export default function CustomerLoyalty() {
 
   const updateCustomerTier = async (customerId: string, newTier: string, discount: number, priority: boolean) => {
     try {
-      const response = await fetch(`${API_URL}/api/customers/loyalty/${customerId}`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/customers/loyalty/${customerId}` : `${API_URL}/api/customers/loyalty/${customerId}`;
+      const response = await fetch(endpoint, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

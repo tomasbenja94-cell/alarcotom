@@ -32,7 +32,8 @@ export default function DailyChecklist() {
   const loadTodayTasks = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/system/checklist/today`);
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/system/checklist/today` : `${API_URL}/api/system/checklist/today`;
+      const response = await fetch(endpoint);
       if (response.ok) {
         const data = await response.json();
         setTasks(data.tasks || []);
@@ -53,7 +54,8 @@ export default function DailyChecklist() {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/system/checklist/task`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/system/checklist/task` : `${API_URL}/api/system/checklist/task`;
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -85,7 +87,8 @@ export default function DailyChecklist() {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/system/checklist/task/${taskId}`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/system/checklist/task/${taskId}` : `${API_URL}/api/system/checklist/task/${taskId}`;
+      const response = await fetch(endpoint, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -121,7 +124,8 @@ export default function DailyChecklist() {
   const deleteTask = async (taskId: string) => {
     setIsLoading(true);
     try {
-      await fetch(`${API_URL}/api/system/checklist/task/${taskId}`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/system/checklist/task/${taskId}` : `${API_URL}/api/system/checklist/task/${taskId}`;
+      await fetch(endpoint, {
         method: 'DELETE'
       });
       setTasks(tasks.filter(t => t.id !== taskId));

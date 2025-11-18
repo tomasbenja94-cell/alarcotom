@@ -50,7 +50,8 @@ export default function LoyaltyManagement() {
   const loadCustomers = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/loyalty/customers`);
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/loyalty/customers` : `${API_URL}/api/loyalty/customers`;
+      const response = await fetch(endpoint);
       if (response.ok) {
         const data = await response.json();
         setCustomers(data.customers || []);
@@ -64,7 +65,8 @@ export default function LoyaltyManagement() {
 
   const loadConfig = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/loyalty/config`);
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/loyalty/config` : `${API_URL}/api/loyalty/config`;
+      const response = await fetch(endpoint);
       if (response.ok) {
         const data = await response.json();
         setConfig(data.config || config);
@@ -76,7 +78,8 @@ export default function LoyaltyManagement() {
 
   const saveConfig = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/loyalty/config`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/loyalty/config` : `${API_URL}/api/loyalty/config`;
+      const response = await fetch(endpoint, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -97,7 +100,8 @@ export default function LoyaltyManagement() {
 
   const updateCustomerTier = async (customerId: string, newTier: string) => {
     try {
-      const response = await fetch(`${API_URL}/api/loyalty/customers/${customerId}/tier`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/loyalty/customers/${customerId}/tier` : `${API_URL}/api/loyalty/customers/${customerId}/tier`;
+      const response = await fetch(endpoint, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -124,7 +128,8 @@ export default function LoyaltyManagement() {
     }
 
     try {
-      const response = await fetch(`${API_URL}/api/loyalty/customers/${selectedCustomer.customerId}/points`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/loyalty/customers/${selectedCustomer.customerId}/points` : `${API_URL}/api/loyalty/customers/${selectedCustomer.customerId}/points`;
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -154,7 +159,8 @@ export default function LoyaltyManagement() {
 
   const toggleCustomerActive = async (customerId: string, currentStatus: boolean) => {
     try {
-      const response = await fetch(`${API_URL}/api/loyalty/customers/${customerId}/active`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/loyalty/customers/${customerId}/active` : `${API_URL}/api/loyalty/customers/${customerId}/active`;
+      const response = await fetch(endpoint, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

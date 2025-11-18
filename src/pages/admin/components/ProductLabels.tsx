@@ -35,7 +35,8 @@ export default function ProductLabels() {
       const productsData = await productsResponse.ok ? await productsResponse.json() : [];
       
       // Cargar etiquetas
-      const labelsResponse = await fetch(`${API_URL}/api/products/labels`);
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/products/labels` : `${API_URL}/api/products/labels`;
+      const labelsResponse = await fetch(endpoint);
       const labelsData = await labelsResponse.ok ? await labelsResponse.json() : { labels: {} };
       
       // Combinar productos con etiquetas
@@ -59,7 +60,8 @@ export default function ProductLabels() {
 
     setIsUpdating(true);
     try {
-      const response = await fetch(`${API_URL}/api/products/labels/update`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/products/labels/update` : `${API_URL}/api/products/labels/update`;
+      const response = await fetch(endpoint, {
         method: 'POST'
       });
 
@@ -84,7 +86,8 @@ export default function ProductLabels() {
       : [...currentLabels, labelType];
 
     try {
-      const response = await fetch(`${API_URL}/api/products/labels/${productId}`, {
+      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/products/labels/${productId}` : `${API_URL}/api/products/labels/${productId}`;
+      const response = await fetch(endpoint, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
