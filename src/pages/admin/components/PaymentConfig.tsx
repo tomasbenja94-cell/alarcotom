@@ -306,8 +306,8 @@ export default function PaymentConfig() {
       }
       
       // Ahora intentar crear una preferencia de prueba
-      const endpoint = API_URL.endsWith('/api') ? `${API_URL}/payments/mercadopago/create-preference` : `${API_URL}/api/payments/mercadopago/create-preference`;
-      const testResponse = await fetch(endpoint, {
+      const testEndpoint = API_URL.endsWith('/api') ? `${API_URL}/payments/mercadopago/create-preference` : `${API_URL}/api/payments/mercadopago/create-preference`;
+      const testResponse = await fetch(testEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
