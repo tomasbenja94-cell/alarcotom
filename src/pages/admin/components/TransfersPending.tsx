@@ -260,61 +260,67 @@ export default function TransfersPending() {
 
   return (
     <div className="space-y-6">
-      {/* Header - Premium Style */}
-      <div className="bg-white border border-[#C7C7C7] rounded-sm shadow-sm p-6">
+      {/* Header - Mejorado */}
+      <div className="bg-gradient-to-r from-white to-[#FFF9E6] border-2 border-[#FFC300] rounded-2xl shadow-lg p-6 mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold mb-1 text-[#111111]">TRANSFERENCIAS</h2>
-            <p className="text-sm text-[#C7C7C7]">Todas las transferencias requieren aprobación manual</p>
+            <h2 className="text-3xl font-bold mb-2 text-[#111111] flex items-center space-x-3">
+              <span className="text-4xl">💳</span>
+              <span>TRANSFERENCIAS</span>
+            </h2>
+            <p className="text-sm text-[#666] font-medium">Todas las transferencias requieren aprobación manual</p>
           </div>
           <div className="flex items-center space-x-3">
-            <div className="bg-white border border-[#C7C7C7] text-[#111111] px-4 py-2 rounded-sm text-xs font-medium">
+            <div className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-white px-5 py-3 rounded-xl text-sm font-bold shadow-md">
               {pendingTransfers.length} pendientes
             </div>
             <button
               onClick={loadTransfers}
-              className="px-4 py-2 text-sm font-medium text-[#111111] hover:bg-[#F9F9F9] rounded-sm transition-all border border-[#C7C7C7] flex items-center space-x-2"
+              className="px-6 py-3 text-sm font-bold text-white bg-gradient-to-r from-[#111111] to-[#2A2A2A] hover:from-[#2A2A2A] hover:to-[#111111] rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:scale-[1.05] flex items-center space-x-2"
             >
-              <i className="ri-refresh-line"></i>
+              <span>🔄</span>
               <span>Actualizar</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Transferencias Pendientes - Premium Style */}
+      {/* Transferencias Pendientes - Mejorado */}
       <div className="space-y-4">
-        <h3 className="text-lg font-bold text-[#111111] uppercase tracking-wider">Transferencias Pendientes</h3>
+        <h3 className="text-xl font-bold text-[#111111] uppercase tracking-wider flex items-center space-x-2">
+          <span>📋</span>
+          <span>Transferencias Pendientes</span>
+        </h3>
 
         {pendingTransfers.length === 0 ? (
-          <div className="bg-white border border-[#C7C7C7] rounded-sm shadow-sm p-8 text-center">
-            <div className="w-12 h-12 bg-white border-2 border-[#C7C7C7] rounded-full flex items-center justify-center mx-auto mb-4">
-              <i className="ri-check-line text-xl text-[#111111]"></i>
+          <div className="bg-white border-2 border-[#E5E5E5] rounded-2xl shadow-lg p-12 text-center">
+            <div className="w-20 h-20 bg-gradient-to-br from-green-100 to-green-200 border-2 border-green-300 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-4xl">✅</span>
             </div>
-            <h3 className="text-base font-medium text-[#111111] mb-2">Todo al día</h3>
-            <p className="text-sm text-[#C7C7C7]">No hay transferencias pendientes de revisión</p>
+            <h3 className="text-xl font-bold text-[#111111] mb-2">Todo al día</h3>
+            <p className="text-sm text-[#666] font-medium">No hay transferencias pendientes de revisión</p>
           </div>
         ) : (
           <div className="grid gap-4">
             {pendingTransfers.map((transfer) => (
-              <div key={transfer.id} className="bg-white border border-[#C7C7C7] rounded-sm shadow-sm p-6 hover:border-[#FFC300] transition-all">
+              <div key={transfer.id} className="bg-white border-2 border-[#E5E5E5] rounded-2xl shadow-lg p-6 hover:border-[#FFC300] hover:shadow-xl transition-all transform hover:scale-[1.01]">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-[#111111] rounded-full flex items-center justify-center">
-                      <i className="ri-money-dollar-circle-line text-xl text-white"></i>
+                    <div className="w-16 h-16 bg-gradient-to-br from-[#111111] to-[#2A2A2A] rounded-2xl flex items-center justify-center shadow-lg">
+                      <span className="text-3xl">💵</span>
                     </div>
                     <div>
-                      <h3 className="font-medium text-[#111111] text-base">
+                      <h3 className="font-bold text-[#111111] text-lg">
                         Pedido {transfer.order?.order_number || `#${transfer.order_id.slice(0, 8)}`}
                       </h3>
-                      <p className="text-xs text-[#C7C7C7]">
+                      <p className="text-sm text-[#666] font-medium">
                         {new Date(transfer.created_at).toLocaleString('es-AR')}
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-2xl font-bold text-[#111111]">${transfer.amount.toLocaleString()}</p>
-                    <span className="bg-white border border-[#C7C7C7] text-[#111111] px-3 py-1 rounded-sm text-xs font-medium">
+                    <p className="text-3xl font-bold text-[#111111] mb-2">${transfer.amount.toLocaleString()}</p>
+                    <span className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md">
                       Pendiente
                     </span>
                   </div>
@@ -349,63 +355,40 @@ export default function TransfersPending() {
                             // Construir URL correcta para la imagen
                             let imageUrl = transfer.proof_image_url || '';
                             
-                            // Si la URL ya es completa (http/https), verificar y corregir si es necesario
-                            if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
-                              // Si la URL contiene el dominio incorrecto, corregirlo
-                              if (imageUrl.includes('api.elbuenmenu.site')) {
-                                imageUrl = imageUrl.replace('https://api.elbuenmenu.site', 'https://elbuenmenu.site');
-                                imageUrl = imageUrl.replace('http://api.elbuenmenu.site', 'https://elbuenmenu.site');
-                              }
-                              // URL completa, usar tal cual (ya corregida si era necesario)
-                            } else if (imageUrl) {
-                              // Construir base URL del backend
-                              let baseUrl = 'https://elbuenmenu.site';
-                              
-                              // Obtener API URL de las variables de entorno
-                              const apiUrl = import.meta.env.VITE_API_URL;
-                              if (apiUrl && typeof apiUrl === 'string') {
-                                try {
-                                  // Si tiene /api al final, removerlo
-                                  if (apiUrl.endsWith('/api')) {
-                                    baseUrl = apiUrl.slice(0, -4); // Remover '/api'
-                                  } else if (apiUrl.includes('/api')) {
-                                    baseUrl = apiUrl.split('/api')[0];
-                                  } else {
-                                    baseUrl = apiUrl;
-                                  }
-                                  
-                                  // Validar que baseUrl sea una URL válida
-                                  if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
-                                    baseUrl = 'https://elbuenmenu.site';
-                                  }
-                                } catch (e) {
-                                  console.warn('Error procesando VITE_API_URL:', e);
-                                  baseUrl = 'https://elbuenmenu.site';
-                                }
-                              }
-                              
-                              // Asegurar que baseUrl no termine con /
-                              baseUrl = baseUrl.replace(/\/+$/, '');
-                              
-                              // Extraer el nombre del archivo de la ruta
-                              // Si imageUrl es "/proofs/proof_xxx.jpg", extraer solo "proof_xxx.jpg"
-                              // Si imageUrl es "proof_xxx.jpg", usar tal cual
-                              let filename = imageUrl;
-                              if (imageUrl.includes('/')) {
-                                // Extraer el nombre del archivo de la ruta
-                                filename = imageUrl.split('/').pop() || imageUrl;
-                              }
-                              
-                              // Construir URL final: baseUrl/proofs/filename
-                              imageUrl = `${baseUrl}/proofs/${filename}`;
-                              
-                              // Validar URL final
+                            const buildApiBaseUrl = () => {
+                              let baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
                               try {
-                                new URL(imageUrl);
-                              } catch (e) {
-                                console.error('URL de imagen inválida construida:', imageUrl, 'from:', transfer.proof_image_url);
-                                return <p className="text-xs text-[#C7C7C7]">⚠️ URL de imagen inválida</p>;
+                                const parsed = new URL(baseUrl, window.location.origin);
+                                baseUrl = parsed.origin + parsed.pathname;
+                              } catch {
+                                baseUrl = window.location.origin;
                               }
+                              baseUrl = baseUrl.replace(/\/+$/, '');
+                              if (!baseUrl.endsWith('/api')) {
+                                baseUrl = `${baseUrl}/api`;
+                              }
+                              return baseUrl;
+                            };
+                            
+                            const apiBaseUrl = buildApiBaseUrl();
+                            
+                            const normalizeToApiProof = (url: string) => {
+                              if (!url) return url;
+                              const cleanUrl = url
+                                .replace('https://api.elbuenmenu.site', 'https://elbuenmenu.site')
+                                .replace('http://api.elbuenmenu.site', 'https://elbuenmenu.site')
+                                .replace('http://elbuenmenu.site', 'https://elbuenmenu.site');
+                              
+                              const parts = cleanUrl.split('/');
+                              const filename = parts.pop() || cleanUrl;
+                              return `${apiBaseUrl}/proofs/${filename}`;
+                            };
+                            
+                            if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+                              imageUrl = normalizeToApiProof(imageUrl);
+                            } else if (imageUrl) {
+                              const filename = imageUrl.includes('/') ? imageUrl.split('/').pop() ?? imageUrl : imageUrl;
+                              imageUrl = `${apiBaseUrl}/proofs/${filename}`;
                             }
                             
                             if (!imageUrl) {
@@ -455,22 +438,22 @@ export default function TransfersPending() {
                   </div>
                 )}
 
-                {/* Botones de acción - Premium Style */}
-                <div className="flex space-x-3 pt-4 border-t border-[#C7C7C7]">
+                {/* Botones de acción - Mejorado */}
+                <div className="flex space-x-3 pt-4 border-t-2 border-[#E5E5E5]">
                   <button
                     onClick={() => handleApprove(transfer)}
                     disabled={isLoading}
-                    className="flex-1 bg-[#111111] hover:bg-[#1A1A1A] text-white py-2 px-4 rounded-sm text-xs font-medium transition-all disabled:opacity-50 flex items-center justify-center space-x-2 border border-[#111111]"
+                    className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3 px-4 rounded-xl text-sm font-bold transition-all disabled:opacity-50 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
                   >
-                    <i className="ri-check-line"></i>
+                    <span className="text-lg">✅</span>
                     <span>Aprobar Transferencia</span>
                   </button>
                   <button
                     onClick={() => handleReject(transfer)}
                     disabled={isLoading}
-                    className="flex-1 bg-white hover:bg-[#F9F9F9] text-[#111111] py-2 px-4 rounded-sm text-xs font-medium transition-all disabled:opacity-50 flex items-center justify-center space-x-2 border border-[#C7C7C7]"
+                    className="flex-1 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white py-3 px-4 rounded-xl text-sm font-bold transition-all disabled:opacity-50 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
                   >
-                    <i className="ri-close-line"></i>
+                    <span className="text-lg">❌</span>
                     <span>Rechazar</span>
                   </button>
                 </div>
