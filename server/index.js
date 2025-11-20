@@ -1711,18 +1711,38 @@ app.get('/api/pending-transfers', async (req, res) => {
     console.log(`✅ [PENDING TRANSFERS] ${transfers.length} transferencias encontradas`);
     
     // Normalizar URLs de comprobantes
+    // SIEMPRE usar /api/proofs/... para que funcione con el endpoint del backend
     const normalizedTransfers = transfers.map(transfer => {
       if (transfer.proofImageUrl) {
-        // Si la URL es relativa (empieza con /), construirla completa
-        if (transfer.proofImageUrl.startsWith('/')) {
-          transfer.proofImageUrl = `https://elbuenmenu.site${transfer.proofImageUrl}`;
+        let url = transfer.proofImageUrl;
+        
+        // Si la URL es relativa (empieza con /), construirla completa con /api/proofs/
+        if (url.startsWith('/proofs/')) {
+          // Extraer el filename
+          const filename = url.replace('/proofs/', '');
+          url = `https://elbuenmenu.site/api/proofs/${filename}`;
+        } else if (url.startsWith('/')) {
+          // Si es otra ruta relativa, asumir que es un proof y agregar /api
+          const filename = url.replace(/^\/+/, '');
+          url = `https://elbuenmenu.site/api/proofs/${filename}`;
         }
         // Si contiene el dominio incorrecto api.elbuenmenu.site, corregirlo
-        else if (transfer.proofImageUrl.includes('api.elbuenmenu.site')) {
-          transfer.proofImageUrl = transfer.proofImageUrl.replace('https://api.elbuenmenu.site', 'https://elbuenmenu.site');
-          transfer.proofImageUrl = transfer.proofImageUrl.replace('http://api.elbuenmenu.site', 'https://elbuenmenu.site');
+        else if (url.includes('api.elbuenmenu.site')) {
+          url = url.replace('https://api.elbuenmenu.site', 'https://elbuenmenu.site');
+          url = url.replace('http://api.elbuenmenu.site', 'https://elbuenmenu.site');
+          // Asegurar que use /api/proofs/
+          if (url.includes('/proofs/') && !url.includes('/api/proofs/')) {
+            url = url.replace('/proofs/', '/api/proofs/');
+          }
         }
-        // Si ya es una URL completa correcta, dejarla como está
+        // Si es una URL completa pero no tiene /api/proofs/, agregarlo
+        else if (url.startsWith('https://elbuenmenu.site') || url.startsWith('http://elbuenmenu.site')) {
+          if (url.includes('/proofs/') && !url.includes('/api/proofs/')) {
+            url = url.replace('/proofs/', '/api/proofs/');
+          }
+        }
+        
+        transfer.proofImageUrl = url;
       }
       return transfer;
     });
@@ -1779,18 +1799,38 @@ app.get('/api/pending-transfers', async (req, res) => {
         console.log(`✅ [PENDING TRANSFERS] ${transfersWithOrders.length} transferencias con orders obtenidas`);
         
         // Normalizar URLs de comprobantes
+        // SIEMPRE usar /api/proofs/... para que funcione con el endpoint del backend
         const normalizedTransfers = transfersWithOrders.map(transfer => {
           if (transfer.proofImageUrl) {
-            // Si la URL es relativa (empieza con /), construirla completa
-            if (transfer.proofImageUrl.startsWith('/')) {
-              transfer.proofImageUrl = `https://elbuenmenu.site${transfer.proofImageUrl}`;
+            let url = transfer.proofImageUrl;
+            
+            // Si la URL es relativa (empieza con /), construirla completa con /api/proofs/
+            if (url.startsWith('/proofs/')) {
+              // Extraer el filename
+              const filename = url.replace('/proofs/', '');
+              url = `https://elbuenmenu.site/api/proofs/${filename}`;
+            } else if (url.startsWith('/')) {
+              // Si es otra ruta relativa, asumir que es un proof y agregar /api
+              const filename = url.replace(/^\/+/, '');
+              url = `https://elbuenmenu.site/api/proofs/${filename}`;
             }
             // Si contiene el dominio incorrecto api.elbuenmenu.site, corregirlo
-            else if (transfer.proofImageUrl.includes('api.elbuenmenu.site')) {
-              transfer.proofImageUrl = transfer.proofImageUrl.replace('https://api.elbuenmenu.site', 'https://elbuenmenu.site');
-              transfer.proofImageUrl = transfer.proofImageUrl.replace('http://api.elbuenmenu.site', 'https://elbuenmenu.site');
+            else if (url.includes('api.elbuenmenu.site')) {
+              url = url.replace('https://api.elbuenmenu.site', 'https://elbuenmenu.site');
+              url = url.replace('http://api.elbuenmenu.site', 'https://elbuenmenu.site');
+              // Asegurar que use /api/proofs/
+              if (url.includes('/proofs/') && !url.includes('/api/proofs/')) {
+                url = url.replace('/proofs/', '/api/proofs/');
+              }
             }
-            // Si ya es una URL completa correcta, dejarla como está
+            // Si es una URL completa pero no tiene /api/proofs/, agregarlo
+            else if (url.startsWith('https://elbuenmenu.site') || url.startsWith('http://elbuenmenu.site')) {
+              if (url.includes('/proofs/') && !url.includes('/api/proofs/')) {
+                url = url.replace('/proofs/', '/api/proofs/');
+              }
+            }
+            
+            transfer.proofImageUrl = url;
           }
           return transfer;
         });
@@ -1809,12 +1849,36 @@ app.get('/api/pending-transfers', async (req, res) => {
 
 app.post('/api/pending-transfers', async (req, res) => {
   try {
+    // Normalizar la URL del comprobante ANTES de guardarla
+    let proofImageUrl = req.body.proof_image_url || req.body.proofImageUrl || null;
+    if (proofImageUrl) {
+      // Si es una ruta relativa /proofs/..., convertirla a /api/proofs/...
+      if (proofImageUrl.startsWith('/proofs/')) {
+        const filename = proofImageUrl.replace('/proofs/', '');
+        proofImageUrl = `/api/proofs/${filename}`;
+      } else if (proofImageUrl.startsWith('/') && !proofImageUrl.startsWith('/api/')) {
+        // Si es otra ruta relativa, asumir que es un proof
+        const filename = proofImageUrl.replace(/^\/+/, '');
+        proofImageUrl = `/api/proofs/${filename}`;
+      }
+      // Si ya es una URL completa, normalizarla también
+      else if (proofImageUrl.includes('elbuenmenu.site')) {
+        if (proofImageUrl.includes('/proofs/') && !proofImageUrl.includes('/api/proofs/')) {
+          proofImageUrl = proofImageUrl.replace('/proofs/', '/api/proofs/');
+        }
+        if (proofImageUrl.includes('api.elbuenmenu.site')) {
+          proofImageUrl = proofImageUrl.replace('https://api.elbuenmenu.site', 'https://elbuenmenu.site');
+          proofImageUrl = proofImageUrl.replace('http://api.elbuenmenu.site', 'https://elbuenmenu.site');
+        }
+      }
+    }
+    
     const transferData = {
       orderId: req.body.order_id || req.body.orderId,
       amount: req.body.amount,
       status: req.body.status || 'pending',
       transferReference: req.body.transfer_reference || req.body.transferReference || null,
-      proofImageUrl: req.body.proof_image_url || req.body.proofImageUrl || null
+      proofImageUrl: proofImageUrl
     };
     let transfer;
     try {
