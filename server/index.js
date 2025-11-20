@@ -3277,41 +3277,9 @@ app.get('/api/delivery/drivers-location', async (req, res) => {
 // ========== ENDPOINT ALTERNATIVO PARA SERVIR IMÁGENES DE COMPROBANTES ==========
 // Endpoint específico para servir imágenes de comprobantes con headers correctos
 // Esto es más confiable que express.static para evitar problemas de CORS
-// Función reutilizable para servir imágenes
-const serveProofImage = (req, res) => {
-  const filename = req.params.filename;
-  console.log(`📸 [PROOFS] Solicitud de imagen: ${filename}`);
-  
-  // Validar que el filename no contenga rutas relativas peligrosas
-  if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
-    console.error('❌ Intento de acceso a ruta inválida:', filename);
-    return res.status(400).json({ error: 'Nombre de archivo inválido' });
-  }
-  
-  const filePath = path.join(__dirname, '../whatsapp-bot/proofs', filename);
-  console.log(`📂 [PROOFS] Ruta completa del archivo: ${filePath}`);
-  console.log(`📂 [PROOFS] __dirname: ${__dirname}`);
-  
-  // Verificar que el archivo existe usando fs
-  fs.access(filePath, fs.constants.F_OK, (err) => {
-    if (err) {
-      console.error('❌ [PROOFS] Archivo no encontrado:', filePath);
-      console.error('❌ [PROOFS] Error:', err.message);
-      console.error('❌ [PROOFS] Código de error:', err.code);
-      
-      // Intentar listar el directorio para debugging
-      const proofsDir = path.join(__dirname, '../whatsapp-bot/proofs');
-      fs.readdir(proofsDir, (readErr, files) => {
-        if (readErr) {
-          console.error('❌ [PROOFS] No se pudo leer el directorio:', proofsDir, readErr.message);
-        } else {
-          console.log(`📁 [PROOFS] Archivos en el directorio (${files.length}):`, files.slice(0, 10));
-        }
-      });
-      
-      return res.status(404).json({ error: 'Imagen no encontrada', path: filePath, filename: filename });
-    }
-    
+
+// Función auxiliar para servir el archivo
+const serveFile = (req, res, filePath, filename) => {
     // Headers CORS completos
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
@@ -3342,6 +3310,83 @@ const serveProofImage = (req, res) => {
         console.log('✅ Imagen servida correctamente:', filename, 'desde:', filePath);
       }
     });
+};
+
+// Función reutilizable para servir imágenes
+const serveProofImage = (req, res) => {
+  const filename = req.params.filename;
+  console.log(`📸 [PROOFS] Solicitud de imagen: ${filename}`);
+  console.log(`📸 [PROOFS] Ruta solicitada: ${req.path}`);
+  console.log(`📸 [PROOFS] URL completa: ${req.url}`);
+  
+  // Validar que el filename no contenga rutas relativas peligrosas
+  if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+    console.error('❌ Intento de acceso a ruta inválida:', filename);
+    return res.status(400).json({ error: 'Nombre de archivo inválido' });
+  }
+  
+  // Intentar múltiples rutas posibles
+  const possiblePaths = [
+    path.join(__dirname, '../whatsapp-bot/proofs', filename), // Desde server/ hacia whatsapp-bot/proofs/
+    path.join(__dirname, '../../whatsapp-bot/proofs', filename), // Si server está en server/dist o similar
+    path.join(process.cwd(), 'whatsapp-bot/proofs', filename), // Desde la raíz del proyecto
+    path.join('/opt/elbuenmenu/whatsapp-bot/proofs', filename), // Ruta absoluta en producción
+  ];
+  
+  console.log(`📂 [PROOFS] __dirname: ${__dirname}`);
+  console.log(`📂 [PROOFS] process.cwd(): ${process.cwd()}`);
+  console.log(`📂 [PROOFS] Rutas posibles a verificar:`);
+  possiblePaths.forEach((p, i) => console.log(`   ${i + 1}. ${p}`));
+  
+  // Probar la primera ruta (la más probable)
+  const filePath = possiblePaths[0];
+  
+  // Verificar que el archivo existe usando fs
+  fs.access(filePath, fs.constants.F_OK, (err) => {
+    if (err) {
+      console.error('❌ [PROOFS] Archivo no encontrado en primera ruta:', filePath);
+      console.error('❌ [PROOFS] Error:', err.message);
+      console.error('❌ [PROOFS] Código de error:', err.code);
+      
+      // Intentar las otras rutas posibles
+      const checkNextPath = (index) => {
+        if (index >= possiblePaths.length) {
+          // Ninguna ruta funcionó, listar directorios para debugging
+          console.error('❌ [PROOFS] Archivo no encontrado en ninguna ruta posible');
+          possiblePaths.forEach((p, i) => {
+            const dir = path.dirname(p);
+            fs.readdir(dir, (readErr, files) => {
+              if (readErr) {
+                console.error(`❌ [PROOFS] No se pudo leer directorio ${i + 1}:`, dir, readErr.message);
+              } else {
+                console.log(`📁 [PROOFS] Directorio ${i + 1} (${dir}) contiene ${files.length} archivos:`, files.slice(0, 5));
+              }
+            });
+          });
+          return res.status(404).json({ 
+            error: 'Imagen no encontrada', 
+            filename: filename,
+            triedPaths: possiblePaths,
+            message: 'El archivo no existe en ninguna de las rutas esperadas'
+          });
+        }
+        
+        const testPath = possiblePaths[index];
+        fs.access(testPath, fs.constants.F_OK, (testErr) => {
+          if (testErr) {
+            checkNextPath(index + 1);
+          } else {
+            console.log(`✅ [PROOFS] Archivo encontrado en ruta alternativa ${index + 1}: ${testPath}`);
+            serveFile(req, res, testPath, filename);
+          }
+        });
+      };
+      
+      checkNextPath(1);
+      return;
+    }
+    
+    serveFile(req, res, filePath, filename);
   });
 };
 
