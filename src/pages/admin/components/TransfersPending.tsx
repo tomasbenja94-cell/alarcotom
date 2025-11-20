@@ -353,14 +353,14 @@ export default function TransfersPending() {
                         <div className="bg-white p-3 rounded-sm border border-[#C7C7C7]">
                           {(() => {
                             // Construir URL correcta para la imagen
-                            // SIEMPRE usar elbuenmenu.site/api/proofs/... (nunca api.elbuenmenu.site)
+                            // SIEMPRE usar api.elbuenmenu.site/api/proofs/... (este es el dominio correcto)
                             let imageUrl = transfer.proof_image_url || '';
                             
                             // Función para construir la URL base del API
-                            // Siempre usa elbuenmenu.site, nunca api.elbuenmenu.site
+                            // Usar api.elbuenmenu.site para las imágenes de comprobantes
                             const buildApiBaseUrl = () => {
-                              // Forzar siempre elbuenmenu.site como dominio base
-                              let baseUrl = 'https://elbuenmenu.site';
+                              // Usar api.elbuenmenu.site como dominio base para comprobantes
+                              let baseUrl = 'https://api.elbuenmenu.site';
                               
                               // Si estamos en desarrollo, usar localhost
                               if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
@@ -377,7 +377,7 @@ export default function TransfersPending() {
                             
                             const apiBaseUrl = buildApiBaseUrl();
                             
-                            // Normalizar cualquier URL a elbuenmenu.site/api/proofs/filename
+                            // Normalizar cualquier URL a api.elbuenmenu.site/api/proofs/filename
                             const normalizeToApiProof = (url: string) => {
                               if (!url) return url;
                               
@@ -395,7 +395,7 @@ export default function TransfersPending() {
                               // Limpiar el filename (remover query params si los hay)
                               filename = filename.split('?')[0];
                               
-                              // Construir URL final: siempre elbuenmenu.site/api/proofs/filename
+                              // Construir URL final: siempre api.elbuenmenu.site/api/proofs/filename
                               return `${apiBaseUrl}/proofs/${filename}`;
                             };
                             
