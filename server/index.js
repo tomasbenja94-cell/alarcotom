@@ -833,99 +833,44 @@ app.get('/api/orders', async (req, res) => {
 
 app.get('/api/orders/:id', async (req, res) => {
   try {
-    let order;
+    // Usar raw SQL directamente para evitar completamente problemas con unique_code
+    // Esto es más seguro cuando el schema de Prisma no coincide con la BD
+    const result = await prisma.$queryRaw`
+      SELECT 
+        o.id, o.order_number as "orderNumber", o.customer_name as "customerName",
+        o.customer_phone as "customerPhone", o.customer_address as "customerAddress",
+        o.status, o.payment_method as "paymentMethod", o.payment_status as "paymentStatus",
+        o.subtotal, o.delivery_fee as "deliveryFee", o.total, o.notes,
+        o.delivery_code as "deliveryCode", o.tracking_token as "trackingToken",
+        o.delivery_person_id as "deliveryPersonId", o.created_at as "createdAt",
+        o.updated_at as "updatedAt"
+      FROM orders o
+      WHERE o.id = ${req.params.id}
+    `;
     
-    // Usar select directamente para evitar problemas con unique_code
-    // Esto es más seguro y evita errores de Prisma cuando la columna no existe
-    try {
-      order = await prisma.order.findUnique({
-        where: { id: req.params.id },
-        select: {
-          id: true,
-          orderNumber: true,
-          customerName: true,
-          customerPhone: true,
-          customerAddress: true,
-          status: true,
-          paymentMethod: true,
-          paymentStatus: true,
-          subtotal: true,
-          deliveryFee: true,
-          total: true,
-          notes: true,
-          deliveryCode: true,
-          trackingToken: true,
-          deliveryPersonId: true,
-          createdAt: true,
-          updatedAt: true,
-          items: {
-            select: {
-              id: true,
-              orderId: true,
-              productId: true,
-              productName: true,
-              quantity: true,
-              unitPrice: true,
-              subtotal: true,
-              selectedOptions: true,
-              createdAt: true
-            }
-          }
-        }
-      });
-    } catch (selectError) {
-      // Si select también falla (por alguna razón), usar raw SQL
-      if (selectError.code === 'P2022' && (selectError.meta?.column?.includes('unique_code') || selectError.message?.includes('unique_code'))) {
-        console.warn('⚠️ [GET ORDER] select falló por unique_code, usando raw SQL...');
-        try {
-          const result = await prisma.$queryRaw`
-            SELECT 
-              o.id, o.order_number as "orderNumber", o.customer_name as "customerName",
-              o.customer_phone as "customerPhone", o.customer_address as "customerAddress",
-              o.status, o.payment_method as "paymentMethod", o.payment_status as "paymentStatus",
-              o.subtotal, o.delivery_fee as "deliveryFee", o.total, o.notes,
-              o.delivery_code as "deliveryCode", o.tracking_token as "trackingToken",
-              o.delivery_person_id as "deliveryPersonId", o.created_at as "createdAt",
-              o.updated_at as "updatedAt"
-            FROM orders o
-            WHERE o.id = ${req.params.id}
-          `;
-          
-          if (result && result.length > 0) {
-            const orderData = result[0];
-            // Obtener items por separado
-            const items = await prisma.$queryRaw`
-              SELECT 
-                id, order_id as "orderId", product_id as "productId",
-                product_name as "productName", quantity, unit_price as "unitPrice",
-                subtotal, selected_options as "selectedOptions", created_at as "createdAt"
-              FROM order_items
-              WHERE order_id = ${req.params.id}
-            `;
-            order = { ...orderData, items: items || [] };
-            console.log('✅ [GET ORDER] Pedido obtenido con raw SQL');
-          }
-        } catch (rawError) {
-          console.error('❌ [GET ORDER] Error en raw SQL:', rawError);
-          throw rawError;
-        }
-      } else {
-        throw selectError;
-      }
-    }
-    
-    if (!order) {
+    if (!result || result.length === 0) {
       return res.status(404).json({ error: 'Pedido no encontrado' });
     }
     
+    const orderData = result[0];
+    
+    // Obtener items por separado
+    const items = await prisma.$queryRaw`
+      SELECT 
+        id, order_id as "orderId", product_id as "productId",
+        product_name as "productName", quantity, unit_price as "unitPrice",
+        subtotal, selected_options as "selectedOptions", created_at as "createdAt"
+      FROM order_items
+      WHERE order_id = ${req.params.id}
+    `;
+    
+    const order = { ...orderData, items: items || [] };
+    
     res.json(objectToSnakeCase(order));
   } catch (error) {
-    // Solo loguear si NO es un error de unique_code que ya fue manejado
-    if (!(error.code === 'P2022' && (error.meta?.column?.includes('unique_code') || error.message?.includes('unique_code')))) {
-      console.error('❌ [GET ORDER] Error fetching order:', error);
-      console.error('❌ [GET ORDER] Error code:', error.code);
-      console.error('❌ [GET ORDER] Error meta:', error.meta);
-    }
+    console.error('❌ [GET ORDER] Error fetching order:', error);
+    console.error('❌ [GET ORDER] Error code:', error.code);
+    console.error('❌ [GET ORDER] Error meta:', error.meta);
     res.status(500).json({ error: 'Error al obtener pedido' });
   }
 });
