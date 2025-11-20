@@ -3277,7 +3277,8 @@ app.get('/api/delivery/drivers-location', async (req, res) => {
 // ========== ENDPOINT ALTERNATIVO PARA SERVIR IMÁGENES DE COMPROBANTES ==========
 // Endpoint específico para servir imágenes de comprobantes con headers correctos
 // Esto es más confiable que express.static para evitar problemas de CORS
-app.get('/proofs/:filename', (req, res) => {
+// Función reutilizable para servir imágenes
+const serveProofImage = (req, res) => {
   const filename = req.params.filename;
   console.log(`📸 [PROOFS] Solicitud de imagen: ${filename}`);
   
@@ -3342,7 +3343,11 @@ app.get('/proofs/:filename', (req, res) => {
       }
     });
   });
-});
+};
+
+// Registrar el endpoint en ambas rutas: /proofs/:filename y /api/proofs/:filename
+app.get('/proofs/:filename', serveProofImage);
+app.get('/api/proofs/:filename', serveProofImage);
 
 // ========== LIMPIEZA TOTAL DEL SISTEMA (SOLO SUPER ADMIN) ==========
 app.post('/api/admin/clear-all',
