@@ -353,40 +353,56 @@ export default function TransfersPending() {
                         <div className="bg-white p-3 rounded-sm border border-[#C7C7C7]">
                           {(() => {
                             // Construir URL correcta para la imagen
+                            // SIEMPRE usar elbuenmenu.site/api/proofs/... (nunca api.elbuenmenu.site)
                             let imageUrl = transfer.proof_image_url || '';
                             
+                            // Función para construir la URL base del API
+                            // Siempre usa elbuenmenu.site, nunca api.elbuenmenu.site
                             const buildApiBaseUrl = () => {
-                              let baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
-                              try {
-                                const parsed = new URL(baseUrl, window.location.origin);
-                                baseUrl = parsed.origin + parsed.pathname;
-                              } catch {
+                              // Forzar siempre elbuenmenu.site como dominio base
+                              let baseUrl = 'https://elbuenmenu.site';
+                              
+                              // Si estamos en desarrollo, usar localhost
+                              if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
                                 baseUrl = window.location.origin;
                               }
-                              baseUrl = baseUrl.replace(/\/+$/, '');
+                              
+                              // Asegurar que termine en /api
                               if (!baseUrl.endsWith('/api')) {
                                 baseUrl = `${baseUrl}/api`;
                               }
+                              
                               return baseUrl;
                             };
                             
                             const apiBaseUrl = buildApiBaseUrl();
                             
+                            // Normalizar cualquier URL a elbuenmenu.site/api/proofs/filename
                             const normalizeToApiProof = (url: string) => {
                               if (!url) return url;
-                              const cleanUrl = url
-                                .replace('https://api.elbuenmenu.site', 'https://elbuenmenu.site')
-                                .replace('http://api.elbuenmenu.site', 'https://elbuenmenu.site')
-                                .replace('http://elbuenmenu.site', 'https://elbuenmenu.site');
                               
-                              const parts = cleanUrl.split('/');
-                              const filename = parts.pop() || cleanUrl;
+                              // Extraer el nombre del archivo de cualquier URL
+                              let filename = '';
+                              
+                              // Si es una URL completa, extraer el filename
+                              if (url.includes('/')) {
+                                const parts = url.split('/');
+                                filename = parts.pop() || parts[parts.length - 1] || url;
+                              } else {
+                                filename = url;
+                              }
+                              
+                              // Limpiar el filename (remover query params si los hay)
+                              filename = filename.split('?')[0];
+                              
+                              // Construir URL final: siempre elbuenmenu.site/api/proofs/filename
                               return `${apiBaseUrl}/proofs/${filename}`;
                             };
                             
                             if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
                               imageUrl = normalizeToApiProof(imageUrl);
                             } else if (imageUrl) {
+                              // Si es una ruta relativa, extraer el filename y construir la URL
                               const filename = imageUrl.includes('/') ? imageUrl.split('/').pop() ?? imageUrl : imageUrl;
                               imageUrl = `${apiBaseUrl}/proofs/${filename}`;
                             }
