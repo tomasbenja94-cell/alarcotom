@@ -596,74 +596,80 @@ export default function OrdersManagement() {
         />
       )}
 
-      {/* Header premium */}
-      <div className="bg-white border border-[#C7C7C7] rounded-sm shadow-sm p-6">
+      {/* Header premium - Mejorado */}
+      <div className="bg-gradient-to-r from-white to-[#FFF9E6] border-2 border-[#FFC300] rounded-2xl shadow-lg p-6 mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold mb-1 text-[#111111]">PEDIDOS</h2>
-            <p className="text-sm text-[#C7C7C7]">Administra y gestiona todos los pedidos en tiempo real</p>
+            <h2 className="text-3xl font-bold mb-2 text-[#111111] flex items-center space-x-3">
+              <span className="text-4xl">📦</span>
+              <span>PEDIDOS</span>
+            </h2>
+            <p className="text-sm text-[#666] font-medium">Administra y gestiona todos los pedidos en tiempo real</p>
           </div>
           <button
             onClick={() => loadOrders()}
             disabled={loading}
-            className="px-4 py-2 text-sm font-medium text-[#111111] hover:bg-[#F9F9F9] rounded-sm transition-all border border-[#C7C7C7] disabled:opacity-50"
+            className="px-6 py-3 text-sm font-bold text-white bg-gradient-to-r from-[#111111] to-[#2A2A2A] hover:from-[#2A2A2A] hover:to-[#111111] rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:scale-[1.05] disabled:opacity-50 disabled:transform-none flex items-center space-x-2"
           >
-            🔄 Actualizar
+            <span>🔄</span>
+            <span>Actualizar</span>
           </button>
         </div>
       </div>
 
-      {/* Estadísticas simplificadas - Premium Style */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white border border-[#C7C7C7] rounded-sm shadow-sm p-5">
-          <div className="text-2xl mb-2">⏳</div>
-          <div className="text-3xl font-bold text-[#111111]">{stats.pending}</div>
-          <div className="text-xs text-[#C7C7C7] font-medium mt-1 uppercase tracking-wider">PENDIENTES</div>
-          <div className="text-xs text-[#C7C7C7] mt-1">Disponibles para aceptar</div>
+      {/* Estadísticas simplificadas - Mejoradas */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-2 border-yellow-300 rounded-2xl shadow-lg p-6 hover:scale-[1.02] transition-all">
+          <div className="text-4xl mb-3">⏳</div>
+          <div className="text-4xl font-bold text-[#111111] mb-2">{stats.pending}</div>
+          <div className="text-sm text-[#666] font-bold uppercase tracking-wider">PENDIENTES</div>
+          <div className="text-xs text-[#666] mt-2">Disponibles para aceptar</div>
         </div>
-        <div className="bg-white border border-[#C7C7C7] rounded-sm shadow-sm p-5">
-          <div className="text-2xl mb-2">❌</div>
-          <div className="text-3xl font-bold text-[#111111]">{stats.cancelled}</div>
-          <div className="text-xs text-[#C7C7C7] font-medium mt-1 uppercase tracking-wider">CANCELADAS</div>
-          <div className="text-xs text-[#C7C7C7] mt-1">Pedidos rechazados</div>
+        <div className="bg-gradient-to-br from-red-50 to-red-100 border-2 border-red-300 rounded-2xl shadow-lg p-6 hover:scale-[1.02] transition-all">
+          <div className="text-4xl mb-3">❌</div>
+          <div className="text-4xl font-bold text-[#111111] mb-2">{stats.cancelled}</div>
+          <div className="text-sm text-[#666] font-bold uppercase tracking-wider">CANCELADAS</div>
+          <div className="text-xs text-[#666] mt-2">Pedidos rechazados</div>
         </div>
-        <div className="bg-white border border-[#C7C7C7] rounded-sm shadow-sm p-5">
-          <div className="text-2xl mb-2">✅</div>
-          <div className="text-3xl font-bold text-[#111111]">{stats.completed}</div>
-          <div className="text-xs text-[#C7C7C7] font-medium mt-1 uppercase tracking-wider">COMPLETADAS</div>
-          <div className="text-xs text-[#C7C7C7] mt-1">Pedidos aceptados</div>
+        <div className="bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-300 rounded-2xl shadow-lg p-6 hover:scale-[1.02] transition-all">
+          <div className="text-4xl mb-3">✅</div>
+          <div className="text-4xl font-bold text-[#111111] mb-2">{stats.completed}</div>
+          <div className="text-sm text-[#666] font-bold uppercase tracking-wider">COMPLETADAS</div>
+          <div className="text-xs text-[#666] mt-2">Pedidos aceptados</div>
         </div>
       </div>
 
-      {/* Selector de tipo de pedido: DOMICILIO o RETIRO - Premium Style */}
-      <div className="bg-white border border-[#C7C7C7] rounded-sm shadow-sm p-4">
+      {/* Selector de tipo de pedido: DOMICILIO o RETIRO - Mejorado */}
+      <div className="bg-white border-2 border-[#E5E5E5] rounded-2xl shadow-md p-4 mb-6">
         <div className="flex gap-3">
           <button
             onClick={() => setDeliveryType('delivery')}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition-all ${
+            className={`flex-1 px-6 py-4 text-sm font-bold transition-all rounded-xl flex items-center justify-center space-x-2 ${
               deliveryType === 'delivery'
-                ? 'bg-[#111111] text-white border-2 border-[#FFC300] shadow-sm'
-                : 'bg-white text-[#111111] hover:bg-[#F9F9F9] border border-[#C7C7C7]'
-            } rounded-sm`}
+                ? 'bg-gradient-to-r from-[#111111] to-[#2A2A2A] text-white border-2 border-[#FFC300] shadow-lg'
+                : 'bg-white text-[#111111] hover:bg-[#F9F9F9] border-2 border-[#E5E5E5] hover:border-[#FFC300]'
+            }`}
           >
-            🚚 DOMICILIO
+            <span className="text-xl">🚚</span>
+            <span>DOMICILIO</span>
           </button>
           <button
             onClick={() => setDeliveryType('pickup')}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition-all ${
+            className={`flex-1 px-6 py-4 text-sm font-bold transition-all rounded-xl flex items-center justify-center space-x-2 ${
               deliveryType === 'pickup'
-                ? 'bg-[#111111] text-white border-2 border-[#FFC300] shadow-sm'
-                : 'bg-white text-[#111111] hover:bg-[#F9F9F9] border border-[#C7C7C7]'
-            } rounded-sm`}
+                ? 'bg-gradient-to-r from-[#111111] to-[#2A2A2A] text-white border-2 border-[#FFC300] shadow-lg'
+                : 'bg-white text-[#111111] hover:bg-[#F9F9F9] border-2 border-[#E5E5E5] hover:border-[#FFC300]'
+            }`}
           >
-            🏪 RETIRO
+            <span className="text-xl">🏪</span>
+            <span>RETIRO</span>
           </button>
         </div>
       </div>
 
-      {/* Filtros y búsqueda - Premium Style */}
-      <div className="bg-white border border-[#C7C7C7] rounded-sm shadow-sm p-4">
-        <div className="flex flex-col md:flex-row gap-3">
+      {/* Filtros y búsqueda - Mejorado */}
+      <div className="bg-white border-2 border-[#E5E5E5] rounded-2xl shadow-md p-5 mb-6">
+        <div className="flex flex-col md:flex-row gap-4">
           {/* Búsqueda */}
           <div className="flex-1">
             <input
@@ -671,7 +677,7 @@ export default function OrdersManagement() {
               placeholder="🔍 Buscar por número, cliente o teléfono..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 border border-[#C7C7C7] rounded-sm focus:ring-2 focus:ring-[#FFC300] focus:border-[#FFC300] transition-all text-sm text-[#111111]"
+              className="w-full px-5 py-3 border-2 border-[#E5E5E5] rounded-xl focus:ring-2 focus:ring-[#FFC300] focus:border-[#FFC300] transition-all text-sm text-[#111111] font-medium"
             />
           </div>
           
@@ -679,43 +685,46 @@ export default function OrdersManagement() {
           <div className="flex gap-2">
             <button
               onClick={() => setActiveFilter('pending')}
-              className={`px-4 py-2 text-xs font-medium transition-all rounded-sm ${
+              className={`px-5 py-3 text-xs font-bold transition-all rounded-xl flex items-center space-x-2 ${
                 activeFilter === 'pending'
-                  ? 'bg-[#111111] text-white border-2 border-[#FFC300]'
-                  : 'bg-white text-[#111111] hover:bg-[#F9F9F9] border border-[#C7C7C7]'
+                  ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-white border-2 border-yellow-600 shadow-md'
+                  : 'bg-white text-[#111111] hover:bg-yellow-50 border-2 border-[#E5E5E5] hover:border-yellow-300'
               }`}
             >
-              ⏳ PENDIENTES
+              <span>⏳</span>
+              <span>PENDIENTES</span>
             </button>
             <button
               onClick={() => setActiveFilter('cancelled')}
-              className={`px-4 py-2 text-xs font-medium transition-all rounded-sm ${
+              className={`px-5 py-3 text-xs font-bold transition-all rounded-xl flex items-center space-x-2 ${
                 activeFilter === 'cancelled'
-                  ? 'bg-[#111111] text-white border-2 border-[#FFC300]'
-                  : 'bg-white text-[#111111] hover:bg-[#F9F9F9] border border-[#C7C7C7]'
+                  ? 'bg-gradient-to-r from-red-400 to-red-500 text-white border-2 border-red-600 shadow-md'
+                  : 'bg-white text-[#111111] hover:bg-red-50 border-2 border-[#E5E5E5] hover:border-red-300'
               }`}
             >
-              ❌ CANCELADAS
+              <span>❌</span>
+              <span>CANCELADAS</span>
             </button>
             <button
               onClick={() => setActiveFilter('completed')}
-              className={`px-4 py-2 text-xs font-medium transition-all rounded-sm ${
+              className={`px-5 py-3 text-xs font-bold transition-all rounded-xl flex items-center space-x-2 ${
                 activeFilter === 'completed'
-                  ? 'bg-[#111111] text-white border-2 border-[#FFC300]'
-                  : 'bg-white text-[#111111] hover:bg-[#F9F9F9] border border-[#C7C7C7]'
+                  ? 'bg-gradient-to-r from-green-400 to-green-500 text-white border-2 border-green-600 shadow-md'
+                  : 'bg-white text-[#111111] hover:bg-green-50 border-2 border-[#E5E5E5] hover:border-green-300'
               }`}
             >
-              ✅ COMPLETADAS
+              <span>✅</span>
+              <span>COMPLETADAS</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Lista de pedidos - Premium Style */}
+      {/* Lista de pedidos - Mejorado */}
       {filteredOrders.length === 0 ? (
-        <div className="bg-white border border-[#C7C7C7] rounded-sm shadow-sm p-12 text-center">
-          <div className="text-5xl mb-4">📭</div>
-          <p className="text-base text-[#C7C7C7] font-medium">
+        <div className="bg-white border-2 border-[#E5E5E5] rounded-2xl shadow-lg p-12 text-center">
+          <div className="text-6xl mb-4">📭</div>
+          <p className="text-lg text-[#666] font-bold">
             {searchTerm ? 'No se encontraron pedidos con ese criterio' : 'No hay pedidos en este momento'}
           </p>
         </div>
@@ -724,17 +733,17 @@ export default function OrdersManagement() {
           {filteredOrders.map((order, index) => (
             <div
               key={order.id}
-              className="bg-white border border-[#C7C7C7] rounded-sm shadow-sm overflow-hidden transform transition-all duration-200 hover:shadow-md hover:border-[#FFC300] animate-fadeIn"
+              className="bg-white border-2 border-[#E5E5E5] rounded-2xl shadow-lg overflow-hidden transform transition-all duration-200 hover:shadow-xl hover:border-[#FFC300] hover:scale-[1.02] animate-fadeIn"
               style={{ animationDelay: `${index * 30}ms` }}
             >
-              {/* Header compacto - Premium Style */}
-              <div className="bg-[#111111] text-white p-3 border-b border-[#C7C7C7]">
+              {/* Header compacto - Mejorado */}
+              <div className="bg-gradient-to-r from-[#111111] to-[#2A2A2A] text-white p-4 border-b-2 border-[#FFC300]">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <span className="text-base">📦</span>
-                    <h3 className="font-bold text-sm">{order.order_number}</h3>
+                    <span className="text-xl">📦</span>
+                    <h3 className="font-bold text-base">{order.order_number}</h3>
                   </div>
-                  <div className={`px-2 py-1 rounded-sm text-xs font-medium bg-white text-[#111111]`}>
+                  <div className="px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-[#FFC300] to-[#FFD60A] text-[#111111] shadow-md">
                     {getStatusIcon(order.status)}
                   </div>
                 </div>
