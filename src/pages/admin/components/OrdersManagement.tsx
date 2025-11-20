@@ -484,7 +484,25 @@ export default function OrdersManagement() {
     // Filtrar por estado simplificado: PENDIENTES - CANCELADAS - COMPLETADAS
     if (activeFilter === 'pending') {
       // Solo pedidos pendientes de aceptar
-      filtered = filtered.filter(order => order.status === 'pending');
+      // EXCLUIR pedidos de retiro con efectivo que no tienen transferencias pendientes
+      filtered = filtered.filter(order => {
+        if (order.status !== 'pending') return false;
+        
+        // Si es pedido de retiro (deliveryFee === 0) y pago en efectivo
+        const isPickup = (order.delivery_fee || 0) === 0;
+        const isCashPayment = order.payment_method === 'efectivo' || order.payment_method === 'cash';
+        
+        if (isPickup && isCashPayment) {
+          // Solo mostrar si tiene una transferencia pendiente asociada
+          const hasPendingTransfer = pendingTransfers.some(
+            t => t.order_id === order.id && t.status === 'pending'
+          );
+          return hasPendingTransfer;
+        }
+        
+        // Para todos los demás casos, mostrar si está pendiente
+        return true;
+      });
     } else if (activeFilter === 'cancelled') {
       // Solo pedidos cancelados/rechazados
       filtered = filtered.filter(order => order.status === 'cancelled');
