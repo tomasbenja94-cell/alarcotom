@@ -833,12 +833,50 @@ app.get('/api/orders', async (req, res) => {
 
 app.get('/api/orders/:id', async (req, res) => {
   try {
-    const order = await prisma.order.findUnique({
-      where: { id: req.params.id },
-      include: {
-        items: true
+    let order;
+    try {
+      order = await prisma.order.findUnique({
+        where: { id: req.params.id },
+        include: {
+          items: true
+        }
+      });
+    } catch (findError) {
+      // Si falla por unique_code, usar select explícito
+      if (findError.code === 'P2022' && findError.meta?.column?.includes('unique_code')) {
+        console.warn('⚠️ [GET ORDER] findUnique falló por unique_code, usando select...');
+        order = await prisma.order.findUnique({
+          where: { id: req.params.id },
+          select: {
+            id: true,
+            orderNumber: true,
+            customerName: true,
+            customerPhone: true,
+            customerAddress: true,
+            status: true,
+            paymentMethod: true,
+            paymentStatus: true,
+            subtotal: true,
+            deliveryFee: true,
+            total: true,
+            notes: true,
+            deliveryCode: true,
+            trackingToken: true,
+            deliveryPersonId: true,
+            createdAt: true,
+            updatedAt: true,
+            items: true
+          }
+        });
+      } else {
+        throw findError;
       }
-    });
+    }
+    
+    if (!order) {
+      return res.status(404).json({ error: 'Pedido no encontrado' });
+    }
+    
     res.json(objectToSnakeCase(order));
   } catch (error) {
     console.error('Error fetching order:', error);
