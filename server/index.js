@@ -1816,10 +1816,111 @@ app.post('/api/pending-transfers', async (req, res) => {
       transferReference: req.body.transfer_reference || req.body.transferReference || null,
       proofImageUrl: req.body.proof_image_url || req.body.proofImageUrl || null
     };
-    const transfer = await prisma.pendingTransfer.create({
-      data: transferData,
-      include: { order: true }
-    });
+    let transfer;
+    try {
+      transfer = await prisma.pendingTransfer.create({
+        data: transferData,
+        include: {
+          order: {
+            select: {
+              id: true,
+              orderNumber: true,
+              customerName: true,
+              customerPhone: true,
+              customerAddress: true,
+              status: true,
+              paymentMethod: true,
+              paymentStatus: true,
+              subtotal: true,
+              deliveryFee: true,
+              total: true,
+              notes: true,
+              createdAt: true,
+              updatedAt: true
+            }
+          }
+        }
+      });
+    } catch (createError) {
+      if (createError.code === 'P2022' && createError.meta?.column?.includes('unique_code')) {
+        console.warn('⚠️ [PENDING TRANSFERS] Error por unique_code al crear transferencia, usando raw SQL...');
+        try {
+          const transferId = crypto.randomUUID();
+          const now = new Date().toISOString();
+          const transferResult = await prisma.$queryRawUnsafe(`
+            INSERT INTO pending_transfers (
+              id, order_id, transfer_reference, amount, status, proof_image_url, verified_at, created_at, updated_at
+            ) VALUES (
+              '${transferId}',
+              '${transferData.orderId}',
+              ${transferData.transferReference ? `'${transferData.transferReference.replace(/'/g, "''")}'` : 'NULL'},
+              ${transferData.amount || 0},
+              '${transferData.status}',
+              ${transferData.proofImageUrl ? `'${transferData.proofImageUrl.replace(/'/g, "''")}'` : 'NULL'},
+              ${transferData.verifiedAt ? `'${new Date(transferData.verifiedAt).toISOString()}'` : 'NULL'},
+              '${now}',
+              '${now}'
+            ) RETURNING *
+          `);
+
+          const insertedTransfer = transferResult[0];
+          let orderData = null;
+          try {
+            const orderResult = await prisma.$queryRawUnsafe(`
+              SELECT 
+                o.id, o.order_number as "orderNumber", o.customer_name as "customerName",
+                o.customer_phone as "customerPhone", o.customer_address as "customerAddress",
+                o.status, o.payment_method as "paymentMethod", o.payment_status as "paymentStatus",
+                o.subtotal, o.delivery_fee as "deliveryFee", o.total, o.notes,
+                o.created_at as "createdAt", o.updated_at as "updatedAt"
+              FROM orders o
+              WHERE o.id = '${transferData.orderId}'
+            `);
+            if (orderResult && orderResult.length > 0) {
+              orderData = orderResult[0];
+            }
+          } catch (orderError) {
+            console.warn('⚠️ [PENDING TRANSFERS] No se pudo obtener el pedido asociado:', orderError.message);
+          }
+
+          transfer = {
+            id: insertedTransfer.id,
+            orderId: insertedTransfer.order_id,
+            transferReference: insertedTransfer.transfer_reference,
+            amount: parseFloat(insertedTransfer.amount),
+            status: insertedTransfer.status,
+            proofImageUrl: insertedTransfer.proof_image_url,
+            verifiedAt: insertedTransfer.verified_at,
+            createdAt: insertedTransfer.created_at,
+            updatedAt: insertedTransfer.updated_at,
+            order: orderData
+              ? {
+                  id: orderData.id,
+                  orderNumber: orderData.orderNumber,
+                  customerName: orderData.customerName,
+                  customerPhone: orderData.customerPhone,
+                  customerAddress: orderData.customerAddress,
+                  status: orderData.status,
+                  paymentMethod: orderData.paymentMethod,
+                  paymentStatus: orderData.paymentStatus,
+                  subtotal: parseFloat(orderData.subtotal),
+                  deliveryFee: parseFloat(orderData.deliveryFee || 0),
+                  total: parseFloat(orderData.total),
+                  notes: orderData.notes,
+                  createdAt: orderData.createdAt,
+                  updatedAt: orderData.updatedAt
+                }
+              : null
+          };
+          console.log('✅ [PENDING TRANSFERS] Transferencia creada con raw SQL:', transfer.id);
+        } catch (rawError) {
+          console.error('❌ [PENDING TRANSFERS] Error al crear transferencia con raw SQL:', rawError);
+          throw createError;
+        }
+      } else {
+        throw createError;
+      }
+    }
     res.json(objectToSnakeCase(transfer));
   } catch (error) {
     console.error('Error creating pending transfer:', error);

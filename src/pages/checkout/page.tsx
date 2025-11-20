@@ -592,7 +592,7 @@ Código de pedido: ${finalOrderNumber}`;
                   </div>
                   <div className="flex items-center space-x-2">
                     <i className="ri-check-line text-green-600"></i>
-                    <span>El bot verificará tu pedido y te preguntará si está todo bien</span>
+                    <span>Verificaremos tu pedido y te mostraremos los métodos de pago</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <i className="ri-check-line text-green-600"></i>

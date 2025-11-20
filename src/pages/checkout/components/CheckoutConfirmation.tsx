@@ -59,82 +59,75 @@ export default function CheckoutConfirmation({ orderNumber, whatsappUrl, onBackT
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-green-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full text-center transform transition-all duration-500 animate-fadeInUp">
+    <div className="h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-green-50 flex items-center justify-center p-3 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-xl p-4 max-w-md w-full text-center transform transition-all duration-500 animate-fadeInUp max-h-[95vh] flex flex-col">
         {/* Estado de carga */}
         {loading && (
-          <div className="space-y-6 animate-fadeIn">
-            {/* Spinner animado con progreso circular */}
-            <div className="relative w-40 h-40 mx-auto">
+          <div className="space-y-3 animate-fadeIn flex-1 flex flex-col items-center justify-center">
+            {/* Spinner animado con progreso circular - más pequeño */}
+            <div className="relative w-24 h-24 mx-auto">
               {/* Círculo de fondo */}
-              <div className="absolute inset-0 border-8 border-gray-100 rounded-full shadow-inner"></div>
+              <div className="absolute inset-0 border-4 border-gray-100 rounded-full shadow-inner"></div>
               {/* Círculo de progreso SVG */}
-              <svg className="absolute inset-0 transform -rotate-90 w-40 h-40">
+              <svg className="absolute inset-0 transform -rotate-90 w-24 h-24">
                 <circle
-                  cx="80"
-                  cy="80"
-                  r="72"
+                  cx="48"
+                  cy="48"
+                  r="44"
                   fill="none"
                   stroke="rgb(34, 197, 94)"
-                  strokeWidth="8"
-                  strokeDasharray={`${2 * Math.PI * 72}`}
-                  strokeDashoffset={`${2 * Math.PI * 72 * (1 - progress / 100)}`}
+                  strokeWidth="6"
+                  strokeDasharray={`${2 * Math.PI * 44}`}
+                  strokeDashoffset={`${2 * Math.PI * 44 * (1 - progress / 100)}`}
                   strokeLinecap="round"
-                  className="transition-all duration-100 ease-out drop-shadow-lg"
-                  style={{ filter: 'drop-shadow(0 0 8px rgba(34, 197, 94, 0.5))' }}
+                  className="transition-all duration-100 ease-out"
                 />
               </svg>
               {/* Icono de carga */}
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-5xl animate-spin" style={{ animationDuration: '1s' }}>🔄</div>
+                <div className="text-3xl animate-spin" style={{ animationDuration: '1s' }}>🔄</div>
               </div>
               {/* Porcentaje */}
-              <div className="absolute inset-0 flex items-end justify-center pb-10">
-                <span className="text-2xl font-extrabold text-green-600 drop-shadow-md">{Math.round(progress)}%</span>
+              <div className="absolute inset-0 flex items-end justify-center pb-6">
+                <span className="text-lg font-bold text-green-600">{Math.round(progress)}%</span>
               </div>
             </div>
             
-            {/* Barra de progreso adicional */}
-            <div className="space-y-3">
-              <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden shadow-inner">
+            {/* Barra de progreso adicional - más pequeña */}
+            <div className="space-y-2 w-full max-w-xs">
+              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                 <div 
-                  className="bg-gradient-to-r from-green-400 via-green-500 to-green-600 h-full rounded-full transition-all duration-100 ease-out shadow-lg flex items-center justify-end pr-3"
+                  className="bg-gradient-to-r from-green-400 to-green-600 h-full rounded-full transition-all duration-100 ease-out"
                   style={{ width: `${progress}%` }}
-                >
-                  {progress > 15 && (
-                    <span className="text-xs font-bold text-white drop-shadow-md">Procesando...</span>
-                  )}
-                </div>
+                />
               </div>
-              <p className="text-sm text-gray-600 font-semibold animate-pulse">
+              <p className="text-xs text-gray-600 font-medium">
                 Creando tu pedido...
               </p>
             </div>
             
-            <div className="space-y-2 pt-4">
-              <h3 className="text-2xl font-extrabold text-gray-800 animate-pulse">Procesando pedido</h3>
-              <p className="text-sm text-gray-500">
+            <div className="space-y-1">
+              <h3 className="text-lg font-bold text-gray-800">Procesando pedido</h3>
+              <p className="text-xs text-gray-500">
                 Por favor espera mientras registramos tu pedido...
               </p>
             </div>
           </div>
         )}
 
-        {/* Estado de confirmación */}
+        {/* Estado de confirmación - compacto, sin scroll */}
         {!loading && confirmed && (
-          <div className="space-y-6 animate-scaleIn">
-            {/* Icono de confirmación animado con efecto de ondas */}
-            <div className="relative w-40 h-40 mx-auto">
-              {/* Ondas de pulso */}
+          <div className="space-y-3 animate-scaleIn flex-1 flex flex-col justify-between overflow-hidden">
+            {/* Icono de confirmación - más pequeño */}
+            <div className="relative w-20 h-20 mx-auto">
+              {/* Ondas de pulso - más pequeñas */}
               <div className="absolute inset-0 bg-green-100 rounded-full animate-ping opacity-75" style={{ animationDuration: '2s' }}></div>
-              <div className="absolute inset-0 bg-green-200 rounded-full animate-pulse" style={{ animationDelay: '0.5s' }}></div>
-              <div className="absolute inset-0 bg-green-300 rounded-full animate-pulse" style={{ animationDelay: '1s', opacity: 0.5 }}></div>
               
-              {/* Círculo principal con gradiente */}
-              <div className="relative w-40 h-40 bg-gradient-to-br from-green-400 via-green-500 to-green-600 rounded-full flex items-center justify-center shadow-2xl transform transition-all duration-500">
-                {/* Checkmark animado */}
+              {/* Círculo principal con gradiente - más pequeño */}
+              <div className="relative w-20 h-20 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center shadow-lg">
+                {/* Checkmark animado - más pequeño */}
                 <svg 
-                  className="w-20 h-20 text-white" 
+                  className="w-10 h-10 text-white" 
                   fill="none" 
                   stroke="currentColor" 
                   viewBox="0 0 24 24"
@@ -147,82 +140,61 @@ export default function CheckoutConfirmation({ orderNumber, whatsappUrl, onBackT
                   <path 
                     strokeLinecap="round" 
                     strokeLinejoin="round" 
-                    strokeWidth={4} 
+                    strokeWidth={3} 
                     d="M5 13l4 4L19 7" 
                   />
                 </svg>
               </div>
             </div>
             
-            {/* Mensaje de confirmación con animación progresiva */}
-            <div className="space-y-4 animate-fadeInUp">
-              <h2 className="text-4xl font-extrabold text-gray-800 animate-slideDown bg-gradient-to-r from-green-600 to-green-800 bg-clip-text text-transparent">
+            {/* Mensaje de confirmación - compacto */}
+            <div className="space-y-2 animate-fadeInUp">
+              <h2 className="text-2xl font-bold text-gray-800 bg-gradient-to-r from-green-600 to-green-800 bg-clip-text text-transparent">
                 ¡Pedido Confirmado!
               </h2>
               
-              {/* Código de pedido destacado */}
-              <div className="bg-gradient-to-r from-orange-100 via-red-100 to-orange-100 border-3 border-orange-400 rounded-2xl p-6 animate-scaleIn shadow-xl">
-                <p className="text-sm text-gray-700 mb-2 font-semibold uppercase tracking-wide">Código de pedido</p>
-                <p className="text-4xl font-extrabold text-orange-600 animate-pulse tracking-wider">
+              {/* Código de pedido destacado - más compacto */}
+              <div className="bg-gradient-to-r from-orange-100 to-orange-50 border-2 border-orange-300 rounded-xl p-3">
+                <p className="text-xs text-gray-700 mb-1 font-semibold uppercase tracking-wide">Código de pedido</p>
+                <p className="text-2xl font-bold text-orange-600 tracking-wider">
                   {orderNumber}
                 </p>
               </div>
               
-              <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
-                <p className="text-gray-700 font-semibold">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
+                <p className="text-sm text-gray-700 font-medium">
                   ✅ Tu pedido ha sido registrado correctamente
                 </p>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-xs text-gray-600 mt-0.5">
                   Está listo para ser procesado y preparado
                 </p>
               </div>
-              
-              {/* Aviso importante sobre el mensaje */}
-              <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl p-4 mt-4">
-                <div className="flex items-start space-x-3">
-                  <span className="text-2xl flex-shrink-0">⚠️</span>
-                  <div>
-                    <p className="text-gray-800 font-bold text-sm mb-2">
-                      IMPORTANTE: Enviá el mensaje EXACTO
-                    </p>
-                    <p className="text-xs text-gray-700 leading-relaxed">
-                      Al abrir WhatsApp, enviá el mensaje <strong>tal como aparece</strong> sin agregar o quitar ningún dígito.
-                      <br />
-                      Si modificás el formato, el bot no podrá procesar tu consulta.
-                    </p>
-                  </div>
-                </div>
-              </div>
             </div>
             
-            {/* Información de WhatsApp con diseño mejorado */}
-            <div className="bg-gradient-to-r from-green-50 via-green-100 to-blue-50 border-3 border-green-300 rounded-2xl p-6 animate-fadeIn shadow-lg">
-              <div className="flex items-start space-x-4">
-                <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-xl animate-pulse">
-                  <i className="ri-whatsapp-fill text-white text-3xl"></i>
+            {/* Información de WhatsApp - compacta, sin mencionar bot */}
+            <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-200 rounded-xl p-3">
+              <div className="flex items-center space-x-2">
+                <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
+                  <i className="ri-whatsapp-fill text-white text-xl"></i>
                 </div>
                 <div className="text-left flex-1">
-                  <h3 className="font-extrabold text-green-800 mb-2 text-lg">Continuar por WhatsApp</h3>
-                  <p className="text-sm text-green-700 mb-3 leading-relaxed">
-                    El bot verificará tu pedido automáticamente y te mostrará los métodos de pago disponibles.
+                  <h3 className="font-bold text-green-800 text-sm mb-0.5">Continuar por WhatsApp</h3>
+                  <p className="text-xs text-green-700 leading-tight">
+                    Te mostraremos los métodos de pago disponibles para completar tu pedido.
                   </p>
-                  <div className="flex items-center space-x-2 text-xs text-green-600 bg-green-50 rounded-lg p-2">
-                    <i className="ri-check-line text-green-600 font-bold"></i>
-                    <span className="font-semibold">Verificación automática activada</span>
-                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Botones de acción con animaciones */}
-            <div className="space-y-4 animate-slideUp pt-2">
+            {/* Botones de acción - más pequeños */}
+            <div className="space-y-2 animate-slideUp pt-1">
               <button
                 onClick={handleCompletePayment}
-                className="w-full bg-gradient-to-r from-green-500 via-green-600 to-green-700 hover:from-green-600 hover:via-green-700 hover:to-green-800 text-white font-extrabold py-5 px-6 rounded-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-2xl hover:shadow-green-500/50 flex items-center justify-center space-x-3 text-lg animate-glow"
+                className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-2.5 px-4 rounded-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-green-500/50 flex items-center justify-center space-x-2 text-sm"
               >
-                <i className="ri-whatsapp-fill text-3xl"></i>
-                <span>Completar Pago</span>
-                <i className="ri-arrow-right-line text-2xl animate-pulse"></i>
+                <i className="ri-whatsapp-fill text-lg"></i>
+                <span>Continuar con el Pago</span>
+                <i className="ri-arrow-right-line text-base"></i>
               </button>
 
               <button
@@ -233,7 +205,7 @@ export default function CheckoutConfirmation({ orderNumber, whatsappUrl, onBackT
                     navigate('/menu');
                   }
                 }}
-                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-xl transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-md border-2 border-gray-200"
+                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-sm border border-gray-200 text-sm"
               >
                 Volver al Menú
               </button>
