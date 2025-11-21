@@ -2937,6 +2937,7 @@ app.get('/api/delivery/available-orders',
   deliveryPollingRateLimit, // Rate limiting específico para polling
   async (req, res) => {
   try {
+    // Usar select explícito para evitar problemas con unique_code que puede no existir
     const orders = await prisma.order.findMany({
       where: {
         // Incluir pedidos confirmados, preparando y listos (approved se convierte en confirmed)
@@ -2945,7 +2946,26 @@ app.get('/api/delivery/available-orders',
         // Excluir pedidos de retiro (solo pedidos a domicilio: deliveryFee > 0)
         deliveryFee: { gt: 0 }
       },
-      include: {
+      select: {
+        id: true,
+        orderNumber: true,
+        customerName: true,
+        customerPhone: true,
+        customerAddress: true,
+        customerLat: true,
+        customerLng: true,
+        status: true,
+        paymentMethod: true,
+        paymentStatus: true,
+        subtotal: true,
+        deliveryFee: true,
+        total: true,
+        notes: true,
+        deliveryCode: true,
+        trackingToken: true,
+        deliveryPersonId: true,
+        createdAt: true,
+        updatedAt: true,
         items: true
       },
       orderBy: { createdAt: 'asc' }
