@@ -142,7 +142,7 @@ export default function MenuManagement() {
   const loadIngredients = async () => {
     try {
       // Intentar cargar insumos desde la API del backend (si existe)
-      const API_URL = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
+      const API_URL = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
       const endpoint = API_URL.endsWith('/api') ? `${API_URL}/ingredients` : `${API_URL}/api/ingredients`;
       const response = await fetch(endpoint);
       
@@ -181,7 +181,7 @@ export default function MenuManagement() {
   const loadRecipes = async () => {
     try {
       // Intentar cargar recetas desde la API del backend
-      const API_URL = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
+      const API_URL = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
       const endpoint = API_URL.endsWith('/api') ? `${API_URL}/recipes` : `${API_URL}/api/recipes`;
       const response = await fetch(endpoint);
       

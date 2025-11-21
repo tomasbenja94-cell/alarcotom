@@ -15,11 +15,9 @@ interface DailyCashStats {
   }>;
 }
 
-// Corregir URL si está usando api.elbuenmenu.site (que no existe)
-const rawApiUrl = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
-const API_URL = rawApiUrl.includes('api.elbuenmenu.site') 
-  ? 'https://elbuenmenu.site/api' 
-  : rawApiUrl;
+// Usar la URL correcta de la API
+const rawApiUrl = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
+const API_URL = rawApiUrl;
 
 export default function DailyCash() {
   const [stats, setStats] = useState<DailyCashStats | null>(null);
