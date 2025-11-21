@@ -65,3 +65,20 @@ session/
 # Prisma
 server/prisma/migrations/
 
+# Documentation files (no necesarios en producción)
+*.md
+!README.md
+!whatsapp-bot/README.md
+!server/README.md
+
+# Deployment configs (solo ejemplos, no subir)
+netlify.toml
+vercel.json
+nginx.conf.example
+
+# Temporary directories
+asdasd/
+kk.zip
+
+# Auto-generated files
+auto-imports.d.ts
