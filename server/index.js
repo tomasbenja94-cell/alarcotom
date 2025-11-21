@@ -2109,7 +2109,8 @@ app.get('/api/delivery-persons', async (req, res) => {
     res.json(objectToSnakeCase(deliveryPersons));
   } catch (error) {
     console.error('Error fetching delivery persons:', error);
-    res.status(500).json({ error: 'Error al obtener repartidores' });
+    console.error('Error details:', error.message, error.stack);
+    res.status(500).json({ error: 'Error al obtener repartidores', details: error.message });
   }
 });
 
@@ -3374,6 +3375,9 @@ app.get('/api/delivery/drivers-location', async (req, res) => {
           take: 1
         }
       }
+    }).catch(error => {
+      console.error('Error en consulta de drivers-location:', error);
+      throw error;
     });
     
     // Mapear para incluir currentOrderId desde la relación
