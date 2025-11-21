@@ -3106,7 +3106,14 @@ app.post('/api/delivery/accept-order',
       
       res.json(responseOrder);
     } catch (error) {
-      next(error);
+      console.error('Error aceptando pedido:', error);
+      console.error('Error details:', error.message, error.stack);
+      console.error('Error code:', error.code);
+      res.status(500).json({ 
+        error: 'Error al aceptar pedido', 
+        details: error.message,
+        code: error.code 
+      });
     }
   }
 );
