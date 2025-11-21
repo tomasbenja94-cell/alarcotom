@@ -497,6 +497,12 @@ app.delete('/api/ingredients/:id', corsMiddleware, async (req, res) => {
 // ========== RECIPES ENDPOINTS ==========
 app.get('/api/recipes', corsMiddleware, async (req, res) => {
   try {
+    // Verificar si el modelo Recipe existe en Prisma
+    if (!prisma.recipe) {
+      console.warn('⚠️ Modelo Recipe no encontrado en Prisma. Ejecuta: npx prisma generate');
+      return res.json([]);
+    }
+    
     const recipes = await prisma.recipe.findMany({
       include: {
         product: {
@@ -556,6 +562,15 @@ app.get('/api/recipes/product/:productId', corsMiddleware, async (req, res) => {
 
 app.post('/api/recipes', corsMiddleware, async (req, res) => {
   try {
+    // Verificar si el modelo Recipe existe en Prisma
+    if (!prisma.recipe) {
+      console.warn('⚠️ Modelo Recipe no encontrado en Prisma. Ejecuta: npx prisma generate');
+      return res.status(500).json({ 
+        error: 'Modelo Recipe no disponible. Ejecuta "npx prisma generate" en el servidor.',
+        instruction: 'En el VPS, ejecuta: cd server && npx prisma generate && pm2 restart all'
+      });
+    }
+    
     const { product_id, productId, ingredients } = req.body;
     const finalProductId = product_id || productId;
     
