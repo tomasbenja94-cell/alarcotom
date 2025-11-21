@@ -1083,9 +1083,9 @@ async function startBot() {
             markOnlineOnConnect: true,
             defaultQueryTimeoutMs: 60000,
             connectTimeoutMs: 60000,
-            keepAliveIntervalMs: 10000,
+            keepAliveIntervalMs: 10000, // Keep-alive cada 10 segundos para mantener conexión activa 24/7
             retryRequestDelayMs: 1000,
-            maxMsgRetryCount: 2,
+            maxMsgRetryCount: 3, // Aumentado para mejor confiabilidad
             syncFullHistory: false,
             shouldSyncHistoryMessage: () => false,
             emitOwnEvents: false,
@@ -1095,10 +1095,12 @@ async function startBot() {
             authTimeout: 60000,
             responseTimeout: 30000,
             transactionOpts: {
-                maxCommitRetries: 2,
+                maxCommitRetries: 3, // Aumentado para mejor confiabilidad
                 delayBetweenTriesMs: 3000
             },
-            getMessage: async (key) => ({ conversation: 'Mensaje no disponible' })
+            getMessage: async (key) => ({ conversation: 'Mensaje no disponible' }),
+            // Configuración adicional para mantener conexión estable 24/7
+            printQRInTerminal: true
         });
 
         const connectionTimeout = setTimeout(() => {

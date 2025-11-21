@@ -108,9 +108,11 @@ export const deliveryLocationRateLimit = rateLimit({
 });
 
 // Para polling de pedidos disponibles y balance
+// Optimizado para 24/7: permite hasta 120 peticiones por minuto (2 por segundo)
+// Esto permite polling cada 30 segundos con múltiples endpoints
 export const deliveryPollingRateLimit = rateLimit({
   windowMs: 60 * 1000, // 1 minuto
-  max: 30, // 30 peticiones por minuto (1 cada 2 segundos)
+  max: 120, // 120 peticiones por minuto (2 por segundo) - optimizado para 24/7
   message: 'Demasiadas peticiones de polling',
   standardHeaders: true,
   legacyHeaders: false,
