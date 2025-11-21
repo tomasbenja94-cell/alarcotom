@@ -2682,6 +2682,48 @@ app.post('/api/orders/:id/reject',
 });
 
 // Endpoint para cancelar pedido (mantener compatibilidad)
+// Endpoint para notificar al cliente desde el frontend
+app.post('/api/orders/:id/notify', corsMiddleware, async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const { customerPhone, orderNumber, message } = req.body;
+    
+    if (!customerPhone) {
+      return res.status(400).json({ error: 'customerPhone es requerido' });
+    }
+    
+    if (!message) {
+      return res.status(400).json({ error: 'message es requerido' });
+    }
+    
+    const webhookUrl = process.env.BOT_WEBHOOK_URL || 'http://localhost:3001';
+    console.log(`📤 [NOTIFY] Enviando notificación desde frontend a ${customerPhone} para pedido ${orderNumber || orderId}`);
+    
+    const response = await fetch(`${webhookUrl}/notify-order`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customerPhone,
+        orderNumber: orderNumber || null,
+        message
+      })
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ [NOTIFY] Error en webhook (${response.status}):`, errorText);
+      return res.status(response.status).json({ error: 'Error al enviar notificación', details: errorText });
+    }
+    
+    const result = await response.json();
+    console.log(`✅ [NOTIFY] Notificación enviada exitosamente:`, result);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('❌ [NOTIFY] Error al enviar notificación:', error);
+    res.status(500).json({ error: 'Error al enviar notificación', details: error.message });
+  }
+});
+
 app.post('/api/orders/:id/cancel', async (req, res) => {
   try {
     const order = await prisma.order.findUnique({
