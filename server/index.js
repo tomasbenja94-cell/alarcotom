@@ -2698,9 +2698,11 @@ app.post('/api/orders/:id/notify', corsMiddleware, async (req, res) => {
     }
     
     const webhookUrl = process.env.BOT_WEBHOOK_URL || 'http://localhost:3001';
+    const notifyUrl = `${webhookUrl}/notify-order`;
     console.log(`📤 [NOTIFY] Enviando notificación desde frontend a ${customerPhone} para pedido ${orderNumber || orderId}`);
+    console.log(`📤 [NOTIFY] URL del bot: ${notifyUrl}`);
     
-    const response = await fetch(`${webhookUrl}/notify-order`, {
+    const response = await fetch(notifyUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2710,13 +2712,42 @@ app.post('/api/orders/:id/notify', corsMiddleware, async (req, res) => {
       })
     });
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ [NOTIFY] Error en webhook (${response.status}):`, errorText);
-      return res.status(response.status).json({ error: 'Error al enviar notificación', details: errorText });
+    // Verificar si la respuesta es HTML (error común)
+    const responseText = await response.text();
+    const contentType = response.headers.get('content-type') || '';
+    
+    if (responseText.trim().startsWith('<!doctype') || responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
+      console.error(`❌ [NOTIFY] El bot devolvió HTML en lugar de JSON. URL: ${notifyUrl}`);
+      console.error(`❌ [NOTIFY] Respuesta HTML (primeros 500 caracteres):`, responseText.substring(0, 500));
+      return res.status(500).json({ 
+        error: 'Error al enviar notificación', 
+        details: `El bot devolvió HTML en lugar de JSON. Verifica que el bot esté corriendo y que BOT_WEBHOOK_URL sea correcta. URL intentada: ${notifyUrl}` 
+      });
     }
     
-    const result = await response.json();
+    if (!response.ok) {
+      let errorData;
+      try {
+        errorData = JSON.parse(responseText);
+      } catch {
+        errorData = { error: responseText.substring(0, 200) };
+      }
+      console.error(`❌ [NOTIFY] Error en webhook (${response.status}):`, errorData);
+      return res.status(response.status).json({ error: 'Error al enviar notificación', details: errorData.error || errorData.message || responseText.substring(0, 200) });
+    }
+    
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error(`❌ [NOTIFY] Error al parsear respuesta JSON:`, parseError);
+      console.error(`❌ [NOTIFY] Respuesta recibida:`, responseText.substring(0, 500));
+      return res.status(500).json({ 
+        error: 'Error al enviar notificación', 
+        details: `El bot devolvió una respuesta inválida. Respuesta: ${responseText.substring(0, 200)}` 
+      });
+    }
+    
     console.log(`✅ [NOTIFY] Notificación enviada exitosamente:`, result);
     res.json({ success: true, ...result });
   } catch (error) {
