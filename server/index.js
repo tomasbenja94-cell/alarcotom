@@ -1618,6 +1618,73 @@ app.get('/api/bot-messages', async (req, res) => {
   }
 });
 
+app.post('/api/bot-messages', async (req, res) => {
+  try {
+    const messageData = {
+      messageKey: req.body.message_key || req.body.messageKey,
+      messageText: req.body.message_text || req.body.messageText,
+      messageType: req.body.message_type || req.body.messageType || 'text',
+      isActive: req.body.is_active !== undefined ? req.body.is_active : (req.body.isActive !== undefined ? req.body.isActive : true)
+    };
+    
+    if (!messageData.messageKey || !messageData.messageText) {
+      return res.status(400).json({ error: 'message_key y message_text son requeridos' });
+    }
+    
+    const message = await prisma.botMessage.create({
+      data: messageData
+    });
+    res.json(objectToSnakeCase(message));
+  } catch (error) {
+    console.error('Error creating bot message:', error);
+    if (error.code === 'P2002') {
+      res.status(400).json({ error: 'El mensaje con esa clave ya existe' });
+    } else {
+      res.status(500).json({ error: 'Error al crear mensaje' });
+    }
+  }
+});
+
+app.post('/api/bot-messages/bulk', async (req, res) => {
+  try {
+    const messages = req.body.messages || [];
+    
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: 'Se requiere un array de mensajes' });
+    }
+    
+    const messagesData = messages.map(msg => ({
+      messageKey: msg.message_key || msg.messageKey,
+      messageText: msg.message_text || msg.messageText,
+      messageType: msg.message_type || msg.messageType || 'text',
+      isActive: msg.is_active !== undefined ? msg.is_active : (msg.isActive !== undefined ? msg.isActive : true)
+    }));
+    
+    // Crear mensajes (ignorar duplicados)
+    const created = [];
+    for (const msgData of messagesData) {
+      try {
+        const message = await prisma.botMessage.create({
+          data: msgData
+        });
+        created.push(message);
+      } catch (error) {
+        if (error.code === 'P2002') {
+          // Mensaje ya existe, ignorar
+          console.log(`Mensaje ${msgData.messageKey} ya existe, ignorando...`);
+        } else {
+          throw error;
+        }
+      }
+    }
+    
+    res.json(objectToSnakeCase(created));
+  } catch (error) {
+    console.error('Error creating bot messages in bulk:', error);
+    res.status(500).json({ error: 'Error al crear mensajes' });
+  }
+});
+
 app.put('/api/bot-messages/:id', async (req, res) => {
   try {
     const messageData = {
@@ -1633,6 +1700,17 @@ app.put('/api/bot-messages/:id', async (req, res) => {
   } catch (error) {
     console.error('Error updating bot message:', error);
     res.status(500).json({ error: 'Error al actualizar mensaje' });
+  }
+});
+
+app.delete('/api/bot-messages/all', async (req, res) => {
+  try {
+    // Eliminar todos los mensajes
+    const result = await prisma.botMessage.deleteMany({});
+    res.json({ success: true, deleted: result.count });
+  } catch (error) {
+    console.error('Error deleting all bot messages:', error);
+    res.status(500).json({ error: 'Error al eliminar mensajes' });
   }
 });
 
