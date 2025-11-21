@@ -168,8 +168,15 @@ export default function TransfersPending() {
             
             // Fallback a URL por defecto si aún no hay URL válida
             if (!webhookUrl || webhookUrl.trim() === '' || !webhookUrl.match(/^https?:\/\/[^\/]+/)) {
-              console.log('🔧 [DEBUG URL] Usando fallback');
-              webhookUrl = 'https://elbuenmenu.site';
+              console.warn('⚠️ [DEBUG URL] No se encontró VITE_BOT_WEBHOOK_URL, usando fallback');
+              // En desarrollo, usar localhost:3001, en producción usar el dominio
+              if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                webhookUrl = 'http://localhost:3001';
+                console.log('🔧 [DEBUG URL] Modo desarrollo detectado, usando localhost:3001');
+              } else {
+                webhookUrl = 'https://elbuenmenu.site';
+                console.log('🔧 [DEBUG URL] Modo producción, usando elbuenmenu.site');
+              }
             }
             
             // Asegurar que la URL no termine con /
@@ -203,20 +210,37 @@ export default function TransfersPending() {
               body: JSON.stringify(notificationData)
             });
             
+            const contentType = response.headers.get('content-type') || '';
+            const isJson = contentType.includes('application/json');
+            
             console.log('📥 [NOTIFICACIÓN WEB] Respuesta recibida:', {
               status: response.status,
               statusText: response.statusText,
               ok: response.ok,
+              contentType: contentType,
+              isJson: isJson,
               headers: Object.fromEntries(response.headers.entries())
             });
+            
+            // Obtener el texto de la respuesta primero para poder verificar si es HTML
+            const responseText = await response.text();
+            
+            // Verificar si la respuesta es HTML (error común cuando la URL está mal)
+            if (responseText.trim().startsWith('<!doctype') || responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
+              console.error('❌ [NOTIFICACIÓN WEB] El servidor devolvió HTML en lugar de JSON. Esto indica que la URL está incorrecta o el endpoint no existe.');
+              console.error('❌ [NOTIFICACIÓN WEB] URL intentada:', notifyUrl);
+              console.error('❌ [NOTIFICACIÓN WEB] Respuesta HTML (primeros 500 caracteres):', responseText.substring(0, 500));
+              
+              alert(`❌ Error: El servidor devolvió una página HTML en lugar de una respuesta JSON.\n\nEsto significa que la URL del webhook está incorrecta o el endpoint no existe.\n\nURL intentada: ${notifyUrl}\n\n💡 Verifica:\n1. Que el bot de WhatsApp esté corriendo\n2. Que la variable VITE_BOT_WEBHOOK_URL esté configurada correctamente\n3. Que el endpoint /notify-order exista en el servidor del bot`);
+              return;
+            }
             
             if (!response.ok) {
               let errorData: any;
               try {
-                errorData = await response.json();
+                errorData = JSON.parse(responseText);
               } catch {
-              const errorText = await response.text();
-                errorData = { error: errorText };
+                errorData = { error: responseText.substring(0, 200) };
               }
               console.error(`❌ [NOTIFICACIÓN WEB] Error en webhook (${response.status}):`, errorData);
               
@@ -230,7 +254,16 @@ export default function TransfersPending() {
               
               alert(errorMessage);
             } else {
-              const result = await response.json();
+              let result: any;
+              try {
+                result = JSON.parse(responseText);
+              } catch (parseError) {
+                console.error('❌ [NOTIFICACIÓN WEB] Error al parsear respuesta JSON:', parseError);
+                console.error('❌ [NOTIFICACIÓN WEB] Respuesta recibida:', responseText.substring(0, 500));
+                alert(`❌ Error: La respuesta del servidor no es JSON válido.\n\nRespuesta: ${responseText.substring(0, 200)}`);
+                return;
+              }
+              
               console.log(`✅ [NOTIFICACIÓN WEB] Notificación enviada exitosamente:`, result);
               alert(`✅ Notificación enviada exitosamente a ${order.customer_phone}`);
             }

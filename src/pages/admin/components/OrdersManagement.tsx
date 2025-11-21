@@ -207,7 +207,12 @@ export default function OrdersManagement() {
       
       // Fallback a URL por defecto si aún no hay URL válida
       if (!webhookUrl || webhookUrl.trim() === '' || !webhookUrl.match(/^https?:\/\/[^\/]+/)) {
-        webhookUrl = 'https://elbuenmenu.site';
+        // En desarrollo, usar localhost:3001, en producción usar el dominio
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          webhookUrl = 'http://localhost:3001';
+        } else {
+          webhookUrl = 'https://elbuenmenu.site';
+        }
       }
       
       // Asegurar que la URL no termine con /
@@ -236,9 +241,31 @@ export default function OrdersManagement() {
         })
       });
 
+      // Obtener el texto de la respuesta primero
+      const responseText = await response.text();
+      
+      // Verificar si la respuesta es HTML (error común cuando la URL está mal)
+      if (responseText.trim().startsWith('<!doctype') || responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
+        console.error('❌ [NOTIFICACIÓN WEB] El servidor devolvió HTML en lugar de JSON.');
+        console.error('❌ [NOTIFICACIÓN WEB] URL intentada:', notifyUrl);
+        throw new Error(`El servidor devolvió HTML en lugar de JSON. URL: ${notifyUrl}. Verifica que el bot esté corriendo y la URL sea correcta.`);
+      }
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
-        throw new Error(errorData.error || 'Error al enviar notificación');
+        let errorData: any;
+        try {
+          errorData = JSON.parse(responseText);
+        } catch {
+          errorData = { error: responseText.substring(0, 200) };
+        }
+        throw new Error(errorData.error || errorData.message || 'Error al enviar notificación');
+      }
+      
+      // Verificar que la respuesta sea JSON válido
+      try {
+        JSON.parse(responseText);
+      } catch {
+        throw new Error(`La respuesta del servidor no es JSON válido: ${responseText.substring(0, 200)}`);
       }
 
       // Cambiar estado a 'ready' (listo para retiro)

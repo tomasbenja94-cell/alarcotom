@@ -212,9 +212,12 @@ export default function BotMessagesManager() {
 
   const initializeDefaultMessages = async () => {
     try {
+      // Remover 'description' de los mensajes antes de insertar (la columna no existe en la tabla)
+      const messagesToInsert = defaultMessages.map(({ description, ...msg }) => msg);
+      
       const { data, error } = await supabase
         .from('bot_messages')
-        .insert(defaultMessages)
+        .insert(messagesToInsert)
         .select();
 
       if (error) throw error;
@@ -320,10 +323,13 @@ export default function BotMessagesManager() {
 
       if (deleteError) throw deleteError;
 
+      // Remover 'description' de los mensajes antes de insertar (la columna no existe en la tabla)
+      const messagesToInsert = defaultMessages.map(({ description, ...msg }) => msg);
+
       // Insertar mensajes por defecto
       const { data, error: insertError } = await supabase
         .from('bot_messages')
-        .insert(defaultMessages)
+        .insert(messagesToInsert)
         .select();
 
       if (insertError) throw insertError;

@@ -44,12 +44,30 @@ export default function DailyCash() {
           'Content-Type': 'application/json'
         }
       });
-
-      if (!response.ok) {
-        throw new Error('Error al cargar estadísticas');
+      
+      // Verificar si la respuesta es HTML
+      const responseText = await response.text();
+      if (responseText.trim().startsWith('<!doctype') || responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
+        console.error('❌ [DailyCash] El servidor devolvió HTML en lugar de JSON');
+        throw new Error(`El servidor devolvió HTML. Verifica que la URL del API sea correcta: ${API_URL}`);
       }
 
-      const salesData = await response.json();
+      if (!response.ok) {
+        let errorData: any;
+        try {
+          errorData = JSON.parse(responseText);
+        } catch {
+          errorData = { error: responseText.substring(0, 200) || 'Error desconocido' };
+        }
+        throw new Error(errorData.error || 'Error al cargar estadísticas');
+      }
+
+      let salesData: any;
+      try {
+        salesData = JSON.parse(responseText);
+      } catch (parseError) {
+        throw new Error(`Respuesta inválida del servidor: ${responseText.substring(0, 100)}`);
+      }
       
       // Calcular estadísticas del día
       const today = new Date();

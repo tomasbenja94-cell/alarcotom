@@ -18,8 +18,24 @@ async function request(endpoint: string, options: RequestInit = {}) {
     ...options,
   });
 
+  // Obtener el texto de la respuesta primero para verificar si es HTML
+  const responseText = await response.text();
+  
+  // Verificar si la respuesta es HTML (error común cuando la URL está mal)
+  if (responseText.trim().startsWith('<!doctype') || responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
+    console.error(`❌ [API] El servidor devolvió HTML en lugar de JSON para ${endpoint}`);
+    console.error(`❌ [API] URL intentada: ${API_URL}${endpoint}`);
+    throw new Error(`El servidor devolvió HTML. Verifica que la URL del API sea correcta: ${API_URL}`);
+  }
+
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
+    let errorData: any;
+    try {
+      errorData = JSON.parse(responseText);
+    } catch {
+      errorData = { error: responseText.substring(0, 200) || 'Error desconocido' };
+    }
+    
     // Mejorar mensaje de error para tokens
     if (response.status === 401 && !token) {
       throw new Error('Token no proporcionado');
@@ -38,7 +54,14 @@ async function request(endpoint: string, options: RequestInit = {}) {
     throw error;
   }
 
-  return response.json();
+  // Parsear JSON de forma segura
+  try {
+    return JSON.parse(responseText);
+  } catch (parseError) {
+    console.error(`❌ [API] Error al parsear JSON de ${endpoint}:`, parseError);
+    console.error(`❌ [API] Respuesta recibida:`, responseText.substring(0, 500));
+    throw new Error(`Respuesta inválida del servidor: ${responseText.substring(0, 100)}`);
+  }
 }
 
 // Categorías

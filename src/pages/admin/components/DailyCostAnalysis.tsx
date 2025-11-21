@@ -36,9 +36,23 @@ export default function DailyCostAnalysis() {
     try {
       const endpoint = API_URL.endsWith('/api') ? `${API_URL}/business/daily-cost-analysis?date=${selectedDate}` : `${API_URL}/api/business/daily-cost-analysis?date=${selectedDate}`;
       const response = await fetch(endpoint);
+      
+      // Verificar si la respuesta es HTML
+      const responseText = await response.text();
+      if (responseText.trim().startsWith('<!doctype') || responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
+        console.error('❌ [DailyCostAnalysis] El servidor devolvió HTML en lugar de JSON');
+        setAnalysis(null);
+        return;
+      }
+      
       if (response.ok) {
-        const data = await response.json();
-        setAnalysis(data.analysis || null);
+        try {
+          const data = JSON.parse(responseText);
+          setAnalysis(data.analysis || null);
+        } catch (parseError) {
+          console.error('Error al parsear respuesta:', parseError);
+          setAnalysis(null);
+        }
       } else if (response.status === 404) {
         setAnalysis(null); // No hay análisis para esta fecha
       }

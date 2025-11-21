@@ -90,12 +90,28 @@ async function fetchStats(): Promise<SalesStats> {
     }
   });
   
+  // Verificar si la respuesta es HTML
+  const responseText = await response.text();
+  if (responseText.trim().startsWith('<!doctype') || responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
+    console.error('❌ [SalesDashboard] El servidor devolvió HTML en lugar de JSON');
+    throw new Error(`El servidor devolvió HTML. Verifica que la URL del API sea correcta: ${API_URL}`);
+  }
+  
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
+    let errorData: any;
+    try {
+      errorData = JSON.parse(responseText);
+    } catch {
+      errorData = { error: responseText.substring(0, 200) || 'Error desconocido' };
+    }
     throw new Error(errorData.error || 'Error al cargar estadísticas');
   }
   
-  return response.json();
+  try {
+    return JSON.parse(responseText);
+  } catch (parseError) {
+    throw new Error(`Respuesta inválida del servidor: ${responseText.substring(0, 100)}`);
+  }
 }
 
 export default function SalesDashboard() {

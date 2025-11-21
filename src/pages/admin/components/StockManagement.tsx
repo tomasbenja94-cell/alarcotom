@@ -39,6 +39,16 @@ export default function StockManagement() {
       const API_URL = import.meta.env.VITE_API_URL || 'https://elbuenmenu.site/api';
       const endpoint = API_URL.endsWith('/api') ? `${API_URL}/ingredients` : `${API_URL}/api/ingredients`;
       const response = await fetch(endpoint);
+      
+      // Verificar si la respuesta es HTML
+      const responseText = await response.text();
+      if (responseText.trim().startsWith('<!doctype') || responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
+        console.warn('⚠️ [StockManagement] El servidor devolvió HTML para /ingredients, usando datos vacíos');
+        setTableExists(false);
+        setIngredients([]);
+        setLoading(false);
+        return;
+      }
 
       if (!response.ok) {
         // Si el endpoint no existe (404), usar datos vacíos sin mostrar error
@@ -53,9 +63,15 @@ export default function StockManagement() {
         return;
       }
 
-      const data = await response.json();
-      setTableExists(true);
-      setIngredients(data || []);
+      try {
+        const data = JSON.parse(responseText);
+        setTableExists(true);
+        setIngredients(data || []);
+      } catch (parseError) {
+        console.error('Error al parsear ingredients:', parseError);
+        setTableExists(false);
+        setIngredients([]);
+      }
     } catch (error: any) {
       // Silenciar errores - la tabla puede no existir
       setTableExists(false);

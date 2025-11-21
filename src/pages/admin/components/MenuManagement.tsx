@@ -146,6 +146,14 @@ export default function MenuManagement() {
       const endpoint = API_URL.endsWith('/api') ? `${API_URL}/ingredients` : `${API_URL}/api/ingredients`;
       const response = await fetch(endpoint);
       
+      // Verificar si la respuesta es HTML
+      const responseText = await response.text();
+      if (responseText.trim().startsWith('<!doctype') || responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
+        console.warn('⚠️ [MenuManagement] El servidor devolvió HTML para /ingredients, usando datos vacíos');
+        setIngredients([]);
+        return;
+      }
+      
       if (!response.ok) {
         // Si el endpoint no existe (404), usar datos vacíos sin mostrar error
         if (response.status === 404) {
@@ -157,8 +165,13 @@ export default function MenuManagement() {
         return;
       }
       
-      const data = await response.json();
-      setIngredients(data || []);
+      try {
+        const data = JSON.parse(responseText);
+        setIngredients(data || []);
+      } catch (parseError) {
+        console.error('Error al parsear ingredients:', parseError);
+        setIngredients([]);
+      }
     } catch (error: any) {
       // Silenciar errores - la tabla puede no existir
       setIngredients([]);
@@ -172,6 +185,14 @@ export default function MenuManagement() {
       const endpoint = API_URL.endsWith('/api') ? `${API_URL}/recipes` : `${API_URL}/api/recipes`;
       const response = await fetch(endpoint);
       
+      // Verificar si la respuesta es HTML
+      const responseText = await response.text();
+      if (responseText.trim().startsWith('<!doctype') || responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
+        console.warn('⚠️ [MenuManagement] El servidor devolvió HTML para /recipes, usando datos vacíos');
+        setRecipes([]);
+        return;
+      }
+      
       if (!response.ok) {
         // Si el endpoint no existe (404), usar datos vacíos sin mostrar error
         if (response.status === 404) {
@@ -179,14 +200,23 @@ export default function MenuManagement() {
           return;
         }
         // Solo loggear otros errores
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Error loading recipes:', errorData);
+        try {
+          const errorData = JSON.parse(responseText);
+          console.error('Error loading recipes:', errorData);
+        } catch {
+          console.error('Error loading recipes: respuesta no válida');
+        }
         setRecipes([]);
         return;
       }
       
-      const data = await response.json();
-      setRecipes(data || []);
+      try {
+        const data = JSON.parse(responseText);
+        setRecipes(data || []);
+      } catch (parseError) {
+        console.error('Error al parsear recipes:', parseError);
+        setRecipes([]);
+      }
     } catch (error: any) {
       // Silenciar errores - la tabla puede no existir
       setRecipes([]);
