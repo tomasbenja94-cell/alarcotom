@@ -1961,8 +1961,17 @@ async function handlePaymentSelection(from, body, userSession) {
                 logger.info(`💰 [Mercado Pago] Generando link para pedido ${orderNumber} con monto: $${validAmount}`);
                 
                 // Llamar al endpoint del backend para generar el link de Mercado Pago
+                logger.info(`📡 [Mercado Pago] Llamando a API:`, {
+                    endpoint: '/payments/mercadopago/create-preference',
+                    amount: validAmount,
+                    orderNumber: orderNumber
+                });
+                
                 const mpResponse = await apiRequest('/payments/mercadopago/create-preference', {
                     method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
                     body: JSON.stringify({
                         amount: validAmount,
                         orderNumber: orderNumber,
