@@ -415,16 +415,29 @@ app.delete('/api/categories/:id', async (req, res) => {
 // ========== INGREDIENTS ENDPOINTS ==========
 app.get('/api/ingredients', corsMiddleware, async (req, res) => {
   try {
+    // Verificar primero si la tabla existe intentando una query simple
     const ingredients = await prisma.ingredient.findMany({
       orderBy: { name: 'asc' }
     });
     res.json(ingredients.map(ing => objectToSnakeCase(ing)));
   } catch (error) {
-    console.error('Error fetching ingredients:', error);
-    console.error('Error details:', error.message, error.stack);
+    console.error('❌ [INGREDIENTS] Error fetching ingredients:', error);
+    console.error('❌ [INGREDIENTS] Error message:', error.message);
+    console.error('❌ [INGREDIENTS] Error code:', error.code);
+    console.error('❌ [INGREDIENTS] Error meta:', error.meta);
+    
+    // Si el error es que la tabla no existe, dar un mensaje más claro
+    if (error.message && error.message.includes('does not exist')) {
+      return res.status(500).json({ 
+        error: 'La tabla ingredients no existe en la base de datos. Ejecuta el SQL de creación en Supabase.',
+        hint: 'Verifica que la tabla se haya creado correctamente en Supabase SQL Editor'
+      });
+    }
+    
     res.status(500).json({ 
       error: 'Error al obtener ingredientes',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      code: error.code
     });
   }
 });
