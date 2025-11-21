@@ -1068,10 +1068,10 @@ async function startBot() {
             logger: pino({ level: 'silent' }),
             browser: ['El Buen Menú Bot', 'Chrome', '1.0.0'],
             generateHighQualityLinkPreview: true,
-            markOnlineOnConnect: false,
+            markOnlineOnConnect: true,
             defaultQueryTimeoutMs: 60000,
             connectTimeoutMs: 60000,
-            keepAliveIntervalMs: 30000,
+            keepAliveIntervalMs: 10000,
             retryRequestDelayMs: 1000,
             maxMsgRetryCount: 2,
             syncFullHistory: false,
@@ -1323,6 +1323,7 @@ async function startBot() {
         // -------------------------------------------------------------------
         // MESSAGE UPSERT HANDLER - CON MANEJO DE ERRORES DE SESIÓN
         // -------------------------------------------------------------------
+        logger.info('📡 [DEBUG] Registrando listener de mensajes (messages.upsert)...');
         sock.ev.on('messages.upsert', async (m) => {
             try {
                 logger.info(`📥 [DEBUG] messages.upsert recibido, mensajes: ${m.messages?.length || 0}`);
