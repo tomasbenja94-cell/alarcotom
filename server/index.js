@@ -3279,6 +3279,29 @@ app.post('/api/delivery/accept-order',
         return res.status(400).json({ error: 'Ya tienes un pedido activo' });
       }
       
+      // Verificar si hay otro pedido con este deliveryPersonId (por si hay inconsistencias)
+      const existingOrderWithDriver = await prisma.order.findUnique({
+        where: { deliveryPersonId: driver_id },
+        select: { id: true, status: true, orderNumber: true }
+      });
+      
+      if (existingOrderWithDriver && existingOrderWithDriver.id !== order_id) {
+        // Hay un pedido anterior con este repartidor asignado
+        // Si el pedido está completado o cancelado, limpiar la asignación
+        if (existingOrderWithDriver.status === 'delivered' || existingOrderWithDriver.status === 'cancelled') {
+          await prisma.order.update({
+            where: { id: existingOrderWithDriver.id },
+            data: { deliveryPersonId: null }
+          });
+        } else {
+          // Si el pedido está activo, rechazar la operación
+          return res.status(400).json({ 
+            error: 'Ya tienes otro pedido asignado',
+            details: `Pedido #${existingOrderWithDriver.orderNumber} está en estado: ${existingOrderWithDriver.status}`
+          });
+        }
+      }
+      
       // Generar código de entrega usando servicio
       const deliveryCode = deliveryCodeService.generateDeliveryCode();
       const trackingToken = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
