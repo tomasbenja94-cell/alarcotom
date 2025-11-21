@@ -27,11 +27,21 @@ whatsapp-bot/.auth/
 server/dev.db
 server/prisma/dev.db*
 
-# Build outputs
+# Frontend (solo desarrollo local, no subir a GitHub)
+src/
+out/
 dist/
 build/
 .next/
-out/
+
+# Frontend config files
+vite.config.ts
+tsconfig*.json
+tailwind.config.ts
+postcss.config.ts
+index.html
+package.json
+package-lock.json
 
 # IDE
 .vscode/
