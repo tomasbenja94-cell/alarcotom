@@ -1219,9 +1219,14 @@ async function startBot() {
                 logger.info('💬 El bot está listo para recibir mensajes');
                 logger.info('💾 Sesión guardada para futuros usos');
                 logger.info('🏢 Sistema profesional de gestión activado');
+                logger.info('📡 Listener de mensajes registrado y activo');
                 logger.info('═'.repeat(60) + '\n');
                 
                 startMonitoringSystems();
+                
+                // Verificar que el listener esté activo
+                logger.info('✅ [DEBUG] Verificando listener de mensajes...');
+                logger.info(`✅ [DEBUG] Socket conectado: ${sock && typeof sock.ev === 'object'}`);
                 
             } else if (connection === 'connecting') {
                 logger.info('🔄 Conectando a WhatsApp...');
