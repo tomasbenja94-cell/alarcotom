@@ -2939,8 +2939,8 @@ app.get('/api/delivery/available-orders',
   try {
     const orders = await prisma.order.findMany({
       where: {
-        // Incluir pedidos confirmados, aprobados, preparando y listos
-        status: { in: ['confirmed', 'approved', 'preparing', 'ready'] },
+        // Incluir pedidos confirmados, preparando y listos (approved se convierte en confirmed)
+        status: { in: ['confirmed', 'preparing', 'ready'] },
         deliveryPersonId: null,
         // Excluir pedidos de retiro (solo pedidos a domicilio: deliveryFee > 0)
         deliveryFee: { gt: 0 }
