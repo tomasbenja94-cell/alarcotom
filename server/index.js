@@ -2697,7 +2697,16 @@ app.post('/api/orders/:id/notify', corsMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'message es requerido' });
     }
     
-    const webhookUrl = process.env.BOT_WEBHOOK_URL || 'http://localhost:3001';
+    // En producción, el bot corre en localhost:3001 en el mismo servidor
+    // Si BOT_WEBHOOK_URL está configurado, usarlo; si no, usar localhost
+    let webhookUrl = process.env.BOT_WEBHOOK_URL;
+    
+    // Si BOT_WEBHOOK_URL apunta a elbuenmenu.site (frontend), usar localhost en su lugar
+    if (!webhookUrl || webhookUrl.includes('elbuenmenu.site')) {
+      webhookUrl = 'http://localhost:3001';
+      console.log(`⚠️ [NOTIFY] BOT_WEBHOOK_URL no configurado o apunta al frontend, usando localhost:3001`);
+    }
+    
     const notifyUrl = `${webhookUrl}/notify-order`;
     console.log(`📤 [NOTIFY] Enviando notificación desde frontend a ${customerPhone} para pedido ${orderNumber || orderId}`);
     console.log(`📤 [NOTIFY] URL del bot: ${notifyUrl}`);
