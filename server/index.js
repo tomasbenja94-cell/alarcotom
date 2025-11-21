@@ -271,7 +271,8 @@ app.use('/proofs', (req, res, next) => {
 // ========== MIDDLEWARES DE SEGURIDAD ==========
 app.use(securityHeaders); // Headers de seguridad
 app.use(corsMiddleware); // CORS configurado
-app.use(express.json({ limit: '10mb' })); // Limitar tamaño de payload
+app.use(express.json({ limit: '50mb' })); // Aumentar límite para imágenes en base64
+app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Para form-data
 // Rate limiting general (excluye delivery autenticado)
 app.use(generalRateLimit); // Rate limiting general
 // ipRateLimit deshabilitado para evitar bloqueos de IP en desarrollo
@@ -411,10 +412,86 @@ app.delete('/api/categories/:id', async (req, res) => {
 });
 
 // ========== PRODUCTOS ==========
-app.get('/api/products', async (req, res) => {
+// ========== INGREDIENTS ENDPOINTS ==========
+app.get('/api/ingredients', corsMiddleware, async (req, res) => {
   try {
+    const ingredients = await prisma.ingredient.findMany({
+      orderBy: { name: 'asc' }
+    });
+    res.json(ingredients.map(ing => objectToSnakeCase(ing)));
+  } catch (error) {
+    console.error('Error fetching ingredients:', error);
+    res.status(500).json({ error: 'Error al obtener ingredientes' });
+  }
+});
+
+app.post('/api/ingredients', corsMiddleware, async (req, res) => {
+  try {
+    const ingredientData = {
+      name: req.body.name,
+      unit: req.body.unit,
+      purchasePrice: req.body.purchase_price || req.body.purchasePrice,
+      currentStock: req.body.current_stock || req.body.currentStock || 0,
+      minStock: req.body.min_stock || req.body.minStock || 0
+    };
+    const ingredient = await prisma.ingredient.create({
+      data: ingredientData
+    });
+    res.json(objectToSnakeCase(ingredient));
+  } catch (error) {
+    console.error('Error creating ingredient:', error);
+    res.status(500).json({ error: 'Error al crear ingrediente' });
+  }
+});
+
+app.put('/api/ingredients/:id', corsMiddleware, async (req, res) => {
+  try {
+    const ingredientData = {
+      name: req.body.name,
+      unit: req.body.unit,
+      purchasePrice: req.body.purchase_price || req.body.purchasePrice,
+      currentStock: req.body.current_stock !== undefined ? req.body.current_stock : req.body.currentStock,
+      minStock: req.body.min_stock !== undefined ? req.body.min_stock : req.body.minStock
+    };
+    const ingredient = await prisma.ingredient.update({
+      where: { id: req.params.id },
+      data: ingredientData
+    });
+    res.json(objectToSnakeCase(ingredient));
+  } catch (error) {
+    console.error('Error updating ingredient:', error);
+    res.status(500).json({ error: 'Error al actualizar ingrediente' });
+  }
+});
+
+app.delete('/api/ingredients/:id', corsMiddleware, async (req, res) => {
+  try {
+    await prisma.ingredient.delete({
+      where: { id: req.params.id }
+    });
+    res.json({ message: 'Ingrediente eliminado correctamente' });
+  } catch (error) {
+    console.error('Error deleting ingredient:', error);
+    res.status(500).json({ error: 'Error al eliminar ingrediente' });
+  }
+});
+
+// ========== RECIPES ENDPOINTS (placeholder - implementar según necesidad) ==========
+app.get('/api/recipes', corsMiddleware, async (req, res) => {
+  try {
+    // Por ahora retornar array vacío hasta que se implemente el modelo Recipe
+    res.json([]);
+  } catch (error) {
+    console.error('Error fetching recipes:', error);
+    res.status(500).json({ error: 'Error al obtener recetas' });
+  }
+});
+
+app.get('/api/products', corsMiddleware, async (req, res) => {
+  try {
+    // Obtener todos los productos sin filtrar por isAvailable
+    // El frontend puede filtrar si es necesario
     const products = await prisma.product.findMany({
-      where: { isAvailable: true },
       include: {
         category: true,
         productOptionCategories: {
@@ -444,7 +521,7 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
-app.post('/api/products', async (req, res) => {
+app.post('/api/products', corsMiddleware, async (req, res) => {
   try {
     const productData = {
       categoryId: req.body.category_id || req.body.categoryId,
@@ -465,7 +542,7 @@ app.post('/api/products', async (req, res) => {
   }
 });
 
-app.put('/api/products/:id', async (req, res) => {
+app.put('/api/products/:id', corsMiddleware, async (req, res) => {
   try {
     // Validar que el producto existe
     const existingProduct = await prisma.product.findUnique({
@@ -512,7 +589,7 @@ app.put('/api/products/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/products/:id', async (req, res) => {
+app.delete('/api/products/:id', corsMiddleware, async (req, res) => {
   try {
     await prisma.product.delete({
       where: { id: req.params.id }
