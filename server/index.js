@@ -3014,6 +3014,7 @@ app.post('/api/delivery/accept-order',
       
       // Actualizar pedido y repartidor en transacción atómica
       const order = await prisma.$transaction(async (tx) => {
+        // Usar select explícito para evitar problemas con unique_code que puede no existir
         const updatedOrder = await tx.order.update({
           where: { id: order_id },
           data: {
@@ -3022,9 +3023,36 @@ app.post('/api/delivery/accept-order',
             deliveryCode: deliveryCode,
             trackingToken: trackingToken
           },
-          include: {
+          select: {
+            id: true,
+            orderNumber: true,
+            customerName: true,
+            customerPhone: true,
+            customerAddress: true,
+            customerLat: true,
+            customerLng: true,
+            status: true,
+            paymentMethod: true,
+            paymentStatus: true,
+            subtotal: true,
+            deliveryFee: true,
+            total: true,
+            notes: true,
+            deliveryCode: true,
+            trackingToken: true,
+            deliveryPersonId: true,
+            createdAt: true,
+            updatedAt: true,
             items: true,
-            deliveryPerson: true
+            deliveryPerson: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                username: true,
+                isActive: true
+              }
+            }
           }
         });
         
