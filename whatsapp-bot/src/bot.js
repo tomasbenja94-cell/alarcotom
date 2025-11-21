@@ -1939,42 +1939,11 @@ async function handlePaymentSelection(from, body, userSession) {
             return;
         }
         
-        if (body === '1' || body.includes('transferencia') || body.includes('alias') || body.includes('cvu')) {
-            userSession.paymentMethod = 'transfer';
-            userSession.waitingForPayment = false;
-            userSession.waitingForTransferProof = true; // Esperar comprobante
-            
-            // Mostrar datos de transferencia
-            const transferData = botMessages.transfer_data || `💵 Datos para transferencia:
-
-🏦 Alias: ELBUENMENU.MP
-💰 CVU: 0000003100037891234456
-
-📸 Enviá SOLO el comprobante de pago (foto) acá mismo.
-
-⚠️ IMPORTANTE: Solo se aceptan imágenes. No envíes texto ni documentos.
-
-_*PRESIONA 09 SI QUIERES CAMBIAR EL MÉTODO DE PAGO*_`;
-            
-            await sendMessage(from, transferData);
-            
-            // Actualizar pedido en base de datos (pero NO confirmar aún)
-            try {
-                if (userSession.pendingOrder?.orderId) {
-                    await updateWebOrderPayment(from, userSession, 'Transferencia');
-                } else {
-                    await createOrderInDatabase(from, userSession);
-                }
-                // NO enviar "Pedido recibido" aquí - esperar comprobante
-            } catch (error) {
-                logger.error('❌ Error al manejar selección de pago:', error);
-                await sendMessage(from, '❌ Hubo un error al procesar tu pedido. Por favor, intentá nuevamente.');
-            }
-            
-        } else if (body === '2' || body.includes('mercado') || body.includes('pago')) {
+        // 1️⃣ Mercado Pago
+        if (body === '1' || body.includes('mercado') || body.includes('pago')) {
             userSession.paymentMethod = 'mercadopago';
             userSession.waitingForPayment = false;
-            userSession.waitingForTransferProof = true; // Esperar comprobante
+            userSession.waitingForTransferProof = false; // Mercado Pago se aprueba automáticamente, no esperamos comprobante
             
             // Generar link de pago de Mercado Pago dinámicamente
             let mercadoPagoLink;
@@ -2001,7 +1970,7 @@ _*PRESIONA 09 SI QUIERES CAMBIAR EL MÉTODO DE PAGO*_`;
                     })
                 });
                 
-                logger.info(`✅ [Mercado Pago] Link generado:`, mpResponse?.init_point || 'No disponible');
+                logger.info(`✅ [Mercado Pago] Respuesta completa:`, JSON.stringify(mpResponse, null, 2));
                 
                 if (mpResponse && mpResponse.init_point) {
                     // Guardar el link en la sesión para usarlo en mensajes de validación
@@ -2014,36 +1983,61 @@ _*PRESIONA 09 SI QUIERES CAMBIAR EL MÉTODO DE PAGO*_`;
 
 🔗 ${mpResponse.init_point}
 
-(Una vez realizado el pago, se verifica solo, los pagos realizados por link de Mercado Pago se aprueban automáticamente, ya que cada link es único para cada cliente.)
-
 Escribe "09" si querés cambiar el método de pago.`;
                 } else {
-                    throw new Error('No se pudo generar el link de Mercado Pago');
+                    throw new Error('No se pudo generar el link de Mercado Pago - respuesta inválida');
                 }
             } catch (error) {
                 logger.error('❌ Error al generar link de Mercado Pago:', error);
-                // Fallback a link estático si falla la API
-                const fallbackLink = 'https://mpago.la/elbuenmenu';
-                if (!userSession.pendingOrder) {
-                    userSession.pendingOrder = {};
-                }
-                userSession.pendingOrder.mercadoPagoLink = fallbackLink;
-                
-                mercadoPagoLink = `💳 Pagá con Mercado Pago:
+                logger.error('❌ Stack:', error.stack);
+                // No usar fallback - mostrar error y permitir cambiar método
+                await sendMessage(from, `❌ Error al generar el link de pago de Mercado Pago.
 
-🔗 ${fallbackLink}
-
-(Una vez realizado el pago, se verifica solo, los pagos realizados por link de Mercado Pago se aprueban automáticamente, ya que cada link es único para cada cliente.)
-
-Escribe "09" si querés cambiar el método de pago.`;
+Por favor, intentá con otro método de pago o escribí "09" para cambiar el método.`);
+                userSession.waitingForPayment = true;
+                userSession.paymentMethod = null;
+                return;
             }
             
             await sendMessage(from, mercadoPagoLink);
             
-            // Actualizar pedido en base de datos (pero NO confirmar aún)
+            // Actualizar pedido en base de datos
             try {
                 if (userSession.pendingOrder?.orderId) {
                     await updateWebOrderPayment(from, userSession, 'Mercado Pago');
+                } else {
+                    await createOrderInDatabase(from, userSession);
+                }
+                // El pago se aprobará automáticamente cuando Mercado Pago notifique
+            } catch (error) {
+                logger.error('❌ Error al manejar selección de pago:', error);
+                await sendMessage(from, '❌ Hubo un error al procesar tu pedido. Por favor, intentá nuevamente.');
+            }
+            
+        // 2️⃣ Transferencia (CVU)
+        } else if (body === '2' || body.includes('transferencia') || body.includes('alias') || body.includes('cvu')) {
+            userSession.paymentMethod = 'transfer';
+            userSession.waitingForPayment = false;
+            userSession.waitingForTransferProof = true; // Esperar comprobante
+            
+            // Mostrar datos de transferencia
+            const transferData = botMessages.transfer_data || `💵 Datos para transferencia:
+
+🏦 Alias: ELBUENMENU.MP
+💰 CVU: 0000003100037891234456
+
+📸 Enviá SOLO el comprobante de pago (foto) acá mismo.
+
+⚠️ IMPORTANTE: Solo se aceptan imágenes. No envíes texto ni documentos.
+
+Escribe "09" si querés cambiar el método de pago.`;
+            
+            await sendMessage(from, transferData);
+            
+            // Actualizar pedido en base de datos (pero NO confirmar aún)
+            try {
+                if (userSession.pendingOrder?.orderId) {
+                    await updateWebOrderPayment(from, userSession, 'Transferencia');
                 } else {
                     await createOrderInDatabase(from, userSession);
                 }
@@ -2053,6 +2047,7 @@ Escribe "09" si querés cambiar el método de pago.`;
                 await sendMessage(from, '❌ Hubo un error al procesar tu pedido. Por favor, intentá nuevamente.');
             }
             
+        // 3️⃣ Efectivo
         } else if (body === '3' || body.includes('efectivo') || body.includes('cash')) {
             // Verificar si el método de pago está deshabilitado para este cliente
             try {
