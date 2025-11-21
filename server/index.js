@@ -421,7 +421,11 @@ app.get('/api/ingredients', corsMiddleware, async (req, res) => {
     res.json(ingredients.map(ing => objectToSnakeCase(ing)));
   } catch (error) {
     console.error('Error fetching ingredients:', error);
-    res.status(500).json({ error: 'Error al obtener ingredientes' });
+    console.error('Error details:', error.message, error.stack);
+    res.status(500).json({ 
+      error: 'Error al obtener ingredientes',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
