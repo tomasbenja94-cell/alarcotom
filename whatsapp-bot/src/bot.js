@@ -751,7 +751,7 @@ async function addToMessageQueue(message, priority = 0) {
         }
         
         metrics.messagesQueued++;
-        logger.debug(`✅ [DEBUG] Mensaje agregado a cola. Total en cola: ${messageQueue.length}, Procesando: ${isProcessingQueue}`);
+        logger.info(`✅ [DEBUG] Mensaje agregado a cola. Total en cola: ${messageQueue.length}, Procesando: ${isProcessingQueue}`);
         
         if (!isProcessingQueue) {
             logger.info(`🚀 [DEBUG] Iniciando procesador de cola (${messageQueue.length} mensajes en cola)`);
@@ -766,7 +766,7 @@ async function addToMessageQueue(message, priority = 0) {
 
 async function processMessageQueue() {
     if (isProcessingQueue || messageQueue.length === 0) {
-        logger.debug(`⏸️ [DEBUG] Procesador de cola pausado - Procesando: ${isProcessingQueue}, Cola: ${messageQueue.length}`);
+        logger.info(`⏸️ [DEBUG] Procesador de cola pausado - Procesando: ${isProcessingQueue}, Cola: ${messageQueue.length}`);
         return;
     }
     
@@ -782,7 +782,7 @@ async function processMessageQueue() {
             
             try {
                 if (processingMessages.has(queueItem.id)) {
-                    logger.debug(`⏭️ [DEBUG] Mensaje ${queueItem.id} ya está siendo procesado, saltando`);
+                    logger.info(`⏭️ [DEBUG] Mensaje ${queueItem.id} ya está siendo procesado, saltando`);
                     continue;
                 }
                 processingMessages.add(queueItem.id);
@@ -793,7 +793,7 @@ async function processMessageQueue() {
                 metrics.messagesProcessed++;
                 const responseTime = Date.now() - startTime;
                 metrics.averageResponseTime = (metrics.averageResponseTime + responseTime) / 2;
-                logger.debug(`✅ [DEBUG] Mensaje ${queueItem.id} procesado en ${responseTime}ms`);
+                logger.info(`✅ [DEBUG] Mensaje ${queueItem.id} procesado en ${responseTime}ms`);
                 
             } catch (error) {
                 logger.error(`Error procesando mensaje ${queueItem.id}:`, error);
@@ -1325,7 +1325,7 @@ async function startBot() {
         // -------------------------------------------------------------------
         sock.ev.on('messages.upsert', async (m) => {
             try {
-                logger.debug(`📥 [DEBUG] messages.upsert recibido, mensajes: ${m.messages?.length || 0}`);
+                logger.info(`📥 [DEBUG] messages.upsert recibido, mensajes: ${m.messages?.length || 0}`);
                 // Wrapper interno para capturar errores de descifrado
                 try {
                     const message = m.messages[0];
@@ -1336,12 +1336,12 @@ async function startBot() {
                     
                     // Validaciones básicas mejoradas
                     if (!message || !message.key || !message.message) {
-                        logger.debug(`⚠️ [DEBUG] Mensaje inválido - message: ${!!message}, key: ${!!message?.key}, message.message: ${!!message?.message}`);
+                        logger.info(`⚠️ [DEBUG] Mensaje inválido - message: ${!!message}, key: ${!!message?.key}, message.message: ${!!message?.message}`);
                         // No mostrar warnings para mensajes inválidos - pueden ser errores de desencriptación esperados
                         return;
                     }
                     
-                    logger.debug(`✅ [DEBUG] Mensaje válido recibido de ${message.key.remoteJid}`);
+                    logger.info(`✅ [DEBUG] Mensaje válido recibido de ${message.key.remoteJid}`);
                     
                     if (message.key.fromMe) {
                         logger.debug('📤 Mensaje propio ignorado');
@@ -1381,7 +1381,7 @@ async function startBot() {
                     const priority = isAdmin ? 10 : 0;
                     logger.info(`📨 [DEBUG] Agregando mensaje a cola - De: ${remoteJid}, Prioridad: ${priority}`);
                     await addToMessageQueue(message, priority);
-                    logger.debug(`📊 [DEBUG] Cola actual: ${messageQueue.length} mensajes`);
+                    logger.info(`📊 [DEBUG] Cola actual: ${messageQueue.length} mensajes`);
                 } catch (decryptError) {
                     // Capturar errores de descifrado específicamente
                     // Estos errores aparecen como "Failed to decrypt message with any known session"
