@@ -185,14 +185,36 @@ export default function OrdersManagement() {
         return;
       }
 
-      // URL del webhook del bot (usar variable de entorno o default)
-      const webhookUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'https://elbuenmenu.site';
+      // Construir URL del webhook del bot de forma robusta
+      let webhookUrl = import.meta.env.VITE_BOT_WEBHOOK_URL;
+      
+      // Si no hay variable específica, intentar construir desde VITE_API_URL
+      if (!webhookUrl) {
+        const apiUrl = import.meta.env.VITE_API_URL || '';
+        if (apiUrl) {
+          // Remover /api del final si existe
+          webhookUrl = apiUrl.replace(/\/api\/?$/, '');
+          // Si la URL resultante no tiene protocolo, usar https://
+          if (!webhookUrl.startsWith('http://') && !webhookUrl.startsWith('https://')) {
+            webhookUrl = `https://${webhookUrl}`;
+          }
+        }
+      }
+      
+      // Fallback a URL por defecto
+      if (!webhookUrl || webhookUrl === '') {
+        webhookUrl = 'https://elbuenmenu.site';
+      }
+      
+      // Asegurar que la URL no termine con /
+      webhookUrl = webhookUrl.replace(/\/+$/, '');
       
       // Mensaje de notificación
       const message = `✅ ¡Tu pedido está listo para retirar!\n\n📦 Pedido: ${order.order_number}\n\n📍 Podés pasar a retirarlo cuando gustes.\n\n¡Gracias por tu compra! ❤️`;
 
       // Enviar notificación al cliente vía webhook del bot
-      const response = await fetch(`${webhookUrl}/notify-order`, {
+      const notifyUrl = `${webhookUrl}/notify-order`;
+      const response = await fetch(notifyUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -140,20 +140,45 @@ export default function TransfersPending() {
           alert(warningMsg);
         } else if (order.customer_phone && order.customer_phone.trim() !== '') {
           try {
-            const webhookUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'https://elbuenmenu.site';
+            // Construir URL del webhook del bot de forma robusta
+            let webhookUrl = import.meta.env.VITE_BOT_WEBHOOK_URL;
+            
+            // Si no hay variable específica, intentar construir desde VITE_API_URL
+            if (!webhookUrl) {
+              const apiUrl = import.meta.env.VITE_API_URL || '';
+              if (apiUrl) {
+                // Remover /api del final si existe
+                webhookUrl = apiUrl.replace(/\/api\/?$/, '');
+                // Si la URL resultante no tiene protocolo, usar https://
+                if (!webhookUrl.startsWith('http://') && !webhookUrl.startsWith('https://')) {
+                  webhookUrl = `https://${webhookUrl}`;
+                }
+              }
+            }
+            
+            // Fallback a URL por defecto
+            if (!webhookUrl || webhookUrl === '') {
+              webhookUrl = 'https://elbuenmenu.site';
+            }
+            
+            // Asegurar que la URL no termine con /
+            webhookUrl = webhookUrl.replace(/\/+$/, '');
+            
             const notificationData = {
               customerPhone: order.customer_phone,
               orderNumber: order.order_number,
               message: '👨‍🍳 ¡Excelente! Tu pedido está siendo preparado con mucho cuidado.\n\n⏰ Te avisaremos en cuanto esté en camino hacia tu dirección.\n\n¡Gracias por tu paciencia! ❤️'
             };
             
+            const notifyUrl = `${webhookUrl}/notify-order`;
+            
             console.log('📤 [NOTIFICACIÓN WEB] ============================================');
             console.log('📤 [NOTIFICACIÓN WEB] Enviando notificación al cliente');
-            console.log('📤 [NOTIFICACIÓN WEB] URL:', `${webhookUrl}/notify-order`);
+            console.log('📤 [NOTIFICACIÓN WEB] URL:', notifyUrl);
             console.log('📤 [NOTIFICACIÓN WEB] Datos:', JSON.stringify(notificationData, null, 2));
             console.log('📤 [NOTIFICACIÓN WEB] ============================================');
             
-            const response = await fetch(`${webhookUrl}/notify-order`, {
+            const response = await fetch(notifyUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(notificationData)
