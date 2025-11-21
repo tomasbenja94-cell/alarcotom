@@ -1862,15 +1862,25 @@ _*PRESIONA 09 SI QUIERES CAMBIAR EL MÉTODO DE PAGO*_`;
                 const orderTotal = userSession.pendingOrder?.total || 0;
                 const orderNumber = userSession.pendingOrder?.orderNumber || userSession.pendingOrder?.orderId || 'N/A';
                 
+                // Validar que el monto sea válido
+                const validAmount = parseFloat(orderTotal);
+                if (isNaN(validAmount) || validAmount <= 0) {
+                    throw new Error(`Monto inválido: ${orderTotal}`);
+                }
+                
+                logger.info(`💰 [Mercado Pago] Generando link para pedido ${orderNumber} con monto: $${validAmount}`);
+                
                 // Llamar al endpoint del backend para generar el link de Mercado Pago
                 const mpResponse = await apiRequest('/payments/mercadopago/create-preference', {
                     method: 'POST',
                     body: JSON.stringify({
-                        amount: orderTotal,
+                        amount: validAmount,
                         orderNumber: orderNumber,
                         description: `Pedido ${orderNumber} - El Buen Menú`
                     })
                 });
+                
+                logger.info(`✅ [Mercado Pago] Link generado:`, mpResponse?.init_point || 'No disponible');
                 
                 if (mpResponse && mpResponse.init_point) {
                     mercadoPagoLink = `💳 Pagá con Mercado Pago:

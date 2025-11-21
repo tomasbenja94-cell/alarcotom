@@ -4376,8 +4376,19 @@ app.post('/api/payments/mercadopago/create-preference', corsMiddleware, async (r
   try {
     const { amount, orderNumber, description } = req.body;
 
+    // Validar y normalizar el monto
+    const normalizedAmount = parseFloat(amount);
+    
+    console.log('💰 [Mercado Pago] Datos recibidos:', {
+      amount: amount,
+      normalizedAmount: normalizedAmount,
+      orderNumber: orderNumber,
+      description: description
+    });
+
     // Validar datos requeridos
-    if (!amount || amount <= 0) {
+    if (!amount || isNaN(normalizedAmount) || normalizedAmount <= 0) {
+      console.error('❌ [Mercado Pago] Monto inválido:', { amount, normalizedAmount });
       return res.status(400).json({ error: 'El monto es requerido y debe ser mayor a 0' });
     }
 
@@ -4425,12 +4436,17 @@ app.post('/api/payments/mercadopago/create-preference', corsMiddleware, async (r
     }
 
     // Crear preferencia de pago
+    // Asegurar que el monto esté en el formato correcto (número decimal con 2 decimales)
+    const finalAmount = parseFloat(normalizedAmount.toFixed(2));
+    
+    console.log('💰 [Mercado Pago] Creando preferencia con monto:', finalAmount);
+    
     const preferenceData = {
       items: [
         {
           title: description || `Pedido ${orderNumber || 'N/A'} - El Buen Menú`,
           quantity: 1,
-          unit_price: parseFloat(amount),
+          unit_price: finalAmount,
           currency_id: 'ARS'
         }
       ],
@@ -4445,7 +4461,15 @@ app.post('/api/payments/mercadopago/create-preference', corsMiddleware, async (r
       statement_descriptor: 'EL BUEN MENU'
     };
 
+    console.log('📋 [Mercado Pago] Preference data:', JSON.stringify(preferenceData, null, 2));
+    
     const preference = await preferenceClient.create({ body: preferenceData });
+
+    console.log('✅ [Mercado Pago] Preferencia creada:', {
+      id: preference.id,
+      init_point: preference.init_point,
+      hasInitPoint: !!preference.init_point
+    });
 
     if (preference && preference.init_point) {
       res.json({
@@ -4455,6 +4479,7 @@ app.post('/api/payments/mercadopago/create-preference', corsMiddleware, async (r
         external_reference: preference.external_reference
       });
     } else {
+      console.error('❌ [Mercado Pago] Preferencia creada pero sin init_point:', preference);
       throw new Error('No se pudo generar la preferencia de pago');
     }
   } catch (error) {
