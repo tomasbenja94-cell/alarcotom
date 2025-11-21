@@ -1780,20 +1780,81 @@ async function handleTransferProof(from, message, userSession) {
 }
 
 // ---------------------------------------------------------------------------
+// VERIFICAR SI ESTÁ EN FLUJO DE PAGO
+// ---------------------------------------------------------------------------
+function isInPaymentFlow(userSession) {
+    return userSession.waitingForPayment || 
+           userSession.waitingForTransferProof || 
+           (userSession.paymentMethod !== null && userSession.paymentMethod !== undefined);
+}
+
+// ---------------------------------------------------------------------------
+// OBTENER MENSAJE DE VALIDACIÓN PARA FLUJO DE PAGO
+// ---------------------------------------------------------------------------
+function getPaymentFlowValidationMessage(userSession) {
+    const paymentMethod = userSession.paymentMethod;
+    
+    if (paymentMethod === 'mercadopago') {
+        // Obtener el link de Mercado Pago del pedido pendiente
+        const mpLink = userSession.pendingOrder?.mercadoPagoLink || 'https://mpago.la/elbuenmenu';
+        return `🤔 No entendí tu mensaje.
+
+❗Completa tu pago:
+
+• Método seleccionado: Mercado Pago
+• Link: ${mpLink}
+
+Escribe "09" si querés cambiar el método de pago.`;
+    } else if (paymentMethod === 'transfer') {
+        const transferData = botMessages.transfer_data || `💵 Datos para transferencia:
+
+🏦 Alias: ELBUENMENU.MP
+💰 CVU: 0000003100037891234456`;
+        return `🤔 No entendí tu mensaje.
+
+❗Completa tu pago:
+
+• Método seleccionado: Transferencia (CVU)
+• ${transferData}
+
+Escribe "09" si querés cambiar el método de pago.`;
+    } else if (paymentMethod === 'cash') {
+        return `🤔 No entendí tu mensaje.
+
+❗Completa tu pago:
+
+• Método seleccionado: Efectivo
+
+Escribe "09" si querés cambiar el método de pago.`;
+    } else {
+        // Si está esperando selección de método
+        return `🤔 No entendí tu mensaje.
+
+❗Completa tu pago:
+
+Elegí tu método de pago:
+
+1️⃣ Mercado Pago
+2️⃣ Transferencia (CVU)
+3️⃣ Efectivo
+4️⃣ Cancelar pago
+
+Escribe el número de la opción.`;
+    }
+}
+
+// ---------------------------------------------------------------------------
 // SHOW PAYMENT OPTIONS
 // ---------------------------------------------------------------------------
 async function showPaymentOptions(from, userSession) {
-    await sendMessage(from, `✅ ¡Perfecto! Tu pedido está confirmado.
+    await sendMessage(from, `🔄 Cambio de método de pago
 
-💳 *MÉTODO DE PAGO*
+Elegí tu método de pago:
 
-Elegí cómo querés pagar:
-
-1️⃣ Transferencia bancaria
-
-2️⃣ Mercado Pago
-
+1️⃣ Mercado Pago
+2️⃣ Transferencia (CVU)
 3️⃣ Efectivo
+4️⃣ Cancelar pago
 
 Escribí el número de la opción.`);
 }
@@ -1808,13 +1869,27 @@ async function handlePaymentSelection(from, body, userSession) {
         // Usar JID directamente (ya no necesitamos números "limpios")
         const customerJid = from;
         
-        // Manejar opción 09 para cambiar método de pago
-        if (body === '09' || body === '9' || body.includes('cambiar') || body.includes('cambio')) {
+        // Manejar opción 09 para cambiar método de pago (solo exactamente "09")
+        if (body === '09') {
             userSession.paymentMethod = null;
             userSession.waitingForTransferProof = false;
             userSession.waitingForPayment = true;
             userSession.waitingForComplaint = false;
             await showPaymentOptions(from, userSession);
+            return;
+        }
+        
+        // Manejar cancelación de pago (opción 4)
+        if (body === '4' || body.includes('cancelar') || body.includes('cancel')) {
+            userSession.paymentMethod = null;
+            userSession.waitingForTransferProof = false;
+            userSession.waitingForPayment = false;
+            userSession.waitingForComplaint = false;
+            userSession.pendingOrder = null;
+            userSession.step = 'welcome';
+            await sendMessage(from, `❌ Pago cancelado.
+
+¿Querés hacer otro pedido? Escribí "hola" para ver las opciones.`);
             return;
         }
         
@@ -1883,26 +1958,38 @@ _*PRESIONA 09 SI QUIERES CAMBIAR EL MÉTODO DE PAGO*_`;
                 logger.info(`✅ [Mercado Pago] Link generado:`, mpResponse?.init_point || 'No disponible');
                 
                 if (mpResponse && mpResponse.init_point) {
+                    // Guardar el link en la sesión para usarlo en mensajes de validación
+                    if (!userSession.pendingOrder) {
+                        userSession.pendingOrder = {};
+                    }
+                    userSession.pendingOrder.mercadoPagoLink = mpResponse.init_point;
+                    
                     mercadoPagoLink = `💳 Pagá con Mercado Pago:
 
 🔗 ${mpResponse.init_point}
 
-Una vez realizado el pago, enviá el comprobante.
+(Una vez realizado el pago, se verifica solo, los pagos realizados por link de Mercado Pago se aprueban automáticamente, ya que cada link es único para cada cliente.)
 
-_*PRESIONA 09 SI QUIERES CAMBIAR EL MÉTODO DE PAGO*_`;
+Escribe "09" si querés cambiar el método de pago.`;
                 } else {
                     throw new Error('No se pudo generar el link de Mercado Pago');
                 }
             } catch (error) {
                 logger.error('❌ Error al generar link de Mercado Pago:', error);
                 // Fallback a link estático si falla la API
+                const fallbackLink = 'https://mpago.la/elbuenmenu';
+                if (!userSession.pendingOrder) {
+                    userSession.pendingOrder = {};
+                }
+                userSession.pendingOrder.mercadoPagoLink = fallbackLink;
+                
                 mercadoPagoLink = `💳 Pagá con Mercado Pago:
 
-🔗 https://mpago.la/elbuenmenu
+🔗 ${fallbackLink}
 
-Una vez realizado el pago, enviá el comprobante.
+(Una vez realizado el pago, se verifica solo, los pagos realizados por link de Mercado Pago se aprueban automáticamente, ya que cada link es único para cada cliente.)
 
-_*PRESIONA 09 SI QUIERES CAMBIAR EL MÉTODO DE PAGO*_`;
+Escribe "09" si querés cambiar el método de pago.`;
             }
             
             await sendMessage(from, mercadoPagoLink);
@@ -1942,7 +2029,7 @@ _*PRESIONA 09 SI QUIERES CAMBIAR EL MÉTODO DE PAGO*_`;
             
             await sendMessage(from, `✅ Pago en efectivo confirmado.
 
-_*PRESIONA 09 SI QUIERES CAMBIAR EL MÉTODO DE PAGO*_`);
+Escribe "09" si querés cambiar el método de pago.`);
             
             // Si el pedido viene de la web, actualizar el existente; si no, crear uno nuevo
             try {
@@ -1969,7 +2056,8 @@ _*PRESIONA 09 SI QUIERES CAMBIAR EL MÉTODO DE PAGO*_`);
             }
             
         } else {
-            await showPaymentOptions(from, userSession);
+            // Mensaje inválido durante selección de método de pago
+            await sendMessage(from, getPaymentFlowValidationMessage(userSession));
         }
     } catch (error) {
         logger.error('❌ Error al manejar selección de pago:', error);
@@ -3208,6 +3296,15 @@ async function handleMessage(message) {
         
         // 3. DETECTAR COMPROBANTE DE PAGO (imagen o mensaje después de elegir transferencia)
         if (userSession.waitingForTransferProof) {
+            // Manejar "09" para cambiar método de pago incluso cuando está esperando comprobante
+            if (body === '09') {
+                userSession.paymentMethod = null;
+                userSession.waitingForTransferProof = false;
+                userSession.waitingForPayment = true;
+                await showPaymentOptions(from, userSession);
+                return;
+            }
+            
             // Detectar si es una imagen o mensaje de comprobante
             const hasImage = message.message?.imageMessage || message.message?.documentMessage;
             const isReceiptMessage = messageText && (
@@ -3222,6 +3319,10 @@ async function handleMessage(message) {
                 await handleTransferProof(from, message, userSession);
                 return;
             }
+            
+            // Si no es imagen ni "09", mostrar mensaje de validación
+            await sendMessage(from, getPaymentFlowValidationMessage(userSession));
+            return;
         }
         
         // 4. MANEJAR CONFIRMACIONES
@@ -3236,9 +3337,8 @@ async function handleMessage(message) {
             return;
         }
         
-        // 6. MANEJAR SELECCIÓN DE PAGO (también cuando está esperando comprobante)
-        // Cambiar método de pago: "cambiar", "cambio", "0" (no usar "9" porque ahora es para ayuda)
-        if (userSession.waitingForPayment || (userSession.waitingForTransferProof && (body === '0' || body === 'cambiar' || body.includes('cambiar metodo') || body.includes('cambio metodo') || body.includes('cambiar método') || body.includes('cambio método')))) {
+        // 6. MANEJAR SELECCIÓN DE PAGO
+        if (userSession.waitingForPayment) {
             await handlePaymentSelection(from, body, userSession);
             return;
         }
@@ -3265,6 +3365,23 @@ async function handleMessage(message) {
         // Ver lista de referidos
         if (body === '/referidos' || body === 'referidos' || body.includes('mis referidos') || body.includes('invitados')) {
             await handleReferralsList(from, customerJid);
+            return;
+        }
+        
+        // 7. BLOQUEAR MENÚ PRINCIPAL SI ESTÁ EN FLUJO DE PAGO
+        if (isInPaymentFlow(userSession)) {
+            // Si está en flujo de pago, no mostrar menú principal
+            // Solo permitir "09" para cambiar método o mostrar mensaje de validación
+            if (body === '09') {
+                userSession.paymentMethod = null;
+                userSession.waitingForTransferProof = false;
+                userSession.waitingForPayment = true;
+                await showPaymentOptions(from, userSession);
+                return;
+            }
+            
+            // Cualquier otro mensaje durante el flujo de pago muestra validación
+            await sendMessage(from, getPaymentFlowValidationMessage(userSession));
             return;
         }
         

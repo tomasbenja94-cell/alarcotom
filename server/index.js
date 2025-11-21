@@ -6,7 +6,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { PrismaClient } from '@prisma/client';
-import { MercadoPagoConfig, Preference } from 'mercadopago';
+import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 
 // Importar servicios y middlewares de seguridad
 import { hashPassword } from './src/services/auth.service.js';
@@ -4497,21 +4497,103 @@ app.post('/api/payments/mercadopago/webhook', async (req, res) => {
   try {
     const { type, data } = req.body;
 
+    console.log('📦 [Mercado Pago Webhook] Notificación recibida:', { type, data });
+
     if (type === 'payment') {
       const paymentId = data.id;
-      console.log(`📦 Notificación de pago recibida: ${paymentId}`);
+      console.log(`💰 [Mercado Pago Webhook] Procesando pago: ${paymentId}`);
       
-      // Aquí puedes actualizar el estado del pedido en la base de datos
-      // Por ejemplo, buscar el pedido por external_reference y actualizar el payment_status
+      try {
+        // Obtener información del pago desde Mercado Pago
+        if (!mercadoPagoConfig) {
+          const mpConfig = await getMercadoPagoConfig();
+          if (mpConfig && mpConfig.accessToken) {
+            mercadoPagoConfig = new MercadoPagoConfig({
+              accessToken: mpConfig.accessToken
+            });
+          }
+        }
+
+        if (mercadoPagoConfig) {
+          const paymentClient = new Payment(mercadoPagoConfig);
+          const payment = await paymentClient.get({ id: paymentId });
+
+          console.log('💰 [Mercado Pago Webhook] Información del pago:', {
+            id: payment.id,
+            status: payment.status,
+            status_detail: payment.status_detail,
+            external_reference: payment.external_reference,
+            transaction_amount: payment.transaction_amount
+          });
+
+          // Si el pago está aprobado, actualizar el pedido automáticamente
+          if (payment.status === 'approved' && payment.external_reference) {
+            const orderNumber = payment.external_reference;
+            
+            // Buscar el pedido por order_number
+            const order = await prisma.order.findUnique({
+              where: { orderNumber: orderNumber },
+              select: {
+                id: true,
+                orderNumber: true,
+                status: true,
+                paymentStatus: true,
+                customerPhone: true
+              }
+            });
+
+            if (order) {
+              // Actualizar estado del pedido a confirmado y pago aprobado
+              await prisma.order.update({
+                where: { id: order.id },
+                data: {
+                  status: 'confirmed',
+                  paymentStatus: 'approved'
+                }
+              });
+
+              console.log(`✅ [Mercado Pago Webhook] Pedido ${orderNumber} aprobado automáticamente`);
+
+              // Notificar al cliente vía WhatsApp (si el bot está disponible)
+              if (order.customerPhone) {
+                try {
+                  const botWebhookUrl = process.env.BOT_WEBHOOK_URL || 'http://localhost:3001';
+                  const notifyUrl = botWebhookUrl.endsWith('/') 
+                    ? `${botWebhookUrl}notify-payment` 
+                    : `${botWebhookUrl}/notify-payment`;
+                  
+                  await fetch(notifyUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      phone: order.customerPhone,
+                      message: `✅ *PAGO APROBADO*\n\n💰 Tu pago de Mercado Pago fue aprobado correctamente.\n\n🍳 Tu pedido está en preparación.\n\n⏱️ Tiempo estimado: 30-45 minutos\n\n¡Te avisamos cuando esté listo! 🚚`
+                    })
+                  });
+                } catch (notifyError) {
+                  console.warn('⚠️ [Mercado Pago Webhook] No se pudo notificar al cliente:', notifyError.message);
+                }
+              }
+            } else {
+              console.warn(`⚠️ [Mercado Pago Webhook] Pedido ${orderNumber} no encontrado`);
+            }
+          } else {
+            console.log(`ℹ️ [Mercado Pago Webhook] Pago ${paymentId} con estado: ${payment.status}`);
+          }
+        }
+      } catch (paymentError) {
+        console.error('❌ [Mercado Pago Webhook] Error al procesar pago:', paymentError);
+        // Continuar y responder 200 para que Mercado Pago no reintente
+      }
       
-      // Por ahora, solo confirmamos la recepción
       res.status(200).json({ received: true });
     } else {
       res.status(200).json({ received: true, type });
     }
   } catch (error) {
-    console.error('❌ Error en webhook de Mercado Pago:', error);
-    res.status(500).json({ error: 'Error al procesar webhook' });
+    console.error('❌ [Mercado Pago Webhook] Error general:', error);
+    // Responder 200 para que Mercado Pago no reintente
+    res.status(200).json({ received: true, error: error.message });
   }
 });
 
