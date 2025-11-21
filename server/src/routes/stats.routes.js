@@ -25,19 +25,55 @@ router.get('/stats/sales',
   authorize('admin', 'super_admin', 'operator'),
   async (req, res, next) => {
     try {
-      // Obtener todos los pedidos
-      const orders = await prisma.order.findMany({
-        include: {
-          items: true
-        },
-        orderBy: { createdAt: 'desc' }
-      });
+      // Obtener todos los pedidos con manejo de errores
+      let orders;
+      try {
+        orders = await prisma.order.findMany({
+          include: {
+            items: true
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+      } catch (dbError) {
+        console.error('❌ Error en consulta de Prisma:', dbError);
+        // Si hay error con campos específicos, intentar consulta más simple
+        if (dbError.code === 'P2022' || dbError.message?.includes('column')) {
+          console.warn('⚠️ Error con columnas, intentando consulta simplificada...');
+          orders = await prisma.order.findMany({
+            select: {
+              id: true,
+              orderNumber: true,
+              total: true,
+              subtotal: true,
+              status: true,
+              paymentStatus: true,
+              paymentMethod: true,
+              deliveryFee: true,
+              createdAt: true,
+              items: {
+                select: {
+                  id: true,
+                  productName: true,
+                  quantity: true,
+                  subtotal: true
+                }
+              }
+            },
+            orderBy: { createdAt: 'desc' }
+          });
+        } else {
+          throw dbError;
+        }
+      }
       
       // Filtrar pedidos entregados y completados (excluir cancelados y pendientes sin pago)
       // Prisma devuelve campos en camelCase (paymentStatus, deliveryFee, etc.)
+      // Manejar casos donde los campos pueden no existir
       const completedOrders = orders.filter(o => {
-        const status = (o.status || '').toLowerCase();
-        const paymentStatus = (o.paymentStatus || '').toLowerCase();
+        if (!o) return false;
+        
+        const status = (o.status || o.status || '').toLowerCase();
+        const paymentStatus = (o.paymentStatus || o.payment_status || '').toLowerCase();
         
         // Excluir cancelados
         if (status === 'cancelled' || status === 'cancelado') return false;
@@ -67,7 +103,7 @@ router.get('/stats/sales',
       // Estadísticas por método de pago
       const paymentMethods = {};
       completedOrders.forEach(order => {
-        const method = order.paymentMethod || 'desconocido';
+        const method = order.paymentMethod || order.payment_method || 'desconocido';
         if (!paymentMethods[method]) {
           paymentMethods[method] = { count: 0, total: 0 };
         }
@@ -174,8 +210,14 @@ router.get('/stats/sales',
       const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
       
       // Estadísticas de delivery vs pickup
-      const deliveryOrders = completedOrders.filter(o => (o.deliveryFee || 0) > 0);
-      const pickupOrders = completedOrders.filter(o => (o.deliveryFee || 0) === 0);
+      const deliveryOrders = completedOrders.filter(o => {
+        const fee = o.deliveryFee || o.delivery_fee || 0;
+        return Number(fee) > 0;
+      });
+      const pickupOrders = completedOrders.filter(o => {
+        const fee = o.deliveryFee || o.delivery_fee || 0;
+        return Number(fee) === 0;
+      });
       
       const stats = {
         total: {
@@ -212,8 +254,20 @@ router.get('/stats/sales',
       
       res.json(objectToSnakeCase(stats));
     } catch (error) {
-      console.error('Error obteniendo estadísticas:', error);
-      next(error);
+      console.error('❌ Error obteniendo estadísticas:', error);
+      console.error('❌ Stack:', error.stack);
+      console.error('❌ Error details:', {
+        message: error.message,
+        code: error.code,
+        meta: error.meta
+      });
+      
+      // Devolver error más descriptivo
+      res.status(500).json({ 
+        error: 'Error interno del servidor al obtener estadísticas',
+        message: error.message,
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
     }
   }
 );
