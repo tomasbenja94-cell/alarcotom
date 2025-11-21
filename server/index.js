@@ -509,17 +509,21 @@ app.get('/api/recipes', corsMiddleware, async (req, res) => {
     });
     res.json(objectToSnakeCase(recipes));
   } catch (error) {
-    console.error('Error fetching recipes:', error);
+    console.error('❌ Error fetching recipes:', error);
+    console.error('❌ Error code:', error.code);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error meta:', error.meta);
     
     // Si la tabla no existe, retornar array vacío en lugar de error
-    if (error.message && (error.message.includes('does not exist') || error.message.includes('relation "recipes"') || error.code === 'P2021')) {
+    if (error.message && (error.message.includes('does not exist') || error.message.includes('relation "recipes"') || error.code === 'P2021' || error.code === 'P2003')) {
       console.warn('⚠️ Tabla recipes no existe, retornando array vacío');
       return res.json([]);
     }
     
     res.status(500).json({ 
       error: 'Error al obtener recetas',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      details: error.message || 'Error desconocido',
+      code: error.code
     });
   }
 });
@@ -589,10 +593,13 @@ app.post('/api/recipes', corsMiddleware, async (req, res) => {
 
     res.json(objectToSnakeCase(recipe));
   } catch (error) {
-    console.error('Error creating/updating recipe:', error);
+    console.error('❌ Error creating/updating recipe:', error);
+    console.error('❌ Error code:', error.code);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error meta:', error.meta);
     
     // Si la tabla no existe, proporcionar instrucciones
-    if (error.message && (error.message.includes('does not exist') || error.message.includes('relation "recipes"') || error.code === 'P2021')) {
+    if (error.message && (error.message.includes('does not exist') || error.message.includes('relation "recipes"') || error.code === 'P2021' || error.code === 'P2003')) {
       return res.status(500).json({ 
         error: 'La tabla de recetas no existe. Necesitas crearla primero.',
         sql: `CREATE TABLE IF NOT EXISTS recipes (
@@ -607,7 +614,8 @@ app.post('/api/recipes', corsMiddleware, async (req, res) => {
     
     res.status(500).json({ 
       error: 'Error al guardar receta',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      details: error.message || 'Error desconocido',
+      code: error.code
     });
   }
 });
