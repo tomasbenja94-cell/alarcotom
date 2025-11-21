@@ -111,6 +111,19 @@ export const deliverOrderSchema = z.object({
   delivery_code: z.string().min(3).max(6) // Permitir espacios/guiones que se normalizarán
 });
 
+export const cancelDeliverySchema = z.object({
+  driver_id: z.string().uuid(),
+  order_id: z.string().uuid(),
+  reason: z.enum([
+    'NO_ENTREGO_EL_CODIGO',
+    'NO_ESTABA',
+    'DIRECCION_INCORRECTA',
+    'CLIENTE_RECHAZO',
+    'OTRO'
+  ]),
+  notes: z.string().max(500).optional()
+});
+
 // ========== VALIDADORES DE BALANCES ==========
 export const registerPaymentSchema = z.object({
   driver_id: z.string().uuid(),

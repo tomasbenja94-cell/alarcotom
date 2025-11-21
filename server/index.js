@@ -21,7 +21,7 @@ import { userRateLimit, ipRateLimit, endpointRateLimit, criticalActionRateLimit,
 import { verifyWebhookSignature, validateWebhookApiKey } from './src/middlewares/webhook-auth.middleware.js';
 import { idempotencyMiddleware, webhookIdempotencyMiddleware } from './src/middlewares/idempotency.middleware.js';
 import { errorHandler } from './src/middlewares/error-handler.middleware.js';
-import { createDeliveryPersonSchema, loginDriverSchema, locationUpdateSchema, deliverOrderSchema, registerPaymentSchema } from './src/validators/index.js';
+import { createDeliveryPersonSchema, loginDriverSchema, locationUpdateSchema, deliverOrderSchema, registerPaymentSchema, cancelDeliverySchema } from './src/validators/index.js';
 import { sendWebhookWithApiKey, sendWebhookWithIdempotency } from './src/utils/webhook-client.utils.js';
 import { orderStateValidator } from './src/services/order-state-validator.service.js';
 import { spamDetectorService } from './src/services/spam-detector.service.js';
@@ -3288,9 +3288,22 @@ app.post('/api/delivery/deliver-order',
     try {
       const { driver_id, order_id, delivery_code } = req.body;
       
-      // 1. Obtener pedido
+      // 1. Obtener pedido (usar select explícito para evitar unique_code)
       const order = await prisma.order.findUnique({
-        where: { id: order_id }
+        where: { id: order_id },
+        select: {
+          id: true,
+          orderNumber: true,
+          customerName: true,
+          customerPhone: true,
+          customerAddress: true,
+          status: true,
+          paymentMethod: true,
+          deliveryFee: true,
+          total: true,
+          deliveryCode: true,
+          deliveryPersonId: true
+        }
       });
       
       if (!order) {
@@ -3448,7 +3461,173 @@ app.post('/api/delivery/deliver-order',
         total_added: needsCashCollection ? order.total + 3000 : 3000
       });
     } catch (error) {
-      next(error);
+      console.error('Error entregando pedido:', error);
+      console.error('Error details:', error.message, error.stack);
+      console.error('Error code:', error.code);
+      res.status(500).json({ 
+        error: 'Error al entregar pedido', 
+        details: error.message,
+        code: error.code 
+      });
+    }
+  }
+);
+
+// ========== CANCELAR ENTREGA (REQUIERE AUTENTICACIÓN) ==========
+app.post('/api/delivery/cancel-delivery',
+  authenticateDriver,
+  authorizeDriver,
+  validate(cancelDeliverySchema),
+  async (req, res) => {
+    try {
+      const { driver_id, order_id, reason, notes } = req.body;
+      
+      // Obtener pedido con select explícito
+      const order = await prisma.order.findUnique({
+        where: { id: order_id },
+        select: {
+          id: true,
+          orderNumber: true,
+          customerName: true,
+          customerPhone: true,
+          customerAddress: true,
+          status: true,
+          paymentMethod: true,
+          deliveryFee: true,
+          total: true,
+          deliveryPersonId: true
+        }
+      });
+      
+      if (!order) {
+        return res.status(404).json({ error: 'Pedido no encontrado' });
+      }
+      
+      if (order.deliveryPersonId !== driver_id) {
+        return res.status(403).json({ error: 'No tienes permiso para cancelar este pedido' });
+      }
+      
+      if (order.status === 'delivered' || order.status === 'cancelled') {
+        return res.status(400).json({ error: 'Este pedido ya fue entregado o cancelado' });
+      }
+      
+      // Verificar si es pago en efectivo
+      const paymentMethod = (order.paymentMethod || '').toLowerCase();
+      const isCashPayment = paymentMethod.includes('efectivo') || paymentMethod === 'cash' || paymentMethod === 'efectivo';
+      
+      // Transacción atómica: cancelar pedido, liberar repartidor, aplicar strike si es efectivo
+      await prisma.$transaction(async (tx) => {
+        // Cancelar pedido
+        await tx.order.update({
+          where: { id: order_id },
+          data: { 
+            status: 'cancelled',
+            notes: notes ? `${order.notes || ''}\n[CANCELADO POR REPARTIDOR] ${reason}${notes ? ': ' + notes : ''}`.trim() : order.notes
+          }
+        });
+        
+        // Liberar repartidor (NO se paga el viaje)
+        await tx.deliveryPerson.update({
+          where: { id: driver_id },
+          data: {
+            currentOrderId: null
+          }
+        });
+        
+        // Si es pago en efectivo, aplicar strike al cliente
+        if (isCashPayment && order.customerPhone) {
+          try {
+            let customer = await tx.customer.findUnique({
+              where: { phone: order.customerPhone }
+            });
+            
+            if (!customer) {
+              customer = await tx.customer.create({
+                data: {
+                  phone: order.customerPhone,
+                  name: order.customerName,
+                  cashPaymentStrikes: 1
+                }
+              });
+            } else {
+              const newStrikes = (customer.cashPaymentStrikes || 0) + 1;
+              await tx.customer.update({
+                where: { id: customer.id },
+                data: { cashPaymentStrikes: newStrikes }
+              });
+              
+              // Si tiene 2 o más strikes, suspender efectivo
+              if (newStrikes >= 2) {
+                const disabledMethods = customer.disabledPaymentMethods 
+                  ? JSON.parse(customer.disabledPaymentMethods)
+                  : [];
+                if (!disabledMethods.includes('efectivo')) {
+                  disabledMethods.push('efectivo');
+                  await tx.customer.update({
+                    where: { id: customer.id },
+                    data: { disabledPaymentMethods: JSON.stringify(disabledMethods) }
+                  });
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error aplicando strike al cliente:', error);
+            // No fallar la cancelación si hay error al aplicar strike
+          }
+        }
+      });
+      
+      // Notificar al cliente
+      if (order.customerPhone && order.customerPhone.trim() !== '') {
+        try {
+          const webhookUrl = process.env.BOT_WEBHOOK_URL || 'https://elbuenmenu.site';
+          const botUrl = webhookUrl.includes('elbuenmenu.site') && !webhookUrl.includes('api.') 
+            ? 'http://localhost:3001' 
+            : webhookUrl;
+          
+          const reasonMessages = {
+            'NO_ENTREGO_EL_CODIGO': 'No entregó el código de entrega',
+            'NO_ESTABA': 'No estaba en la dirección',
+            'DIRECCION_INCORRECTA': 'Dirección incorrecta',
+            'CLIENTE_RECHAZO': 'Cliente rechazó el pedido',
+            'OTRO': 'Otro motivo'
+          };
+          
+          const strikeMessage = isCashPayment 
+            ? '\n\n⚠️ *Se registró 1 strike en tu cuenta por cancelación de entrega.*\nSi acumulas 2 strikes, se suspenderán los métodos de pago en efectivo.'
+            : '';
+          
+          const notificationMessage = `❌ *Entrega cancelada*\n\nTu pedido ${order.orderNumber} fue cancelado por el repartidor.\n\n📋 *Motivo:* ${reasonMessages[reason]}${notes ? '\n💬 *Nota:* ' + notes : ''}${strikeMessage}\n\nPor favor, contacta con el restaurante si tienes alguna consulta.`;
+          
+          await fetch(`${botUrl}/notify-order`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'X-API-Key': process.env.INTERNAL_API_KEY || ''
+            },
+            body: JSON.stringify({
+              customerPhone: order.customerPhone,
+              orderNumber: order.orderNumber,
+              message: notificationMessage
+            })
+          });
+        } catch (error) {
+          console.error('Error notificando cliente:', error);
+        }
+      }
+      
+      res.json({ 
+        success: true,
+        message: 'Entrega cancelada. El repartidor fue liberado y no se pagó el viaje.',
+        strike_applied: isCashPayment
+      });
+    } catch (error) {
+      console.error('Error cancelando entrega:', error);
+      console.error('Error details:', error.message, error.stack);
+      res.status(500).json({ 
+        error: 'Error al cancelar entrega', 
+        details: error.message
+      });
     }
   }
 );

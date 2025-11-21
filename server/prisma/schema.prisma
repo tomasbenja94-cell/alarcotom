@@ -283,6 +283,7 @@ model Customer {
   intentosInvalidos      Int      @default(0) @map("intentos_invalidos") // Contador de intentos inválidos
   ultimoIntento          DateTime? @map("ultimo_intento") // Timestamp del último intento inválido
   baneadoHasta           DateTime? @map("baneado_hasta") // Fecha hasta cuando está baneado
+  cashPaymentStrikes     Int      @default(0) @map("cash_payment_strikes") // Strikes por cancelaciones de entrega en efectivo
   notes                  String?
   createdAt              DateTime @default(now()) @map("created_at")
   updatedAt              DateTime @updatedAt @map("updated_at")
