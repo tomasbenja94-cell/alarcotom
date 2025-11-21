@@ -3546,21 +3546,73 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
         userSession.waitingForConfirmation = true;
         userSession.step = 'confirm_web_order';
         
-        // Formatear items para mostrar
+        // Formatear items para mostrar con todas las opciones y extras
         const itemsText = (order.items || []).map((item) => {
-            let text = `• ${item.quantity}x ${item.product_name} - $${item.subtotal?.toLocaleString() || item.unit_price * item.quantity}`;
+            let text = `• ${item.quantity}x ${item.product_name} - $${(item.subtotal || item.unit_price * item.quantity)?.toLocaleString() || 0}`;
+            
             if (item.selected_options) {
                 try {
                     const options = typeof item.selected_options === 'string' 
                         ? JSON.parse(item.selected_options) 
                         : item.selected_options;
-                    if (Array.isArray(options) && options.length > 0) {
+                    
+                    // Si tiene estructura { options: [...], optionsText: [...] }
+                    if (options.options && Array.isArray(options.options)) {
+                        options.options.forEach((opt) => {
+                            const optName = opt.name || opt;
+                            const optPrice = opt.price || 0;
+                            if (optPrice > 0) {
+                                text += `\n    └ ${optName} (+$${optPrice.toLocaleString()})`;
+                            } else {
+                                text += `\n    └ ${optName}`;
+                            }
+                        });
+                    }
+                    // Si tiene optionsText (texto formateado)
+                    else if (options.optionsText && Array.isArray(options.optionsText)) {
+                        options.optionsText.forEach((optText) => {
+                            text += `\n    └ ${optText}`;
+                        });
+                    }
+                    // Si es un array directo
+                    else if (Array.isArray(options) && options.length > 0) {
                         options.forEach((opt) => {
-                            text += `\n    └ ${opt}`;
+                            if (typeof opt === 'string') {
+                                text += `\n    └ ${opt}`;
+                            } else if (opt.name) {
+                                const optPrice = opt.price || 0;
+                                if (optPrice > 0) {
+                                    text += `\n    └ ${opt.name} (+$${optPrice.toLocaleString()})`;
+                                } else {
+                                    text += `\n    └ ${opt.name}`;
+                                }
+                            }
+                        });
+                    }
+                    // Si es un objeto con categorías
+                    else if (typeof options === 'object' && !Array.isArray(options)) {
+                        Object.keys(options).forEach((key) => {
+                            const categoryOptions = Array.isArray(options[key]) ? options[key] : [];
+                            categoryOptions.forEach((opt) => {
+                                if (typeof opt === 'string') {
+                                    text += `\n    └ ${opt}`;
+                                } else if (opt.name) {
+                                    const optPrice = opt.price || 0;
+                                    if (optPrice > 0) {
+                                        text += `\n    └ ${opt.name} (+$${optPrice.toLocaleString()})`;
+                                    } else {
+                                        text += `\n    └ ${opt.name}`;
+                                    }
+                                }
+                            });
                         });
                     }
                 } catch (e) {
-                    // Ignorar error de parsing
+                    // Si falla el parsing, intentar mostrar como string
+                    logger.debug(`⚠️ Error parseando opciones para ${item.product_name}:`, e);
+                    if (typeof item.selected_options === 'string' && item.selected_options.length > 0) {
+                        text += `\n    └ Opciones: ${item.selected_options.substring(0, 100)}`;
+                    }
                 }
             }
             return text;
