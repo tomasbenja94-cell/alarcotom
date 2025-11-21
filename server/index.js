@@ -3393,7 +3393,8 @@ app.get('/api/delivery/drivers-location', async (req, res) => {
     res.json(objectToSnakeCase(driversWithCurrentOrder));
   } catch (error) {
     console.error('Error obteniendo ubicaciones:', error);
-    res.status(500).json({ error: 'Error al obtener ubicaciones' });
+    console.error('Error details:', error.message, error.stack);
+    res.status(500).json({ error: 'Error al obtener ubicaciones', details: error.message });
   }
 });
 
