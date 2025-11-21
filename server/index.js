@@ -3158,8 +3158,14 @@ app.post('/api/delivery/update-order-status',
         return res.status(400).json({ error: 'driver_id, order_id y status son requeridos' });
       }
       
+      // Usar select explícito para evitar problemas con unique_code
       const order = await prisma.order.findUnique({
-        where: { id: order_id }
+        where: { id: order_id },
+        select: {
+          id: true,
+          status: true,
+          deliveryPersonId: true
+        }
       });
       
       if (!order || order.deliveryPersonId !== driver_id) {
@@ -3178,9 +3184,31 @@ app.post('/api/delivery/update-order-status',
       }
       
       // Actualizar estado del pedido (sin notificaciones - solo se notifica al aceptar)
+      // Usar select explícito para evitar problemas con unique_code
       const updatedOrder = await prisma.order.update({
         where: { id: order_id },
-        data: { status: status }
+        data: { status: status },
+        select: {
+          id: true,
+          orderNumber: true,
+          customerName: true,
+          customerPhone: true,
+          customerAddress: true,
+          customerLat: true,
+          customerLng: true,
+          status: true,
+          paymentMethod: true,
+          paymentStatus: true,
+          subtotal: true,
+          deliveryFee: true,
+          total: true,
+          notes: true,
+          deliveryCode: true,
+          trackingToken: true,
+          deliveryPersonId: true,
+          createdAt: true,
+          updatedAt: true
+        }
       });
 
       // Log cambio de estado
@@ -3197,7 +3225,14 @@ app.post('/api/delivery/update-order-status',
       
       res.json(objectToSnakeCase(updatedOrder));
     } catch (error) {
-      next(error);
+      console.error('Error actualizando estado de pedido:', error);
+      console.error('Error details:', error.message, error.stack);
+      console.error('Error code:', error.code);
+      res.status(500).json({ 
+        error: 'Error al actualizar estado del pedido', 
+        details: error.message,
+        code: error.code 
+      });
     }
   }
 );
