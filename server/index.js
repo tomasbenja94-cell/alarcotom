@@ -2954,7 +2954,13 @@ app.get('/api/delivery/available-orders',
     res.json(objectToSnakeCase(orders));
   } catch (error) {
     console.error('Error obteniendo pedidos disponibles:', error);
-    res.status(500).json({ error: 'Error al obtener pedidos disponibles' });
+    console.error('Error details:', error.message, error.stack);
+    console.error('Error code:', error.code);
+    res.status(500).json({ 
+      error: 'Error al obtener pedidos disponibles', 
+      details: error.message,
+      code: error.code 
+    });
   }
 });
 
