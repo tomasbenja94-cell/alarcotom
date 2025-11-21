@@ -143,26 +143,45 @@ export default function TransfersPending() {
             // Construir URL del webhook del bot de forma robusta
             let webhookUrl = import.meta.env.VITE_BOT_WEBHOOK_URL;
             
+            console.log('🔧 [DEBUG URL] VITE_BOT_WEBHOOK_URL:', import.meta.env.VITE_BOT_WEBHOOK_URL);
+            console.log('🔧 [DEBUG URL] VITE_API_URL:', import.meta.env.VITE_API_URL);
+            
             // Si no hay variable específica, intentar construir desde VITE_API_URL
-            if (!webhookUrl) {
-              const apiUrl = import.meta.env.VITE_API_URL || '';
+            if (!webhookUrl || webhookUrl.trim() === '') {
+              const apiUrl = (import.meta.env.VITE_API_URL || '').trim();
+              console.log('🔧 [DEBUG URL] apiUrl original:', apiUrl);
+              
               if (apiUrl) {
                 // Remover /api del final si existe
                 webhookUrl = apiUrl.replace(/\/api\/?$/, '');
-                // Si la URL resultante no tiene protocolo, usar https://
-                if (!webhookUrl.startsWith('http://') && !webhookUrl.startsWith('https://')) {
+                console.log('🔧 [DEBUG URL] después de remover /api:', webhookUrl);
+                
+                // Validar que la URL tenga protocolo válido
+                if (!webhookUrl.match(/^https?:\/\//)) {
+                  // Si no tiene protocolo, agregar https://
+                  webhookUrl = webhookUrl.replace(/^\/+/, ''); // Remover slashes al inicio
                   webhookUrl = `https://${webhookUrl}`;
+                  console.log('🔧 [DEBUG URL] después de agregar protocolo:', webhookUrl);
                 }
               }
             }
             
-            // Fallback a URL por defecto
-            if (!webhookUrl || webhookUrl === '') {
+            // Fallback a URL por defecto si aún no hay URL válida
+            if (!webhookUrl || webhookUrl.trim() === '' || !webhookUrl.match(/^https?:\/\/[^\/]+/)) {
+              console.log('🔧 [DEBUG URL] Usando fallback');
               webhookUrl = 'https://elbuenmenu.site';
             }
             
             // Asegurar que la URL no termine con /
             webhookUrl = webhookUrl.replace(/\/+$/, '');
+            
+            // Validación final: asegurar que la URL sea válida
+            if (!webhookUrl.match(/^https?:\/\/[^\/\s]+/)) {
+              console.error('❌ [DEBUG URL] URL inválida detectada, usando fallback:', webhookUrl);
+              webhookUrl = 'https://elbuenmenu.site';
+            }
+            
+            console.log('🔧 [DEBUG URL] URL final construida:', webhookUrl);
             
             const notificationData = {
               customerPhone: order.customer_phone,

@@ -189,25 +189,34 @@ export default function OrdersManagement() {
       let webhookUrl = import.meta.env.VITE_BOT_WEBHOOK_URL;
       
       // Si no hay variable específica, intentar construir desde VITE_API_URL
-      if (!webhookUrl) {
-        const apiUrl = import.meta.env.VITE_API_URL || '';
+      if (!webhookUrl || webhookUrl.trim() === '') {
+        const apiUrl = (import.meta.env.VITE_API_URL || '').trim();
+        
         if (apiUrl) {
           // Remover /api del final si existe
           webhookUrl = apiUrl.replace(/\/api\/?$/, '');
-          // Si la URL resultante no tiene protocolo, usar https://
-          if (!webhookUrl.startsWith('http://') && !webhookUrl.startsWith('https://')) {
+          
+          // Validar que la URL tenga protocolo válido
+          if (!webhookUrl.match(/^https?:\/\//)) {
+            // Si no tiene protocolo, agregar https://
+            webhookUrl = webhookUrl.replace(/^\/+/, ''); // Remover slashes al inicio
             webhookUrl = `https://${webhookUrl}`;
           }
         }
       }
       
-      // Fallback a URL por defecto
-      if (!webhookUrl || webhookUrl === '') {
+      // Fallback a URL por defecto si aún no hay URL válida
+      if (!webhookUrl || webhookUrl.trim() === '' || !webhookUrl.match(/^https?:\/\/[^\/]+/)) {
         webhookUrl = 'https://elbuenmenu.site';
       }
       
       // Asegurar que la URL no termine con /
       webhookUrl = webhookUrl.replace(/\/+$/, '');
+      
+      // Validación final: asegurar que la URL sea válida
+      if (!webhookUrl.match(/^https?:\/\/[^\/\s]+/)) {
+        webhookUrl = 'https://elbuenmenu.site';
+      }
       
       // Mensaje de notificación
       const message = `✅ ¡Tu pedido está listo para retirar!\n\n📦 Pedido: ${order.order_number}\n\n📍 Podés pasar a retirarlo cuando gustes.\n\n¡Gracias por tu compra! ❤️`;
