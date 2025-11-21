@@ -3183,7 +3183,7 @@ app.post('/api/delivery/update-order-status',
         return res.status(400).json({ error: stateValidation.error });
       }
       
-      // Actualizar estado del pedido (sin notificaciones - solo se notifica al aceptar)
+      // Actualizar estado del pedido
       // Usar select explícito para evitar problemas con unique_code
       const updatedOrder = await prisma.order.update({
         where: { id: order_id },
@@ -3220,8 +3220,49 @@ app.post('/api/delivery/update-order-status',
         'driver'
       );
       
-      // NO se envían notificaciones aquí - solo se envía cuando el repartidor ACEPTA el pedido
-      // La notificación se envía en el endpoint /api/delivery/accept-order
+      // Enviar notificación al cliente cuando el repartidor marca "voy en camino" (in_transit)
+      if (status === 'in_transit' && updatedOrder.customerPhone && updatedOrder.customerPhone.trim() !== '') {
+        try {
+          const webhookUrl = process.env.BOT_WEBHOOK_URL || 'https://elbuenmenu.site';
+          // Si BOT_WEBHOOK_URL apunta al frontend, usar localhost para el bot
+          const botUrl = webhookUrl.includes('elbuenmenu.site') && !webhookUrl.includes('api.') 
+            ? 'http://localhost:3001' 
+            : webhookUrl;
+          
+          const trackingUrl = `${process.env.FRONTEND_URL || 'https://elbuenmenu.site'}/track/${updatedOrder.trackingToken}`;
+          const deliveryCode = updatedOrder.deliveryCode || 'N/A';
+          
+          const notificationMessage = `🛵 ¡Tu pedido está en camino!\n\n🔐 *Código de entrega: ${deliveryCode}*\n\n📍 Podés seguir al repartidor en tiempo real:\n${trackingUrl}\n\n⏰ Llegada estimada: 15-20 minutos\n\n¡Gracias por elegirnos! ❤️`;
+          
+          const notifyResponse = await fetch(`${botUrl}/notify-order`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'X-API-Key': process.env.INTERNAL_API_KEY || ''
+            },
+            body: JSON.stringify({
+              customerPhone: updatedOrder.customerPhone,
+              orderNumber: updatedOrder.orderNumber,
+              message: notificationMessage
+            })
+          });
+          
+          if (!notifyResponse.ok) {
+            const responseText = await notifyResponse.text();
+            // Verificar si la respuesta es HTML (el bot no está corriendo o la URL está mal)
+            if (responseText.trim().startsWith('<!doctype') || responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
+              console.warn('⚠️ [UPDATE ORDER STATUS] El bot devolvió HTML en lugar de JSON. Verifica que el bot esté corriendo.');
+            } else {
+              console.error('⚠️ [UPDATE ORDER STATUS] Error al notificar cliente:', responseText);
+            }
+          } else {
+            console.log(`✅ [UPDATE ORDER STATUS] Notificación enviada al cliente ${updatedOrder.customerPhone} para pedido ${updatedOrder.orderNumber}`);
+          }
+        } catch (error) {
+          console.error('⚠️ [UPDATE ORDER STATUS] Error notificando cliente:', error.message);
+          // No fallar la actualización del estado si falla la notificación
+        }
+      }
       
       res.json(objectToSnakeCase(updatedOrder));
     } catch (error) {
