@@ -494,13 +494,167 @@ app.delete('/api/ingredients/:id', corsMiddleware, async (req, res) => {
 });
 
 // ========== RECIPES ENDPOINTS (placeholder - implementar según necesidad) ==========
+// ========== RECIPES ENDPOINTS ==========
 app.get('/api/recipes', corsMiddleware, async (req, res) => {
   try {
-    // Por ahora retornar array vacío hasta que se implemente el modelo Recipe
-    res.json([]);
+    const recipes = await prisma.recipe.findMany({
+      include: {
+        product: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    });
+    res.json(objectToSnakeCase(recipes));
   } catch (error) {
     console.error('Error fetching recipes:', error);
-    res.status(500).json({ error: 'Error al obtener recetas' });
+    
+    // Si la tabla no existe, retornar array vacío en lugar de error
+    if (error.message && (error.message.includes('does not exist') || error.message.includes('relation "recipes"') || error.code === 'P2021')) {
+      console.warn('⚠️ Tabla recipes no existe, retornando array vacío');
+      return res.json([]);
+    }
+    
+    res.status(500).json({ 
+      error: 'Error al obtener recetas',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+app.get('/api/recipes/product/:productId', corsMiddleware, async (req, res) => {
+  try {
+    const recipe = await prisma.recipe.findUnique({
+      where: { productId: req.params.productId },
+      include: {
+        product: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    });
+    if (!recipe) {
+      return res.status(404).json({ error: 'Receta no encontrada' });
+    }
+    res.json(objectToSnakeCase(recipe));
+  } catch (error) {
+    console.error('Error fetching recipe:', error);
+    res.status(500).json({ 
+      error: 'Error al obtener receta',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+app.post('/api/recipes', corsMiddleware, async (req, res) => {
+  try {
+    const { product_id, productId, ingredients } = req.body;
+    const finalProductId = product_id || productId;
+    
+    if (!finalProductId) {
+      return res.status(400).json({ error: 'product_id es requerido' });
+    }
+    
+    if (!ingredients || !Array.isArray(ingredients)) {
+      return res.status(400).json({ error: 'ingredients debe ser un array' });
+    }
+
+    // Verificar si ya existe una receta para este producto
+    const existingRecipe = await prisma.recipe.findUnique({
+      where: { productId: finalProductId }
+    });
+
+    let recipe;
+    if (existingRecipe) {
+      // Actualizar receta existente
+      recipe = await prisma.recipe.update({
+        where: { id: existingRecipe.id },
+        data: {
+          ingredients: ingredients
+        }
+      });
+    } else {
+      // Crear nueva receta
+      recipe = await prisma.recipe.create({
+        data: {
+          productId: finalProductId,
+          ingredients: ingredients
+        }
+      });
+    }
+
+    res.json(objectToSnakeCase(recipe));
+  } catch (error) {
+    console.error('Error creating/updating recipe:', error);
+    
+    // Si la tabla no existe, proporcionar instrucciones
+    if (error.message && (error.message.includes('does not exist') || error.message.includes('relation "recipes"') || error.code === 'P2021')) {
+      return res.status(500).json({ 
+        error: 'La tabla de recetas no existe. Necesitas crearla primero.',
+        sql: `CREATE TABLE IF NOT EXISTS recipes (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    product_id TEXT UNIQUE REFERENCES products(id) ON DELETE CASCADE,
+    ingredients JSONB NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);`
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Error al guardar receta',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+app.put('/api/recipes/:id', corsMiddleware, async (req, res) => {
+  try {
+    const { ingredients } = req.body;
+    
+    if (!ingredients || !Array.isArray(ingredients)) {
+      return res.status(400).json({ error: 'ingredients debe ser un array' });
+    }
+
+    const recipe = await prisma.recipe.update({
+      where: { id: req.params.id },
+      data: {
+        ingredients: ingredients
+      }
+    });
+
+    res.json(objectToSnakeCase(recipe));
+  } catch (error) {
+    console.error('Error updating recipe:', error);
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Receta no encontrada' });
+    }
+    res.status(500).json({ 
+      error: 'Error al actualizar receta',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+app.delete('/api/recipes/:id', corsMiddleware, async (req, res) => {
+  try {
+    await prisma.recipe.delete({
+      where: { id: req.params.id }
+    });
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting recipe:', error);
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Receta no encontrada' });
+    }
+    res.status(500).json({ 
+      error: 'Error al eliminar receta',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
