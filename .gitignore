@@ -28,11 +28,12 @@ server/dev.db
 server/prisma/dev.db*
 
 # Frontend (solo desarrollo local, no subir a GitHub)
-src/
-out/
-dist/
-build/
-.next/
+# Solo ignorar src/ en la raíz, NO server/src/ ni whatsapp-bot/src/
+/src/
+/out/
+/dist/
+/build/
+/.next/
 
 # Frontend config files
 vite.config.ts
