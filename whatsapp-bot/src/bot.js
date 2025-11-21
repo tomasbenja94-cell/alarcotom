@@ -901,6 +901,52 @@ webhookApp.post('/send-message', async (req, res) => {
     }
 });
 
+// Endpoint para notificar pagos aprobados
+webhookApp.post('/notify-payment', async (req, res) => {
+    try {
+        const { phone, message } = req.body;
+        
+        if (!phone) {
+            logger.error('❌ phone es requerido para notificación de pago');
+            return res.status(400).json({ error: 'phone es requerido' });
+        }
+        
+        const notificationMessage = message || 'Tu pago ha sido aprobado.';
+        
+        // Limpiar y formatear número
+        let cleanPhoneOrJid = phone.trim();
+        let jid;
+        
+        if (cleanPhoneOrJid.includes('@')) {
+            // Ya es un JID
+            jid = cleanPhoneOrJid;
+        } else {
+            // Construir JID
+            jid = `${cleanPhoneOrJid}@s.whatsapp.net`;
+        }
+        
+        logger.info(`💰 Enviando notificación de pago a ${jid}`);
+        
+        // Verificar que el socket esté inicializado
+        if (!sock) {
+            logger.error('❌ Socket no inicializado, no se puede enviar notificación de pago');
+            return res.status(503).json({ error: 'Bot no conectado' });
+        }
+        
+        try {
+            await sendMessage(jid, notificationMessage);
+            logger.info(`✅ Notificación de pago enviada exitosamente a ${jid}`);
+            res.json({ success: true, phone: jid });
+        } catch (sendError) {
+            logger.error(`❌ Error al enviar notificación de pago:`, sendError);
+            res.status(500).json({ error: sendError.message, phone: jid });
+        }
+    } catch (error) {
+        logger.error('❌ Error en notificación de pago:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 webhookApp.post('/notify-order', async (req, res) => {
     try {
         const { customerPhone, message, deliveryCode } = req.body;
