@@ -796,7 +796,8 @@ async function processMessageQueue() {
                 logger.info(`✅ [DEBUG] Mensaje ${queueItem.id} procesado en ${responseTime}ms`);
                 
             } catch (error) {
-                logger.error(`Error procesando mensaje ${queueItem.id}:`, error);
+                logger.error(`❌ Error procesando mensaje ${queueItem.id}:`, error);
+                logger.error(`❌ Stack:`, error.stack);
                 metrics.errors++;
                 
                 queueItem.attempts++;
@@ -812,11 +813,22 @@ async function processMessageQueue() {
             await new Promise(resolve => setTimeout(resolve, 50));
         }
     } catch (error) {
-        logger.error('Error en procesador de cola:', error);
+        logger.error('❌ Error crítico en procesador de cola:', error);
+        logger.error('❌ Stack:', error.stack);
         metrics.errors++;
     } finally {
         isProcessingQueue = false;
         metrics.messagesQueued = messageQueue.length;
+        
+        // Si aún hay mensajes en cola, reiniciar el procesador después de un breve delay
+        if (messageQueue.length > 0) {
+            logger.info(`🔄 [DEBUG] Aún hay ${messageQueue.length} mensajes en cola, reiniciando procesador...`);
+            setTimeout(() => {
+                if (!isProcessingQueue) {
+                    processMessageQueue();
+                }
+            }, 100);
+        }
     }
 }
 
