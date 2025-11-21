@@ -22,9 +22,7 @@ export default function DailyCostAnalysis() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   // Usar la URL correcta de la API
-  const rawApiUrl = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
-  const API_URL = rawApiUrl 
-    : rawApiUrl;
+  const API_URL = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
 
   useEffect(() => {
     loadAnalysis();
