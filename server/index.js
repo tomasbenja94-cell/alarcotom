@@ -4718,9 +4718,6 @@ app.post('/api/payments/mercadopago/verify-pending', corsMiddleware, async (req,
       console.log(`\n🔍 [Mercado Pago Verify] Verificando pedido ${order.orderNumber}...`);
       
       try {
-        // Buscar pagos en Mercado Pago usando la API REST directamente
-        const searchUrl = `https://api.mercadopago.com/v1/payments/search?external_reference=${encodeURIComponent(order.orderNumber)}&status=approved`;
-        
         // Obtener el access token
         let accessToken = mercadoPagoAccessToken;
         if (!accessToken) {
@@ -4731,6 +4728,12 @@ app.post('/api/payments/mercadopago/verify-pending', corsMiddleware, async (req,
         if (!accessToken) {
           throw new Error('Mercado Pago access token no disponible');
         }
+        
+        // Buscar pagos en Mercado Pago - primero sin filtrar por estado
+        // Luego verificar el estado de cada pago encontrado
+        const searchUrl = `https://api.mercadopago.com/v1/payments/search?external_reference=${encodeURIComponent(order.orderNumber)}`;
+        
+        console.log(`   🔍 Buscando en Mercado Pago: ${searchUrl}`);
         
         // Agregar timeout de 10 segundos para cada búsqueda
         const controller = new AbortController();
@@ -4750,9 +4753,15 @@ app.post('/api/payments/mercadopago/verify-pending', corsMiddleware, async (req,
         if (searchResponse.ok) {
           const searchResult = await searchResponse.json();
           
+          console.log(`   📊 Resultados de búsqueda: ${searchResult.results?.length || 0} pagos encontrados`);
+          
           if (searchResult.results && searchResult.results.length > 0) {
-            // Encontramos un pago aprobado
-            const payment = searchResult.results[0];
+            // Buscar el primer pago aprobado
+            const approvedPayment = searchResult.results.find(p => p.status === 'approved');
+            
+            if (approvedPayment) {
+              // Encontramos un pago aprobado
+              const payment = approvedPayment;
             
             console.log(`✅ [Mercado Pago Verify] Pago encontrado y aprobado para ${order.orderNumber}`);
             console.log(`   Payment ID: ${payment.id}`);
@@ -4792,19 +4801,37 @@ app.post('/api/payments/mercadopago/verify-pending', corsMiddleware, async (req,
               }
             }
             
-            approvedCount++;
-            results.push({
-              orderNumber: order.orderNumber,
-              status: 'approved',
-              paymentId: payment.id
-            });
+              approvedCount++;
+              results.push({
+                orderNumber: order.orderNumber,
+                status: 'approved',
+                paymentId: payment.id,
+                amount: payment.transaction_amount
+              });
+            } else {
+              // Hay pagos pero ninguno está aprobado
+              const paymentStatuses = searchResult.results.map(p => `${p.status}(${p.status_detail || 'N/A'})`).join(', ');
+              console.log(`⏳ [Mercado Pago Verify] Pagos encontrados pero no aprobados para ${order.orderNumber}: ${paymentStatuses}`);
+              pendingCount++;
+              results.push({
+                orderNumber: order.orderNumber,
+                status: 'pending',
+                message: `Pagos encontrados pero no aprobados. Estados: ${paymentStatuses}`,
+                payments: searchResult.results.map(p => ({
+                  id: p.id,
+                  status: p.status,
+                  status_detail: p.status_detail,
+                  amount: p.transaction_amount
+                }))
+              });
+            }
           } else {
-            console.log(`⏳ [Mercado Pago Verify] No se encontró pago aprobado para ${order.orderNumber}`);
+            console.log(`⏳ [Mercado Pago Verify] No se encontró ningún pago para ${order.orderNumber}`);
             pendingCount++;
             results.push({
               orderNumber: order.orderNumber,
               status: 'pending',
-              message: 'Pago no encontrado o aún no aprobado'
+              message: 'Pago no encontrado en Mercado Pago'
             });
           }
         } else {
