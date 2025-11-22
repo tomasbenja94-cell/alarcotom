@@ -7438,6 +7438,11 @@ app.get('/api/system/logs/:service', corsMiddleware, authenticateAdmin, async (r
     const { service } = req.params; // 'backend' o 'whatsapp-bot'
     const lines = parseInt(req.query.lines) || 100;
     
+    // Validar que el servicio sea válido
+    if (service !== 'backend' && service !== 'whatsapp-bot') {
+      return res.status(400).json({ error: 'Servicio no válido. Use: backend o whatsapp-bot' });
+    }
+    
     // Intentar leer logs directamente del archivo (más confiable)
     const homeDir = process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE || '/root';
     const logPaths = [
@@ -7494,7 +7499,16 @@ app.options('/api/system/status', corsMiddleware, (req, res) => {
 // Obtener estado de servicios PM2
 app.get('/api/system/status', corsMiddleware, authenticateAdmin, async (req, res) => {
   try {
-    const { stdout } = await execWithTimeout('pm2 jlist', 5000);
+    // Usar timeout más largo y mejor manejo de errores
+    const { stdout } = await execWithTimeout('pm2 jlist', 10000).catch((error) => {
+      console.error('❌ Error ejecutando pm2 jlist:', error.message);
+      throw new Error(`Error al obtener estado de PM2: ${error.message}`);
+    });
+    
+    if (!stdout || stdout.trim() === '') {
+      return res.status(500).json({ error: 'PM2 no devolvió datos' });
+    }
+    
     const processes = JSON.parse(stdout);
     
     const services = {
