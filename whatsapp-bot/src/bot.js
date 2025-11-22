@@ -3905,15 +3905,12 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
         let calculatedTotal = 0;
         
         // Formatear items para mostrar con todas las opciones y extras
+        // Usar directamente item.subtotal de la base de datos (ya calculado correctamente)
         const itemsText = (order.items || []).map((item) => {
-            // Calcular el precio base del producto (sin extras)
-            const unitPrice = item.unit_price || 0;
-            const baseSubtotal = unitPrice * item.quantity;
-            let extrasTotal = 0;
-            
             // Formato: nombre del producto primero
             let text = `${item.product_name}`;
             
+            // Mostrar extras si existen
             if (item.selected_options) {
                 try {
                     const options = typeof item.selected_options === 'string' 
@@ -3926,7 +3923,6 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
                             const optName = opt.name || opt;
                             const optPrice = opt.price || 0;
                             if (optPrice > 0) {
-                                extrasTotal += optPrice * item.quantity; // Multiplicar por cantidad
                                 text += `\n• ${optName} (+$${optPrice.toLocaleString()})`;
                             } else {
                                 text += `\n• ${optName}`;
@@ -3937,14 +3933,6 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
                     else if (options.optionsText && Array.isArray(options.optionsText)) {
                         options.optionsText.forEach((optText) => {
                             text += `\n• ${optText}`;
-                            // Intentar extraer precio del texto si tiene formato (+$XX)
-                            const priceMatch = optText.match(/\(\+\$([\d.,]+)\)/);
-                            if (priceMatch) {
-                                const price = parseFloat(priceMatch[1].replace(/[.,]/g, ''));
-                                if (!isNaN(price)) {
-                                    extrasTotal += price * item.quantity;
-                                }
-                            }
                         });
                     }
                     // Si es un array directo
@@ -3952,18 +3940,9 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
                         options.forEach((opt) => {
                             if (typeof opt === 'string') {
                                 text += `\n• ${opt}`;
-                                // Intentar extraer precio del texto si tiene formato (+$XX)
-                                const priceMatch = opt.match(/\(\+\$([\d.,]+)\)/);
-                                if (priceMatch) {
-                                    const price = parseFloat(priceMatch[1].replace(/[.,]/g, ''));
-                                    if (!isNaN(price)) {
-                                        extrasTotal += price * item.quantity;
-                                    }
-                                }
                             } else if (opt.name) {
                                 const optPrice = opt.price || 0;
                                 if (optPrice > 0) {
-                                    extrasTotal += optPrice * item.quantity;
                                     text += `\n• ${opt.name} (+$${optPrice.toLocaleString()})`;
                                 } else {
                                     text += `\n• ${opt.name}`;
@@ -3978,18 +3957,9 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
                             categoryOptions.forEach((opt) => {
                                 if (typeof opt === 'string') {
                                     text += `\n• ${opt}`;
-                                    // Intentar extraer precio del texto si tiene formato (+$XX)
-                                    const priceMatch = opt.match(/\(\+\$([\d.,]+)\)/);
-                                    if (priceMatch) {
-                                        const price = parseFloat(priceMatch[1].replace(/[.,]/g, ''));
-                                        if (!isNaN(price)) {
-                                            extrasTotal += price * item.quantity;
-                                        }
-                                    }
                                 } else if (opt.name) {
                                     const optPrice = opt.price || 0;
                                     if (optPrice > 0) {
-                                        extrasTotal += optPrice * item.quantity;
                                         text += `\n• ${opt.name} (+$${optPrice.toLocaleString()})`;
                                     } else {
                                         text += `\n• ${opt.name}`;
@@ -4008,23 +3978,19 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
                 }
             }
             
-            // Calcular el total del item: base + extras
-            // Siempre calcular desde unit_price + extras para evitar errores
-            const itemTotal = baseSubtotal + extrasTotal;
+            // Usar directamente item.subtotal de la base de datos (ya calculado correctamente)
+            const itemSubtotal = parseFloat(item.subtotal) || 0;
             
             // Agregar el total del item al final
-            text += `\n$${itemTotal.toLocaleString()}`;
+            text += `\n$${itemSubtotal.toLocaleString()}`;
             
-            calculatedTotal += itemTotal;
             return text;
         }).join('\n');
         
-        // Calcular el total final: subtotal de items + delivery fee
-        const deliveryFee = order.delivery_fee || 0;
-        const calculatedSubtotal = calculatedTotal;
-        const finalTotal = calculatedSubtotal + deliveryFee;
+        // Usar directamente order.total de la base de datos (ya incluye subtotal + delivery fee)
+        const finalTotal = parseFloat(order.total) || 0;
         
-        logger.info(`💰 [ORDER CONFIRM] Cálculo de total: subtotal=${calculatedSubtotal}, deliveryFee=${deliveryFee}, total=${finalTotal}`);
+        logger.info(`💰 [ORDER CONFIRM] Total desde BD: $${finalTotal}, deliveryFee: $${order.delivery_fee || 0}`);
         
         // Detectar si es retiro o delivery
         // Verificar en notes primero (más confiable) - buscar "RETIRO EN LOCAL" o "RETIRO"
