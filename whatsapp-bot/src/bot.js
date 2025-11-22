@@ -3834,20 +3834,9 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
         logger.info(`📱 JID: ${customerJid} (desde: ${from})`);
         logger.info(`📋 Estado actual del pedido - customer_phone: "${order.customer_phone}"`);
         
-        // Actualizar SIEMPRE el JID, incluso si ya existe (por si cambió o está mal formateado)
-        try {
-            const updateResult = await apiRequest(`/orders/${order.id}`, {
-                method: 'PUT',
-                body: JSON.stringify({
-                    customer_phone: customerJid
-                })
-            });
-            logger.info(`✅ JID actualizado en pedido ${order.id}: ${customerJid}`);
-            logger.info(`📋 Pedido actualizado:`, JSON.stringify(updateResult, null, 2));
-        } catch (error) {
-            logger.error('❌ Error al actualizar JID:', error);
-            logger.error('❌ Stack:', error.stack);
-        }
+        // NO actualizar customer_phone aquí - solo se actualizará cuando el método de pago esté confirmado
+        // Esto evita que el pedido aparezca en el panel antes de que el pago esté confirmado
+        logger.info(`⏳ JID NO actualizado aún - se actualizará cuando se confirme el método de pago`);
         
         // Verificar estado del pedido antes de procesarlo
         const orderStatus = order.status?.toLowerCase() || '';
