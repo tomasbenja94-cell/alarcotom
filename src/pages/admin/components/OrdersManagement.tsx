@@ -168,7 +168,13 @@ export default function OrdersManagement() {
       // Detectar nuevos pedidos y actualizar contadores
       if (silent && previousOrdersRef.current.length > 0) {
         const previousOrderIds = new Set(previousOrdersRef.current.map(o => o.id));
-        const newOrders = sortedOrders.filter(o => !previousOrderIds.has(o.id) && o.status === 'pending');
+        // Solo detectar nuevos pedidos que fueron confirmados en WhatsApp o tienen pago aprobado
+        const newOrders = sortedOrders.filter(o => {
+          if (previousOrderIds.has(o.id) || o.status !== 'pending') return false;
+          const hasPhone = o.customer_phone && o.customer_phone.trim() !== '';
+          const hasApprovedPayment = o.payment_status && o.payment_status !== 'pending';
+          return hasPhone || hasApprovedPayment;
+        });
         
         if (newOrders.length > 0) {
           // Contar nuevos pedidos por tipo
@@ -189,8 +195,21 @@ export default function OrdersManagement() {
       }
       
       // Actualizar contadores de pedidos pendientes
-      const pendingDelivery = sortedOrders.filter(o => o.status === 'pending' && (o.delivery_fee || 0) > 0).length;
-      const pendingPickup = sortedOrders.filter(o => o.status === 'pending' && (o.delivery_fee || 0) === 0).length;
+      // Solo contar pedidos confirmados en WhatsApp o con pago aprobado
+      const pendingDelivery = sortedOrders.filter(o => {
+        if (o.status !== 'pending' || (o.delivery_fee || 0) === 0) return false;
+        const hasPhone = o.customer_phone && o.customer_phone.trim() !== '';
+        const hasApprovedPayment = o.payment_status && o.payment_status !== 'pending';
+        return hasPhone || hasApprovedPayment;
+      }).length;
+      
+      const pendingPickup = sortedOrders.filter(o => {
+        if (o.status !== 'pending' || (o.delivery_fee || 0) > 0) return false;
+        const hasPhone = o.customer_phone && o.customer_phone.trim() !== '';
+        const hasApprovedPayment = o.payment_status && o.payment_status !== 'pending';
+        return hasPhone || hasApprovedPayment;
+      }).length;
+      
       setPendingDeliveryCount(pendingDelivery);
       setPendingPickupCount(pendingPickup);
       
@@ -697,13 +716,22 @@ export default function OrdersManagement() {
     // Filtrar por estado simplificado: PENDIENTES - CANCELADAS - COMPLETADAS
     if (activeFilter === 'pending') {
       // Solo pedidos pendientes de aceptar
-      // EXCLUIR pedidos de retiro con efectivo que no tienen transferencias pendientes
+      // IMPORTANTE: Solo mostrar pedidos confirmados en WhatsApp o con pago aprobado
       filtered = filtered.filter(order => {
         if (order.status !== 'pending') return false;
         
+        // Verificar si el pedido fue confirmado en WhatsApp (tiene customer_phone) o tiene pago aprobado
+        const hasPhone = order.customer_phone && order.customer_phone.trim() !== '';
+        const hasApprovedPayment = order.payment_status && order.payment_status !== 'pending';
+        
+        // Solo mostrar si tiene teléfono (confirmado en WhatsApp) o pago aprobado
+        if (!hasPhone && !hasApprovedPayment) {
+          return false; // Excluir pedidos de la web que aún no fueron confirmados
+        }
+        
         // Si es pedido de retiro (deliveryFee === 0) y pago en efectivo
         const isPickup = (order.delivery_fee || 0) === 0;
-        const isCashPayment = order.payment_method === 'efectivo' || order.payment_method === 'cash';
+        const isCashPayment = order.payment_method === 'efectivo' || order.payment_method === 'cash' || order.payment_method === 'Efectivo';
         
         if (isPickup && isCashPayment) {
           // Solo mostrar si tiene una transferencia pendiente asociada
