@@ -170,10 +170,17 @@ export default function OrdersManagement() {
         const deliveryCode = Math.floor(1000 + Math.random() * 9000).toString();
         
         // Actualizar pedido con estado 'ready' y código de entrega
-        await ordersApi.update(orderId, { 
+        const updatedOrder = await ordersApi.update(orderId, { 
           status: 'ready',
           delivery_code: deliveryCode
         });
+        
+        // Actualizar el pedido en el estado local para que el código aparezca inmediatamente
+        setOrders(prevOrders => prevOrders.map(o => 
+          o.id === orderId 
+            ? { ...o, status: 'ready', delivery_code: deliveryCode }
+            : o
+        ));
         
         // Enviar notificación al cliente
         if (order.customer_phone) {
