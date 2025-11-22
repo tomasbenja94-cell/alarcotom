@@ -7487,8 +7487,8 @@ app.get('/api/system/status', corsMiddleware, authenticateAdmin, async (req, res
     const processes = JSON.parse(stdout);
     
     const services = {
-      backend: processes.find((p: any) => p.name === 'backend'),
-      'whatsapp-bot': processes.find((p: any) => p.name === 'whatsapp-bot')
+      backend: processes.find((p) => p.name === 'backend'),
+      'whatsapp-bot': processes.find((p) => p.name === 'whatsapp-bot')
     };
     
     res.json({
