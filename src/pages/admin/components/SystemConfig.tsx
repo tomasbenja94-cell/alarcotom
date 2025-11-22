@@ -25,6 +25,8 @@ export default function SystemConfig() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [qrAvailable, setQrAvailable] = useState(false);
   
   const backendLogsRef = useRef<HTMLDivElement>(null);
   const whatsappLogsRef = useRef<HTMLDivElement>(null);
@@ -54,12 +56,39 @@ export default function SystemConfig() {
     }
   };
 
+  // Cargar QR code del bot
+  const loadQRCode = async () => {
+    try {
+      // El bot está en localhost:3001 cuando se accede desde el servidor
+      const botUrl = process.env.NODE_ENV === 'production' 
+        ? 'http://localhost:3001' 
+        : 'http://localhost:3001';
+      
+      const response = await fetch(`${botUrl}/qr`);
+      if (!response.ok) throw new Error('Error al obtener QR');
+      
+      const data = await response.json();
+      if (data.available && data.qr) {
+        setQrCode(data.qr);
+        setQrAvailable(true);
+      } else {
+        setQrCode(null);
+        setQrAvailable(false);
+      }
+    } catch (error) {
+      // Silenciar errores si el bot no está disponible
+      setQrCode(null);
+      setQrAvailable(false);
+    }
+  };
+
   // Inicializar logs y estado (solo una vez al montar, sin polling automático)
   useEffect(() => {
     const init = async () => {
       setLoading(true);
       try {
         await loadSystemStatus();
+        await loadQRCode();
         const backend = await loadLogs('backend');
         const whatsapp = await loadLogs('whatsapp-bot');
         setBackendLogs(backend);
@@ -73,14 +102,19 @@ export default function SystemConfig() {
     
     init();
 
-    // NO hacer polling automático para evitar timeouts del proxy
-    // El usuario puede actualizar manualmente con el botón de refresh
+    // Polling solo para el QR (cada 5 segundos) si el bot no está conectado
+    const qrInterval = setInterval(() => {
+      if (systemStatus?.services['whatsapp-bot']?.status !== 'online') {
+        loadQRCode();
+      }
+    }, 5000);
 
     return () => {
       if (logsIntervalRef.current) clearInterval(logsIntervalRef.current);
       if (statusIntervalRef.current) clearInterval(statusIntervalRef.current);
+      clearInterval(qrInterval);
     };
-  }, []);
+  }, [systemStatus]);
 
   // Auto-scroll en logs
   useEffect(() => {
@@ -187,6 +221,7 @@ export default function SystemConfig() {
             setError(null);
             try {
               await loadSystemStatus();
+              await loadQRCode();
               const backend = await loadLogs('backend');
               const whatsapp = await loadLogs('whatsapp-bot');
               setBackendLogs(backend);
