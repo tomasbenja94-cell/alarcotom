@@ -27,7 +27,10 @@ export const authenticateAdmin = async (req, res, next) => {
   } catch (error) {
     // Si el token es inválido pero no es crítico, permitir acceso con usuario mock
     // TODO: En producción, esto debe requerir autenticación real
-    console.warn('⚠️ Token inválido, usando usuario mock para desarrollo:', error.message);
+    // Solo mostrar warning en desarrollo para no saturar logs
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('⚠️ Token inválido, usando usuario mock para desarrollo:', error.message);
+    }
     req.user = {
       id: 'admin-dev',
       email: 'admin@dev.local',
