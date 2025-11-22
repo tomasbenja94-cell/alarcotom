@@ -175,13 +175,13 @@ export default function OrdersManagement() {
           if (!hasPhone) return false;
           
           // Verificar que el método de pago esté confirmado
+          // IMPORTANTE: No verificar payment_status === 'pending' porque es normal para Mercado Pago y Transferencia
           const paymentMethod = (o.payment_method || '').toLowerCase();
-          const isPaymentPending = paymentMethod.includes('pendiente') || 
-                                   paymentMethod === '' || 
-                                   paymentMethod === 'null' ||
-                                   o.payment_status === 'pending';
+          const isPaymentMethodPending = paymentMethod.includes('pendiente') || 
+                                         paymentMethod === '' || 
+                                         paymentMethod === 'null';
           
-          return !isPaymentPending; // Solo pedidos con método de pago confirmado
+          return !isPaymentMethodPending; // Solo pedidos con método de pago confirmado
         });
         
         if (newOrders.length > 0) {
@@ -210,13 +210,13 @@ export default function OrdersManagement() {
         if (!hasPhone) return false;
         
         // Verificar que el método de pago esté confirmado
+        // IMPORTANTE: No verificar payment_status === 'pending' porque es normal para Mercado Pago y Transferencia
         const paymentMethod = (o.payment_method || '').toLowerCase();
-        const isPaymentPending = paymentMethod.includes('pendiente') || 
-                                 paymentMethod === '' || 
-                                 paymentMethod === 'null' ||
-                                 o.payment_status === 'pending';
+        const isPaymentMethodPending = paymentMethod.includes('pendiente') || 
+                                       paymentMethod === '' || 
+                                       paymentMethod === 'null';
         
-        return !isPaymentPending; // Solo pedidos con método de pago confirmado
+        return !isPaymentMethodPending; // Solo pedidos con método de pago confirmado
       }).length;
       
       const pendingPickup = sortedOrders.filter(o => {
@@ -225,13 +225,13 @@ export default function OrdersManagement() {
         if (!hasPhone) return false;
         
         // Verificar que el método de pago esté confirmado
+        // IMPORTANTE: No verificar payment_status === 'pending' porque es normal para Mercado Pago y Transferencia
         const paymentMethod = (o.payment_method || '').toLowerCase();
-        const isPaymentPending = paymentMethod.includes('pendiente') || 
-                                 paymentMethod === '' || 
-                                 paymentMethod === 'null' ||
-                                 o.payment_status === 'pending';
+        const isPaymentMethodPending = paymentMethod.includes('pendiente') || 
+                                       paymentMethod === '' || 
+                                       paymentMethod === 'null';
         
-        return !isPaymentPending; // Solo pedidos con método de pago confirmado
+        return !isPaymentMethodPending; // Solo pedidos con método de pago confirmado
       }).length;
       
       setPendingDeliveryCount(pendingDelivery);
@@ -753,14 +753,14 @@ export default function OrdersManagement() {
         }
         
         // Verificar que el método de pago esté confirmado (no "Pendiente de selección (Web)")
+        // IMPORTANTE: No verificar payment_status === 'pending' porque es normal para Mercado Pago y Transferencia
         const paymentMethod = (order.payment_method || '').toLowerCase();
-        const isPaymentPending = paymentMethod.includes('pendiente') || 
-                                 paymentMethod === '' || 
-                                 paymentMethod === 'null' ||
-                                 order.payment_status === 'pending';
+        const isPaymentMethodPending = paymentMethod.includes('pendiente') || 
+                                       paymentMethod === '' || 
+                                       paymentMethod === 'null';
         
         // Excluir si el método de pago aún no está confirmado
-        if (isPaymentPending) {
+        if (isPaymentMethodPending) {
           return false; // Excluir pedidos que aún no tienen método de pago confirmado
         }
         
