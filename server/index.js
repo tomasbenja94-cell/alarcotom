@@ -7596,16 +7596,11 @@ app.options('/api/system/whatsapp/disconnect', corsMiddleware, (req, res) => {
 // Endpoint para obtener el QR code del bot (proxy desde localhost:3001)
 app.get('/api/system/whatsapp/qr', corsMiddleware, authenticateAdmin, async (req, res) => {
   try {
+    const http = await import('http');
     const botUrl = 'http://localhost:3001/qr';
     
-    // Usar http o https según corresponda
-    const http = (await import('http')).default;
-    const https = (await import('https')).default;
-    const url = new URL(botUrl);
-    const httpModule = url.protocol === 'https:' ? https : http;
-    
     const response = await new Promise((resolve, reject) => {
-      const request = httpModule.get(botUrl, (response) => {
+      const request = http.default.get(botUrl, (response) => {
         let data = '';
         response.on('data', (chunk) => {
           data += chunk;
@@ -7613,7 +7608,7 @@ app.get('/api/system/whatsapp/qr', corsMiddleware, authenticateAdmin, async (req
         response.on('end', () => {
           try {
             const jsonData = JSON.parse(data);
-            resolve({ ok: response.statusCode === 200, json: () => Promise.resolve(jsonData) });
+            resolve({ ok: response.statusCode === 200, data: jsonData });
           } catch (parseError) {
             reject(new Error('Error al parsear respuesta del bot'));
           }
@@ -7638,8 +7633,7 @@ app.get('/api/system/whatsapp/qr', corsMiddleware, authenticateAdmin, async (req
       });
     }
     
-    const data = await response.json();
-    res.json(data);
+    res.json(response.data);
   } catch (error) {
     console.error('Error obteniendo QR del bot:', error.message);
     res.json({ 
@@ -7647,6 +7641,76 @@ app.get('/api/system/whatsapp/qr', corsMiddleware, authenticateAdmin, async (req
       available: false,
       message: 'Error al obtener QR del bot'
     });
+  }
+});
+
+// Manejar OPTIONS para CORS preflight
+app.options('/api/system/update/:service', corsMiddleware, (req, res) => {
+  res.sendStatus(200);
+});
+
+// Actualizar código del backend o bot desde GitHub
+app.post('/api/system/update/:service', corsMiddleware, authenticateAdmin, async (req, res) => {
+  try {
+    const { service } = req.params; // 'backend', 'whatsapp-bot', o 'all'
+    
+    // Responder inmediatamente antes de ejecutar el comando
+    res.json({ 
+      success: true, 
+      message: `Iniciando actualización de ${service}. Esto puede tardar unos minutos...`,
+      service 
+    });
+    
+    // Ejecutar el comando después de responder (en segundo plano)
+    setTimeout(async () => {
+      try {
+        let commands = [];
+        
+        if (service === 'backend' || service === 'all') {
+          commands.push({
+            name: 'backend',
+            steps: [
+              { cmd: 'cd /opt/elbuenmenu/server && git pull', desc: 'Actualizando código del backend...' },
+              { cmd: 'cd /opt/elbuenmenu/server && npm install', desc: 'Instalando dependencias del backend...' },
+              { cmd: 'pm2 restart backend', desc: 'Reiniciando backend...' }
+            ]
+          });
+        }
+        
+        if (service === 'whatsapp-bot' || service === 'bot' || service === 'all') {
+          commands.push({
+            name: 'bot',
+            steps: [
+              { cmd: 'cd /opt/elbuenmenu/whatsapp-bot && git pull', desc: 'Actualizando código del bot...' },
+              { cmd: 'cd /opt/elbuenmenu/whatsapp-bot && npm install', desc: 'Instalando dependencias del bot...' },
+              { cmd: 'pm2 restart bot', desc: 'Reiniciando bot...' }
+            ]
+          });
+        }
+        
+        for (const serviceCmd of commands) {
+          console.log(`🔄 [UPDATE] Actualizando ${serviceCmd.name}...`);
+          for (const step of serviceCmd.steps) {
+            try {
+              console.log(`📝 [UPDATE] ${step.desc}`);
+              await execWithTimeout(step.cmd, 60000); // 60 segundos timeout
+              console.log(`✅ [UPDATE] ${step.desc} - Completado`);
+            } catch (stepError) {
+              console.error(`❌ [UPDATE] Error en ${step.desc}:`, stepError.message);
+            }
+          }
+        }
+        
+        console.log(`✅ [UPDATE] Actualización de ${service} completada`);
+      } catch (execError) {
+        console.error(`❌ [UPDATE] Error ejecutando actualización de ${service}:`, execError.message);
+      }
+    }, 100);
+  } catch (error) {
+    console.error('Error en endpoint de actualización:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Error al iniciar actualización', details: error.message });
+    }
   }
 });
 
