@@ -146,26 +146,76 @@ export default function OrdersManagement() {
   };
 
   // Aprobar pedido (pasa directamente a repartidores solo si es DOMICILIO)
+  // Para RETIRO: cambia a 'ready' y notifica al cliente que está listo
   const handleApprove = async (orderId: string) => {
     setActionLoading(orderId);
     try {
       const order = orders.find(o => o.id === orderId);
       if (!order) {
         showToast('Pedido no encontrado', 'error');
-      return;
-    }
+        return;
+      }
 
-      // Si es pedido a domicilio (delivery_fee > 0), marcarlo como 'ready' para repartidores
-      // Si es pedido para retiro (delivery_fee = 0), marcarlo como 'preparing' (no necesita repartidor)
       const isDelivery = (order.delivery_fee || 0) > 0;
-      const newStatus = isDelivery ? 'ready' : 'preparing';
-      
-      await ordersApi.update(orderId, { status: newStatus });
       
       if (isDelivery) {
+        // Pedido a domicilio: marcarlo como 'ready' para repartidores
+        await ordersApi.update(orderId, { status: 'ready' });
         showToast('Pedido aprobado y disponible para repartidores', 'success');
       } else {
-        showToast('Pedido aprobado y en preparación', 'success');
+        // Pedido de retiro: marcarlo como 'ready' y notificar al cliente
+        await ordersApi.update(orderId, { status: 'ready' });
+        
+        // Enviar notificación al cliente
+        if (order.customer_phone) {
+          try {
+            // Obtener dirección de retiro (por defecto Av. RIVADAVIA 2911)
+            const pickupAddress = order.customer_address || 'Av. RIVADAVIA 2911';
+            
+            // Mensaje de notificación
+            const message = `✅ ¡Tu pedido está listo para ser retirado!\n\n📦 Pedido: ${order.order_number}\n📍 ${pickupAddress}\n\n🆔 El código estará en tu ticket impreso.\n\nPodés pasar a retirarlo cuando gustes.\n\n¡Gracias por tu compra! ❤️`;
+
+            // Enviar notificación al cliente vía endpoint del backend
+            const API_URL = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
+            const notifyUrl = `${API_URL}/orders/${order.id}/notify`;
+            const token = localStorage.getItem('adminToken');
+            const response = await fetch(notifyUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': token ? `Bearer ${token}` : ''
+              },
+              body: JSON.stringify({
+                customerPhone: order.customer_phone,
+                orderNumber: order.order_number,
+                message
+              })
+            });
+
+            // Verificar si la respuesta es HTML
+            const responseText = await response.text();
+            if (responseText.trim().startsWith('<!doctype') || responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
+              throw new Error('El servidor devolvió HTML en lugar de JSON');
+            }
+
+            if (!response.ok) {
+              let errorData: any;
+              try {
+                errorData = JSON.parse(responseText);
+              } catch {
+                errorData = { error: responseText.substring(0, 200) };
+              }
+              throw new Error(errorData.error || errorData.message || 'Error al enviar notificación');
+            }
+
+            showToast('Pedido listo y cliente notificado', 'success');
+          } catch (notifyError: any) {
+            console.error('Error notificando cliente:', notifyError);
+            showToast('Pedido listo, pero error al notificar cliente', 'error');
+          }
+        } else {
+          showToast('Pedido listo (sin teléfono para notificar)', 'info');
+        }
       }
       
       await loadOrders(true);
@@ -942,24 +992,33 @@ export default function OrdersManagement() {
                         <span>IMPRIMIR</span>
                   </button>
                       
-                      {/* Botón Aprobar (pasa directamente a repartidores) - Premium Style */}
-                      <button
-                        onClick={() => handleApprove(order.id)}
-                        disabled={actionLoading === order.id}
-                        className="w-full bg-[#111111] hover:bg-[#1A1A1A] text-white font-medium py-2 px-4 rounded-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-xs flex items-center justify-center space-x-2 border border-[#C7C7C7]"
-                      >
-                        {actionLoading === order.id ? (
-                          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                        ) : (
-                          <>
-                            <span className="text-sm">✅</span>
-                            <span>APROBAR</span>
-                          </>
-                        )}
-                      </button>
+                      {/* Botón Aprobar/Pedido Listo - Premium Style */}
+                      {/* Para retiro: "PEDIDO LISTO", para delivery: "APROBAR" */}
+                      {(() => {
+                        const isPickup = (order.delivery_fee || 0) === 0;
+                        const buttonText = isPickup ? 'PEDIDO LISTO' : 'APROBAR';
+                        const buttonIcon = isPickup ? '✅' : '✅';
+                        
+                        return (
+                          <button
+                            onClick={() => handleApprove(order.id)}
+                            disabled={actionLoading === order.id}
+                            className="w-full bg-[#111111] hover:bg-[#1A1A1A] text-white font-medium py-2 px-4 rounded-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-xs flex items-center justify-center space-x-2 border border-[#C7C7C7]"
+                          >
+                            {actionLoading === order.id ? (
+                              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                            ) : (
+                              <>
+                                <span className="text-sm">{buttonIcon}</span>
+                                <span>{buttonText}</span>
+                              </>
+                            )}
+                          </button>
+                        );
+                      })()}
                       
                       {/* Botón Cancelar (emoji X) - Premium Style */}
                   <button
