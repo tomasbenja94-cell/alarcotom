@@ -4322,8 +4322,9 @@ async function updateWebOrderPayment(from, userSession, paymentMethod) {
         // Usar JID directamente (ya no necesitamos números "limpios")
         const customerJid = from;
         
+        // Para efectivo: payment_status = 'completed' (pago se hará al recibir), pero status = 'pending' (espera aprobación del admin)
         const paymentStatus = paymentMethod === 'Efectivo' ? 'completed' : 'pending';
-        const orderStatus = paymentMethod === 'Efectivo' ? 'confirmed' : 'pending';
+        const orderStatus = 'pending'; // SIEMPRE 'pending' inicialmente, independientemente del método de pago
 
         logger.info(`📱 Actualizando pedido ${orderId} con JID: ${customerJid}`);
 
