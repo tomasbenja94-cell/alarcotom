@@ -37,6 +37,9 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
+// Log de depuración para NODE_ENV
+console.log('🔍 [DEBUG] NODE_ENV:', process.env.NODE_ENV || 'no definido');
+
 const app = express();
 
 // Configurar trust proxy para rate limiting detrás de proxy/load balancer

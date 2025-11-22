@@ -29,7 +29,8 @@ export const authenticateAdmin = async (req, res, next) => {
     // TODO: En producción, esto debe requerir autenticación real
     // Solo mostrar warning en desarrollo para no saturar logs
     const nodeEnv = process.env.NODE_ENV || 'development';
-    if (nodeEnv !== 'production') {
+    // Solo mostrar warning si NO estamos en producción
+    if (nodeEnv.toLowerCase() !== 'production') {
       console.warn('⚠️ Token inválido, usando usuario mock para desarrollo:', error.message);
     }
     req.user = {
