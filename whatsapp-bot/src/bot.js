@@ -3927,10 +3927,10 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
         let calculatedTotal = 0;
         
         // Formatear items para mostrar con todas las opciones y extras
-        // Usar directamente item.subtotal de la base de datos (ya calculado correctamente)
+        // Nuevo formato: • producto, ↳ Extra: nombre (+$precio)
         const itemsText = (order.items || []).map((item) => {
-            // Formato: nombre del producto primero
-            let text = `${item.product_name}`;
+            // Formato: bullet point + nombre del producto
+            let text = `• ${item.product_name}`;
             
             // Mostrar extras si existen
             if (item.selected_options) {
@@ -3945,29 +3945,29 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
                             const optName = opt.name || opt;
                             const optPrice = opt.price || 0;
                             if (optPrice > 0) {
-                                text += `\n• ${optName} (+$${optPrice.toLocaleString()})`;
+                                text += `\n↳ Extra: ${optName} (+$${optPrice.toLocaleString()})`;
                             } else {
-                                text += `\n• ${optName}`;
+                                text += `\n↳ Extra: ${optName}`;
                             }
                         });
                     }
                     // Si tiene optionsText (texto formateado)
                     else if (options.optionsText && Array.isArray(options.optionsText)) {
                         options.optionsText.forEach((optText) => {
-                            text += `\n• ${optText}`;
+                            text += `\n↳ Extra: ${optText}`;
                         });
                     }
                     // Si es un array directo
                     else if (Array.isArray(options) && options.length > 0) {
                         options.forEach((opt) => {
                             if (typeof opt === 'string') {
-                                text += `\n• ${opt}`;
+                                text += `\n↳ Extra: ${opt}`;
                             } else if (opt.name) {
                                 const optPrice = opt.price || 0;
                                 if (optPrice > 0) {
-                                    text += `\n• ${opt.name} (+$${optPrice.toLocaleString()})`;
+                                    text += `\n↳ Extra: ${opt.name} (+$${optPrice.toLocaleString()})`;
                                 } else {
-                                    text += `\n• ${opt.name}`;
+                                    text += `\n↳ Extra: ${opt.name}`;
                                 }
                             }
                         });
@@ -3978,13 +3978,13 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
                             const categoryOptions = Array.isArray(options[key]) ? options[key] : [];
                             categoryOptions.forEach((opt) => {
                                 if (typeof opt === 'string') {
-                                    text += `\n• ${opt}`;
+                                    text += `\n↳ Extra: ${opt}`;
                                 } else if (opt.name) {
                                     const optPrice = opt.price || 0;
                                     if (optPrice > 0) {
-                                        text += `\n• ${opt.name} (+$${optPrice.toLocaleString()})`;
+                                        text += `\n↳ Extra: ${opt.name} (+$${optPrice.toLocaleString()})`;
                                     } else {
-                                        text += `\n• ${opt.name}`;
+                                        text += `\n↳ Extra: ${opt.name}`;
                                     }
                                 }
                             });
@@ -3995,19 +3995,14 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
                     // Si falla el parsing, intentar mostrar como string
                     logger.debug(`⚠️ Error parseando opciones para ${item.product_name}:`, e);
                     if (typeof item.selected_options === 'string' && item.selected_options.length > 0) {
-                        text += `\n• Opciones: ${item.selected_options.substring(0, 100)}`;
+                        text += `\n↳ Extra: ${item.selected_options.substring(0, 100)}`;
                     }
                 }
             }
             
-            // Usar directamente item.subtotal de la base de datos (ya calculado correctamente)
-            const itemSubtotal = parseFloat(item.subtotal) || 0;
-            
-            // Agregar el total del item al final
-            text += `\n$${itemSubtotal.toLocaleString()}`;
-            
+            // NO mostrar el subtotal individual del item (solo el total general al final)
             return text;
-        }).join('\n');
+        }).join('\n\n');
         
         // Usar directamente order.total de la base de datos (ya incluye subtotal + delivery fee)
         const finalTotal = parseFloat(order.total) || 0;
@@ -4032,7 +4027,7 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
         if (isPickup) {
             // Si es retiro, usar la dirección guardada o la dirección por defecto
             const pickupAddress = order.customer_address || 'Av. RIVADAVIA 2911';
-            addressLine = `📍 *Direccion de retiro:* ${pickupAddress}`;
+            addressLine = `📍 *Dirección de retiro:* ${pickupAddress}`;
         } else if (order.customer_address) {
             addressLine = `📍 *Dirección:* ${order.customer_address}`;
         }
@@ -4049,15 +4044,21 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
 🆔 *Código:* ${order.order_number}
 👤 *Cliente:* ${order.customer_name}
 ${addressLine}
-💰 *Total:* $${finalTotal.toLocaleString()}
 
-📋 *Tu pedido:*
+
+📋 *Detalle del pedido:*
+
 ${itemsText}
+
+
+💰 *Total a pagar:* $${finalTotal.toLocaleString()}
+
 
 ¿Está todo correcto? ¿Deseás continuar con el pago?
 
-✅ Escribí "SÍ" para continuar
-❌ Escribí "NO" para cancelar`;
+
+▶️ Escribí "SÍ" para continuar
+⛔ Escribí "NO" para cancelar`;
         
         await sendMessage(from, confirmMessage);
         
