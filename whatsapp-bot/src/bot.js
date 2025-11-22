@@ -1730,7 +1730,99 @@ async function handleTransferProof(from, message, userSession) {
             }
         }
         
-        // Obtener el orderId del pedido pendiente
+        // Si el método de pago es Mercado Pago, verificar el estado del pago primero
+        if (userSession.paymentMethod === 'mercadopago' && userSession.pendingOrder?.mercadoPagoPreferenceId) {
+            const preferenceId = userSession.pendingOrder.mercadoPagoPreferenceId;
+            logger.info(`💰 [Mercado Pago] Verificando estado del pago para preference_id: ${preferenceId}`);
+            
+            try {
+                // Llamar al endpoint del backend para verificar el estado del pago
+                const paymentStatus = await apiRequest(`/payments/mercadopago/check-payment/${preferenceId}`);
+                
+                logger.info(`💰 [Mercado Pago] Estado del pago:`, paymentStatus);
+                
+                if (paymentStatus && paymentStatus.status === 'approved') {
+                    // El pago está aprobado, aprobar el pedido automáticamente
+                    logger.info(`✅ [Mercado Pago] Pago aprobado para preference_id: ${preferenceId}`);
+                    
+                    // Obtener el orderId del pedido pendiente
+                    let orderId = null;
+                    if (userSession.pendingOrder?.orderId) {
+                        orderId = userSession.pendingOrder.orderId;
+                    } else {
+                        // Buscar el último pedido del usuario usando JID directamente
+                        const allOrders = await apiRequest('/orders');
+                        const userOrders = allOrders.filter(order => {
+                            return order.customer_phone === customerJid;
+                        });
+                        if (userOrders.length > 0) {
+                            const lastOrder = userOrders.sort((a, b) => 
+                                new Date(b.created_at) - new Date(a.created_at)
+                            )[0];
+                            orderId = lastOrder.id;
+                        }
+                    }
+                    
+                    if (orderId) {
+                        // Aprobar el pedido automáticamente
+                        try {
+                            await apiRequest(`/orders/${orderId}`, {
+                                method: 'PUT',
+                                body: JSON.stringify({
+                                    status: 'confirmed',
+                                    payment_status: 'approved'
+                                })
+                            });
+                            logger.info(`✅ [Mercado Pago] Pedido ${orderId} aprobado automáticamente`);
+                            
+                            // Resetear sesión
+                            userSession.waitingForTransferProof = false;
+                            userSession.pendingOrder = null;
+                            userSession.paymentMethod = null;
+                            userSession.waitingForConfirmation = false;
+                            userSession.waitingForPayment = false;
+                            userSession.pendingPayment = false;
+                            userSession.paymentLink = null;
+                            userSession.step = 'welcome';
+                            
+                            // Enviar mensaje de confirmación
+                            await sendMessage(from, `✅ *PAGO APROBADO*
+
+💰 Tu pago de Mercado Pago fue aprobado correctamente.
+
+🍳 Tu pedido está en preparación.
+
+⏱️ Tiempo estimado: 30-45 minutos
+
+¡Te avisamos cuando esté listo! 🚚`);
+                            return; // Salir de la función, ya procesamos el pago
+                        } catch (error) {
+                            logger.error('❌ Error al aprobar pedido:', error);
+                        }
+                    }
+                } else {
+                    // El pago no está aprobado aún
+                    logger.warn(`⚠️ [Mercado Pago] Pago aún no confirmado para preference_id: ${preferenceId}`);
+                    
+                    // Resetear sesión pero mantener el flujo de pago
+                    userSession.waitingForTransferProof = false;
+                    
+                    // Enviar mensaje indicando que aún no está confirmado
+                    const mpLink = userSession.pendingOrder?.mercadoPagoLink || 'el enlace enviado';
+                    await sendMessage(from, `❗ Aún no recibimos la confirmación del pago.
+
+Si ya pagaste, esperá unos instantes o revisá que el comprobante corresponda al enlace enviado.
+
+🔄 Escribí "09" si querés cambiar el método de pago.`);
+                    return; // Salir de la función
+                }
+            } catch (error) {
+                logger.error('❌ Error al verificar estado del pago de Mercado Pago:', error);
+                // Continuar con el flujo normal de transferencia si falla la verificación
+            }
+        }
+        
+        // Obtener el orderId del pedido pendiente (para transferencias normales)
         let orderId = null;
         if (userSession.pendingOrder?.orderId) {
             orderId = userSession.pendingOrder.orderId;
@@ -1831,6 +1923,7 @@ async function handleTransferProof(from, message, userSession) {
 function isInPaymentFlow(userSession) {
     return userSession.waitingForPayment || 
            userSession.waitingForTransferProof || 
+           userSession.pendingPayment ||
            (userSession.paymentMethod !== null && userSession.paymentMethod !== undefined);
 }
 
@@ -1842,7 +1935,7 @@ function getPaymentFlowValidationMessage(userSession) {
     
     if (paymentMethod === 'mercadopago') {
         // Obtener el link de Mercado Pago del pedido pendiente
-        const mpLink = userSession.pendingOrder?.mercadoPagoLink || 'https://mpago.la/elbuenmenu';
+        const mpLink = userSession.pendingOrder?.mercadoPagoLink || userSession.paymentLink || 'el enlace enviado';
         return `🤔 No entendí tu mensaje.
 
 ❗Completa tu pago:
@@ -1850,7 +1943,9 @@ function getPaymentFlowValidationMessage(userSession) {
 • Método seleccionado: Mercado Pago
 • Link: ${mpLink}
 
-Escribe "09" si querés cambiar el método de pago.`;
+📸 Una vez realizado el pago, enviá el comprobante.
+
+🔄 Escribí "09" si querés cambiar el método de pago.`;
     } else if (paymentMethod === 'transfer') {
         const transferData = botMessages.transfer_data || `💵 Datos para transferencia:
 
@@ -1960,7 +2055,7 @@ async function handlePaymentSelection(from, body, userSession) {
         if (body === '1' || body.includes('mercado') || body.includes('pago')) {
             userSession.paymentMethod = 'mercadopago';
             userSession.waitingForPayment = false;
-            userSession.waitingForTransferProof = false; // Mercado Pago se aprueba automáticamente, no esperamos comprobante
+            userSession.waitingForTransferProof = true; // Ahora sí esperamos comprobante para verificar
             
             // Generar link de pago de Mercado Pago dinámicamente
             let mercadoPagoLink;
@@ -1999,17 +2094,38 @@ async function handlePaymentSelection(from, body, userSession) {
                 logger.info(`✅ [Mercado Pago] Respuesta completa:`, JSON.stringify(mpResponse, null, 2));
                 
                 if (mpResponse && mpResponse.init_point) {
-                    // Guardar el link en la sesión para usarlo en mensajes de validación
+                    // Guardar el link y el preference_id en la sesión
                     if (!userSession.pendingOrder) {
                         userSession.pendingOrder = {};
                     }
                     userSession.pendingOrder.mercadoPagoLink = mpResponse.init_point;
                     
-                    mercadoPagoLink = `💳 Pagá con Mercado Pago:
+                    // Extraer preference_id del link
+                    const prefIdMatch = mpResponse.init_point.match(/pref_id=([^&]+)/);
+                    if (prefIdMatch && prefIdMatch[1]) {
+                        userSession.pendingOrder.mercadoPagoPreferenceId = prefIdMatch[1];
+                        logger.info(`✅ [Mercado Pago] Preference ID guardado: ${prefIdMatch[1]}`);
+                    } else if (mpResponse.id) {
+                        // Si no está en el link, usar el ID de la respuesta
+                        userSession.pendingOrder.mercadoPagoPreferenceId = mpResponse.id;
+                        logger.info(`✅ [Mercado Pago] Preference ID guardado desde respuesta: ${mpResponse.id}`);
+                    }
+                    
+                    // Marcar que hay un pago pendiente
+                    userSession.pendingPayment = true;
+                    userSession.paymentLink = mpResponse.init_point;
+                    
+                    mercadoPagoLink = `💳 Pago con Mercado Pago
 
-🔗 ${mpResponse.init_point}
+🔗 Enlace de pago:
 
-Escribe "09" si querés cambiar el método de pago.`;
+${mpResponse.init_point}
+
+📸 Una vez realizado el pago, enviá el comprobante
+
+(Puede ser captura de pantalla o foto del pago)
+
+🔄 Escribí "09" si querés cambiar el método de pago.`;
                 } else {
                     throw new Error('No se pudo generar el link de Mercado Pago - respuesta inválida');
                 }
