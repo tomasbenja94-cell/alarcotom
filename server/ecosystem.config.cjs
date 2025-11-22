@@ -2,9 +2,9 @@ module.exports = {
   apps: [
     {
       name: 'backend',
-      script: 'npm',
-      args: 'start',
+      script: 'index.js',
       cwd: '/opt/elbuenmenu/server',
+      interpreter: 'node',
       env: {
         NODE_ENV: 'production'
       },
@@ -19,9 +19,9 @@ module.exports = {
     },
     {
       name: 'whatsapp-bot',
-      script: 'npm',
-      args: 'start',
+      script: 'src/bot.js',
       cwd: '/opt/elbuenmenu/whatsapp-bot',
+      interpreter: 'node',
       env: {
         NODE_ENV: 'production'
       },
