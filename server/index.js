@@ -7416,8 +7416,13 @@ app.get('/api/health', (req, res) => {
 // ========== SISTEMA DE CONFIGURACIÓN Y LOGS ==========
 const execAsync = promisify(exec);
 
+// Manejar OPTIONS para CORS preflight
+app.options('/api/system/logs/:service', corsMiddleware, (req, res) => {
+  res.sendStatus(200);
+});
+
 // Obtener logs de PM2
-app.get('/api/system/logs/:service', authenticateAdmin, async (req, res) => {
+app.get('/api/system/logs/:service', corsMiddleware, authenticateAdmin, async (req, res) => {
   try {
     const { service } = req.params; // 'backend' o 'whatsapp-bot'
     const lines = parseInt(req.query.lines) || 100;
@@ -7470,8 +7475,13 @@ app.get('/api/system/logs/:service', authenticateAdmin, async (req, res) => {
   }
 });
 
+// Manejar OPTIONS para CORS preflight
+app.options('/api/system/status', corsMiddleware, (req, res) => {
+  res.sendStatus(200);
+});
+
 // Obtener estado de servicios PM2
-app.get('/api/system/status', authenticateAdmin, async (req, res) => {
+app.get('/api/system/status', corsMiddleware, authenticateAdmin, async (req, res) => {
   try {
     const { stdout } = await execAsync('pm2 jlist');
     const processes = JSON.parse(stdout);
@@ -7505,8 +7515,13 @@ app.get('/api/system/status', authenticateAdmin, async (req, res) => {
   }
 });
 
+// Manejar OPTIONS para CORS preflight
+app.options('/api/system/whatsapp/disconnect', corsMiddleware, (req, res) => {
+  res.sendStatus(200);
+});
+
 // Desconectar WhatsApp (borrar sesión)
-app.post('/api/system/whatsapp/disconnect', authenticateAdmin, async (req, res) => {
+app.post('/api/system/whatsapp/disconnect', corsMiddleware, authenticateAdmin, async (req, res) => {
   try {
     // Ruta de la sesión de WhatsApp
     const sessionPath = path.join(__dirname, '../whatsapp-bot/auth');
@@ -7544,8 +7559,13 @@ app.post('/api/system/whatsapp/disconnect', authenticateAdmin, async (req, res) 
   }
 });
 
+// Manejar OPTIONS para CORS preflight
+app.options('/api/system/restart/:service', corsMiddleware, (req, res) => {
+  res.sendStatus(200);
+});
+
 // Reiniciar servicios
-app.post('/api/system/restart/:service', authenticateAdmin, async (req, res) => {
+app.post('/api/system/restart/:service', corsMiddleware, authenticateAdmin, async (req, res) => {
   try {
     const { service } = req.params; // 'backend', 'whatsapp-bot', o 'all'
     
