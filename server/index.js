@@ -4732,13 +4732,20 @@ app.post('/api/payments/mercadopago/verify-pending', corsMiddleware, async (req,
           throw new Error('Mercado Pago access token no disponible');
         }
         
+        // Agregar timeout de 10 segundos para cada búsqueda
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        
         const searchResponse = await fetch(searchUrl, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json'
-          }
+          },
+          signal: controller.signal
         });
+        
+        clearTimeout(timeoutId);
         
         if (searchResponse.ok) {
           const searchResult = await searchResponse.json();
