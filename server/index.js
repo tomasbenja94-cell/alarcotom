@@ -7603,6 +7603,21 @@ app.post('/api/system/restart/:service', corsMiddleware, authenticateAdmin, asyn
   }
 });
 
+// ========== MANEJO DE ERRORES NO CAPTURADOS ==========
+// Prevenir que el servidor se caiga por errores no manejados
+process.on('uncaughtException', (error) => {
+  console.error('❌ [UNCAUGHT EXCEPTION] Error no capturado:', error);
+  console.error('Stack:', error.stack);
+  // No cerrar el proceso, solo loguear el error
+  // PM2 se encargará de reiniciar si es necesario
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ [UNHANDLED REJECTION] Promesa rechazada no manejada:', reason);
+  console.error('Promise:', promise);
+  // No cerrar el proceso, solo loguear el error
+});
+
 // ========== INICIAR SERVIDOR ==========
 app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en https://elbuenmenu.site`);
