@@ -1055,7 +1055,17 @@ app.delete('/api/extras/:id', async (req, res) => {
 // ========== PEDIDOS ==========
 app.get('/api/orders', async (req, res) => {
   try {
+    // Solo mostrar pedidos que:
+    // 1. Tienen customer_phone (confirmados en WhatsApp), O
+    // 2. Tienen payment_status != 'pending' (pagos aprobados)
+    // Esto evita que aparezcan pedidos de la web que aún no fueron confirmados en WhatsApp
     const orders = await prisma.order.findMany({
+      where: {
+        OR: [
+          { customerPhone: { not: null } }, // Tiene teléfono (confirmado en WhatsApp)
+          { paymentStatus: { not: 'pending' } } // Pago aprobado (aunque no tenga teléfono aún)
+        ]
+      },
       include: {
         items: true
       },
@@ -1068,6 +1078,12 @@ app.get('/api/orders', async (req, res) => {
       console.warn('⚠️ unique_code no existe, obteniendo pedidos sin unique_code...');
       try {
         const orders = await prisma.order.findMany({
+          where: {
+            OR: [
+              { customerPhone: { not: null } }, // Tiene teléfono (confirmado en WhatsApp)
+              { paymentStatus: { not: 'pending' } } // Pago aprobado (aunque no tenga teléfono aún)
+            ]
+          },
           select: {
             id: true,
             orderNumber: true,
