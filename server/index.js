@@ -4483,17 +4483,39 @@ app.post('/api/payments/mercadopago/create-preference', corsMiddleware, async (r
       throw new Error('No se pudo generar la preferencia de pago');
     }
   } catch (error) {
+    // Logging detallado del error
     console.error('❌ Error al crear preferencia de Mercado Pago:');
     console.error('❌ Error message:', error.message);
     console.error('❌ Error stack:', error.stack);
-    console.error('❌ Error completo:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
     
-    // Si es un error de Mercado Pago API, mostrar más detalles
-    if (error.response) {
-      console.error('❌ Mercado Pago API Response:', error.response.status, error.response.data);
-    }
-    if (error.cause) {
-      console.error('❌ Error cause:', error.cause);
+    // Intentar obtener más información del error
+    try {
+      const errorDetails = {
+        message: error.message,
+        name: error.name,
+        code: error.code,
+        status: error.status,
+        statusCode: error.statusCode
+      };
+      
+      // Si tiene response (error de fetch/axios)
+      if (error.response) {
+        errorDetails.responseStatus = error.response.status;
+        errorDetails.responseData = error.response.data;
+        console.error('❌ Mercado Pago API Response Status:', error.response.status);
+        console.error('❌ Mercado Pago API Response Data:', JSON.stringify(error.response.data, null, 2));
+      }
+      
+      // Si tiene cause
+      if (error.cause) {
+        errorDetails.cause = error.cause;
+        console.error('❌ Error cause:', error.cause);
+      }
+      
+      console.error('❌ Error details:', JSON.stringify(errorDetails, null, 2));
+    } catch (logError) {
+      console.error('❌ Error al loguear detalles:', logError);
+      console.error('❌ Error original (string):', String(error));
     }
     
     res.status(500).json({ 
