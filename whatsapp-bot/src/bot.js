@@ -1785,6 +1785,21 @@ async function handleTransferProof(from, message, userSession) {
                             userSession.paymentLink = null;
                             userSession.step = 'welcome';
                             
+                            // Obtener información del pedido para detectar si es retiro
+                            let isPickup = false;
+                            try {
+                                const order = await apiRequest(`/orders/${orderId}`);
+                                isPickup = order?.delivery_fee === 0 || 
+                                           order?.delivery_fee === null || 
+                                           (order?.notes && order.notes.toUpperCase().includes('RETIRO'));
+                            } catch (error) {
+                                logger.debug('⚠️ No se pudo obtener información del pedido para detectar tipo:', error.message);
+                            }
+                            
+                            const notificationMessage = isPickup 
+                                ? '📱 Te avisaremos cuando esté listo para retirar.'
+                                : '📱 Te avisaremos cuando esté en camino.';
+                            
                             // Enviar mensaje de confirmación
                             await sendMessage(from, `✅ *PAGO APROBADO*
 
@@ -1794,7 +1809,9 @@ async function handleTransferProof(from, message, userSession) {
 
 ⏱️ Tiempo estimado: 30-45 minutos
 
-¡Te avisamos cuando esté listo! 🚚`);
+${notificationMessage}
+
+¡Gracias por tu pedido! ❤️`);
                             return; // Salir de la función, ya procesamos el pago
                         } catch (error) {
                             logger.error('❌ Error al aprobar pedido:', error);
@@ -2258,6 +2275,17 @@ Escribe "09" si querés cambiar el método de pago.`;
                     maximumFractionDigits: 0
                 }).format(orderTotal);
                 
+                // Detectar si es pedido de retiro
+                const isPickup = orderResult?.delivery_fee === 0 || 
+                                orderResult?.delivery_fee === null || 
+                                (orderResult?.notes && orderResult.notes.toUpperCase().includes('RETIRO')) ||
+                                (userSession.pendingOrder?.notes && userSession.pendingOrder.notes.toUpperCase().includes('RETIRO'));
+                
+                // Mensaje según tipo de pedido
+                const notificationMessage = isPickup 
+                    ? '📱 Te avisaremos cuando esté listo para retirar.'
+                    : '📱 Te avisaremos cuando esté en camino.';
+                
                 // Mensaje de confirmación mejorado
                 await sendMessage(from, `✅ *PAGO EN EFECTIVO CONFIRMADO*
 
@@ -2269,7 +2297,7 @@ Escribe "09" si querés cambiar el método de pago.`;
 
 ⏱️ Tiempo estimado: 30-45 minutos
 
-📱 Te avisaremos cuando esté en camino.
+${notificationMessage}
 
 ¡Gracias por tu pedido! ❤️`);
                 
