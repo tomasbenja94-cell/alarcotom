@@ -4941,7 +4941,7 @@ app.post('/api/payments/mercadopago/verify-pending', corsMiddleware, async (req,
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     phone: order.customerPhone,
-                    message: `✅ *PAGO APROBADO*\n\n💰 Tu pago de Mercado Pago fue aprobado correctamente.\n\n🍳 Tu pedido está en preparación.\n\n⏱️ Tiempo estimado: 30-45 minutos\n\n¡Te avisamos cuando esté listo! 🚚`
+                    message: `✅ *PAGO APROBADO*\n\n💰 Tu pago de Mercado Pago fue aprobado correctamente.\n\n⏳ Tu pedido está pendiente de aprobación.\n\nTe notificaremos cuando el administrador lo apruebe y comience la preparación. 🍳`
                   })
                 });
                 
@@ -5209,7 +5209,7 @@ app.post('/api/payments/mercadopago/webhook', async (req, res) => {
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     phone: order.customerPhone,
-                    message: `✅ *PAGO APROBADO*\n\n💰 Tu pago de Mercado Pago fue aprobado correctamente.\n\n🍳 Tu pedido está en preparación.\n\n⏱️ Tiempo estimado: 30-45 minutos\n\n¡Te avisamos cuando esté listo! 🚚`
+                    message: `✅ *PAGO APROBADO*\n\n💰 Tu pago de Mercado Pago fue aprobado correctamente.\n\n⏳ Tu pedido está pendiente de aprobación.\n\nTe notificaremos cuando el administrador lo apruebe y comience la preparación. 🍳`
                   })
                 });
 
