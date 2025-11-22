@@ -2818,6 +2818,99 @@ app.post('/api/orders/:id/approve',
       return res.status(400).json({ error: stateValidation.error });
     }
     
+    // Descontar insumos según las recetas de los productos
+    try {
+      console.log(`📦 [APPROVE ORDER] Descontando insumos para pedido ${order.orderNumber}`);
+      
+      // Obtener todos los items del pedido con sus productos
+      const orderItems = await prisma.orderItem.findMany({
+        where: { orderId: order.id },
+        select: {
+          productId: true,
+          quantity: true
+        }
+      });
+
+      // Acumular los insumos a descontar
+      const ingredientsToDeduct = new Map(); // Map<ingredientId, totalQuantity>
+
+      for (const item of orderItems) {
+        if (!item.productId) continue;
+
+        // Buscar la receta del producto
+        const recipe = await prisma.recipe.findUnique({
+          where: { productId: item.productId }
+        });
+
+        if (!recipe || !recipe.ingredients) continue;
+
+        // Parsear los ingredientes (puede ser JSON string o objeto)
+        let ingredients;
+        try {
+          ingredients = typeof recipe.ingredients === 'string' 
+            ? JSON.parse(recipe.ingredients) 
+            : recipe.ingredients;
+        } catch (e) {
+          console.error(`❌ [APPROVE ORDER] Error parseando ingredientes de receta ${recipe.id}:`, e);
+          continue;
+        }
+
+        if (!Array.isArray(ingredients)) continue;
+
+        // Para cada ingrediente en la receta, calcular la cantidad a descontar
+        for (const ingredient of ingredients) {
+          const ingredientId = ingredient.ingredient_id || ingredient.ingredientId;
+          const quantityPerUnit = parseFloat(ingredient.quantity || 0);
+          
+          if (!ingredientId || isNaN(quantityPerUnit) || quantityPerUnit <= 0) continue;
+
+          // Calcular cantidad total: cantidad por unidad * cantidad del item
+          const totalQuantity = quantityPerUnit * item.quantity;
+
+          // Acumular en el Map
+          if (ingredientsToDeduct.has(ingredientId)) {
+            ingredientsToDeduct.set(ingredientId, ingredientsToDeduct.get(ingredientId) + totalQuantity);
+          } else {
+            ingredientsToDeduct.set(ingredientId, totalQuantity);
+          }
+        }
+      }
+
+      // Descontar los insumos acumulados
+      for (const [ingredientId, totalQuantity] of ingredientsToDeduct.entries()) {
+        try {
+          const ingredient = await prisma.ingredient.findUnique({
+            where: { id: ingredientId }
+          });
+
+          if (!ingredient) {
+            console.warn(`⚠️ [APPROVE ORDER] Insumo ${ingredientId} no encontrado`);
+            continue;
+          }
+
+          const newStock = Math.max(0, (ingredient.currentStock || 0) - totalQuantity);
+
+          await prisma.ingredient.update({
+            where: { id: ingredientId },
+            data: { currentStock: newStock }
+          });
+
+          console.log(`✅ [APPROVE ORDER] Descontado ${totalQuantity} ${ingredient.unit} de ${ingredient.name} (stock: ${ingredient.currentStock} → ${newStock})`);
+        } catch (error) {
+          console.error(`❌ [APPROVE ORDER] Error descontando insumo ${ingredientId}:`, error);
+        }
+      }
+
+      if (ingredientsToDeduct.size > 0) {
+        console.log(`✅ [APPROVE ORDER] Insumos descontados correctamente para pedido ${order.orderNumber}`);
+      } else {
+        console.log(`ℹ️ [APPROVE ORDER] No se encontraron recetas para los productos del pedido ${order.orderNumber}`);
+      }
+    } catch (error) {
+      console.error('❌ [APPROVE ORDER] Error al descontar insumos:', error);
+      // No fallar la aprobación si hay error al descontar insumos, solo loguear
+    }
+
     // Aprobar pedido - cambiar a confirmed y luego a preparing
     const approvedOrder = await prisma.order.update({
       where: { id: req.params.id },
