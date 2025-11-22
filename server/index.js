@@ -7417,11 +7417,12 @@ app.get('/api/health', (req, res) => {
 const execAsync = promisify(exec);
 
 // Wrapper para execAsync con timeout
-const execWithTimeout = (command, timeoutMs = 10000) => {
+const execWithTimeout = (command, timeoutMs) => {
+  const timeout = timeoutMs || 10000;
   return Promise.race([
     execAsync(command),
     new Promise((_, reject) => 
-      setTimeout(() => reject(new Error(`Comando timeout después de ${timeoutMs}ms`)), timeoutMs)
+      setTimeout(() => reject(new Error(`Comando timeout después de ${timeout}ms`)), timeout)
     )
   ]);
 };
