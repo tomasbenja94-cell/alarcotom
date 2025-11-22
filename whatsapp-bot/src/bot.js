@@ -3858,11 +3858,12 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
         }
         userSession.processedOrderIds.add(order.id);
         
+        // Calcular el total correcto sumando extras (se calcula más abajo)
         // Guardar información del pedido en la sesión
         userSession.pendingOrder = {
             orderId: order.id,
             orderCode: order.order_number,
-            total: order.total,
+            total: order.total, // Se actualizará con el total calculado
             items: order.items || [],
             originalMessage: messageText,
             processedAt: Date.now() // Marcar tiempo de procesamiento
@@ -3870,9 +3871,14 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
         userSession.waitingForConfirmation = true;
         userSession.step = 'confirm_web_order';
         
+        // Calcular el total correcto sumando extras
+        let calculatedTotal = 0;
+        
         // Formatear items para mostrar con todas las opciones y extras
         const itemsText = (order.items || []).map((item) => {
-            let text = `• ${item.quantity}x ${item.product_name} - $${(item.subtotal || item.unit_price * item.quantity)?.toLocaleString() || 0}`;
+            const baseSubtotal = item.subtotal || (item.unit_price * item.quantity) || 0;
+            let itemTotal = baseSubtotal;
+            let text = `• ${item.quantity}x ${item.product_name} - $${baseSubtotal.toLocaleString()}`;
             
             if (item.selected_options) {
                 try {
@@ -3880,12 +3886,15 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
                         ? JSON.parse(item.selected_options) 
                         : item.selected_options;
                     
+                    let extrasTotal = 0;
+                    
                     // Si tiene estructura { options: [...], optionsText: [...] }
                     if (options.options && Array.isArray(options.options)) {
                         options.options.forEach((opt) => {
                             const optName = opt.name || opt;
                             const optPrice = opt.price || 0;
                             if (optPrice > 0) {
+                                extrasTotal += optPrice * item.quantity; // Multiplicar por cantidad
                                 text += `\n    └ ${optName} (+$${optPrice.toLocaleString()})`;
                             } else {
                                 text += `\n    └ ${optName}`;
@@ -3896,6 +3905,14 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
                     else if (options.optionsText && Array.isArray(options.optionsText)) {
                         options.optionsText.forEach((optText) => {
                             text += `\n    └ ${optText}`;
+                            // Intentar extraer precio del texto si tiene formato (+$XX)
+                            const priceMatch = optText.match(/\(\+\$([\d.,]+)\)/);
+                            if (priceMatch) {
+                                const price = parseFloat(priceMatch[1].replace(/[.,]/g, ''));
+                                if (!isNaN(price)) {
+                                    extrasTotal += price * item.quantity;
+                                }
+                            }
                         });
                     }
                     // Si es un array directo
@@ -3903,9 +3920,18 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
                         options.forEach((opt) => {
                             if (typeof opt === 'string') {
                                 text += `\n    └ ${opt}`;
+                                // Intentar extraer precio del texto si tiene formato (+$XX)
+                                const priceMatch = opt.match(/\(\+\$([\d.,]+)\)/);
+                                if (priceMatch) {
+                                    const price = parseFloat(priceMatch[1].replace(/[.,]/g, ''));
+                                    if (!isNaN(price)) {
+                                        extrasTotal += price * item.quantity;
+                                    }
+                                }
                             } else if (opt.name) {
                                 const optPrice = opt.price || 0;
                                 if (optPrice > 0) {
+                                    extrasTotal += optPrice * item.quantity;
                                     text += `\n    └ ${opt.name} (+$${optPrice.toLocaleString()})`;
                                 } else {
                                     text += `\n    └ ${opt.name}`;
@@ -3920,9 +3946,18 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
                             categoryOptions.forEach((opt) => {
                                 if (typeof opt === 'string') {
                                     text += `\n    └ ${opt}`;
+                                    // Intentar extraer precio del texto si tiene formato (+$XX)
+                                    const priceMatch = opt.match(/\(\+\$([\d.,]+)\)/);
+                                    if (priceMatch) {
+                                        const price = parseFloat(priceMatch[1].replace(/[.,]/g, ''));
+                                        if (!isNaN(price)) {
+                                            extrasTotal += price * item.quantity;
+                                        }
+                                    }
                                 } else if (opt.name) {
                                     const optPrice = opt.price || 0;
                                     if (optPrice > 0) {
+                                        extrasTotal += optPrice * item.quantity;
                                         text += `\n    └ ${opt.name} (+$${optPrice.toLocaleString()})`;
                                     } else {
                                         text += `\n    └ ${opt.name}`;
@@ -3931,6 +3966,8 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
                             });
                         });
                     }
+                    
+                    itemTotal = baseSubtotal + extrasTotal;
                 } catch (e) {
                     // Si falla el parsing, intentar mostrar como string
                     logger.debug(`⚠️ Error parseando opciones para ${item.product_name}:`, e);
@@ -3939,8 +3976,13 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
                     }
                 }
             }
+            
+            calculatedTotal += itemTotal;
             return text;
         }).join('\n');
+        
+        // Usar el total calculado si es diferente del total del pedido
+        const finalTotal = calculatedTotal > 0 ? calculatedTotal : (order.total || 0);
         
         // Detectar si es retiro o delivery
         // Verificar en notes primero (más confiable) - buscar "RETIRO EN LOCAL" o "RETIRO"
@@ -3965,13 +4007,19 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
             addressLine = `📍 *Dirección:* ${order.customer_address}`;
         }
         
+        // Actualizar el total en la sesión con el total calculado
+        if (finalTotal > 0 && finalTotal !== order.total) {
+            userSession.pendingOrder.total = finalTotal;
+            logger.info(`💰 [ORDER CONFIRM] Total recalculado: $${order.total} → $${finalTotal}`);
+        }
+        
         // Mensaje de confirmación
         const confirmMessage = `✅ *¡Pedido encontrado!*
 
 🆔 *Código:* ${order.order_number}
 👤 *Cliente:* ${order.customer_name}
 ${addressLine}
-💰 *Total:* $${order.total?.toLocaleString() || 0}
+💰 *Total:* $${finalTotal.toLocaleString()}
 
 📋 *Tu pedido:*
 ${itemsText}
@@ -4248,13 +4296,20 @@ async function updateWebOrderPayment(from, userSession, paymentMethod) {
 
         logger.info(`📱 Actualizando pedido ${orderId} con JID: ${customerJid}`);
 
-        // Actualizar el pedido en la base de datos (incluyendo el JID SIEMPRE)
+        // Actualizar el pedido en la base de datos (incluyendo el JID SIEMPRE y el total recalculado)
         const updateData = {
             customer_phone: customerJid, // Guardar JID directamente
             payment_method: paymentMethod,
             payment_status: paymentStatus,
             status: orderStatus
         };
+        
+        // Si hay un total recalculado en la sesión, incluirlo
+        if (userSession.pendingOrder?.total) {
+            updateData.total = userSession.pendingOrder.total;
+            updateData.subtotal = userSession.pendingOrder.total; // Asumir que subtotal = total si no hay delivery fee
+            logger.info(`💰 [UPDATE ORDER] Actualizando total a: $${userSession.pendingOrder.total}`);
+        }
         
         logger.info(`📝 Datos de actualización:`, JSON.stringify(updateData, null, 2));
         
