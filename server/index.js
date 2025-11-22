@@ -4471,6 +4471,48 @@ app.post('/api/payments/mercadopago/create-preference', corsMiddleware, async (r
       hasInitPoint: !!preference.init_point
     });
 
+    // Guardar preference_id en el pedido si existe orderNumber
+    if (preference && preference.id && orderNumber) {
+      try {
+        // Buscar el pedido por orderNumber
+        const order = await prisma.order.findUnique({
+          where: { orderNumber: orderNumber }
+        });
+        
+        if (order) {
+          // Actualizar el campo notes con el preference_id en formato JSON
+          let notesData = {};
+          if (order.notes) {
+            try {
+              notesData = JSON.parse(order.notes);
+            } catch (e) {
+              // Si notes no es JSON válido, mantener el texto original
+              notesData = { originalNotes: order.notes };
+            }
+          }
+          
+          // Agregar el preference_id
+          notesData.mpPreferenceId = preference.id;
+          notesData.preference_id = preference.id; // También guardar con este nombre para compatibilidad
+          
+          // Actualizar el pedido
+          await prisma.order.update({
+            where: { id: order.id },
+            data: {
+              notes: JSON.stringify(notesData)
+            }
+          });
+          
+          console.log(`✅ [Mercado Pago] Preference ID ${preference.id} guardado en pedido ${orderNumber}`);
+        } else {
+          console.warn(`⚠️ [Mercado Pago] No se encontró pedido con orderNumber: ${orderNumber}`);
+        }
+      } catch (updateError) {
+        console.warn(`⚠️ [Mercado Pago] No se pudo guardar preference_id en el pedido: ${updateError.message}`);
+        // No fallar la creación de la preferencia si no se puede guardar el preference_id
+      }
+    }
+
     if (preference && preference.init_point) {
       res.json({
         id: preference.id,
@@ -4731,137 +4773,139 @@ app.post('/api/payments/mercadopago/verify-pending', corsMiddleware, async (req,
           throw new Error('Mercado Pago access token no disponible');
         }
         
-        // Buscar pagos en Mercado Pago - primero sin filtrar por estado
-        // Luego verificar el estado de cada pago encontrado
-        // Intentar buscar con diferentes formatos del orderNumber
-        const searchTerms = [
-          order.orderNumber, // #0005
-          order.orderNumber.replace('#', ''), // 0005
-          `#${order.orderNumber.replace('#', '').padStart(4, '0')}`, // #0005 (normalizado)
-        ];
-        
-        let foundPayment = null;
-        
-        for (const searchTerm of searchTerms) {
-          const searchUrl = `https://api.mercadopago.com/v1/payments/search?external_reference=${encodeURIComponent(searchTerm)}`;
-          
-          console.log(`   🔍 Buscando en Mercado Pago con: "${searchTerm}"`);
-        
-        // Agregar timeout de 10 segundos para cada búsqueda
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
-        
-          const searchResponse = await fetch(searchUrl, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json'
-            },
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId);
-          
-          if (searchResponse.ok) {
-            const searchResult = await searchResponse.json();
-            
-            console.log(`   📊 Resultados con "${searchTerm}": ${searchResult.results?.length || 0} pagos encontrados`);
-            
-            if (searchResult.results && searchResult.results.length > 0) {
-              // Buscar el primer pago aprobado
-              const approvedPayment = searchResult.results.find(p => p.status === 'approved');
-              
-              if (approvedPayment) {
-                foundPayment = approvedPayment;
-                console.log(`   ✅ Pago aprobado encontrado con término "${searchTerm}"`);
-                break; // Salir del loop si encontramos un pago aprobado
-              } else {
-                // Guardar todos los pagos encontrados para mostrar en el resultado
-                if (!foundPayment && searchResult.results.length > 0) {
-                  foundPayment = { 
-                    ...searchResult.results[0], 
-                    allPayments: searchResult.results 
-                  };
-                }
-              }
+        // Intentar obtener preference_id del campo notes (formato JSON)
+        let preferenceId = null;
+        if (order.notes) {
+          try {
+            const notesData = JSON.parse(order.notes);
+            if (notesData.mpPreferenceId || notesData.preference_id) {
+              preferenceId = notesData.mpPreferenceId || notesData.preference_id;
+              console.log(`   🔑 Preference ID encontrado en notes: ${preferenceId}`);
             }
-          } else {
-            const errorText = await searchResponse.text();
-            console.log(`   ⚠️ Error con "${searchTerm}": ${searchResponse.status}`);
+          } catch (e) {
+            // Si notes no es JSON, intentar buscar el preference_id directamente en el texto
+            const prefIdMatch = order.notes.match(/preference[_-]?id[:\s]+([a-zA-Z0-9_-]+)/i);
+            if (prefIdMatch && prefIdMatch[1]) {
+              preferenceId = prefIdMatch[1];
+              console.log(`   🔑 Preference ID encontrado en notes (texto): ${preferenceId}`);
+            }
           }
         }
         
-        // Estrategia 2: Si no encontramos por external_reference, buscar por fecha y monto
-        if (!foundPayment || foundPayment.status !== 'approved') {
-          console.log(`   🔍 No se encontró pago aprobado por external_reference, buscando por fecha y monto...`);
+        let foundPayment = null;
+        
+        // Estrategia 1: Buscar pagos asociados a la preferencia específica
+        if (preferenceId) {
+          console.log(`   🔍 Buscando pagos asociados a la preferencia: ${preferenceId}`);
           
-          // Buscar pagos del día de creación del pedido
-          const orderDate = new Date(order.createdAt);
-          const startDate = new Date(orderDate);
-          startDate.setHours(0, 0, 0, 0);
-          const endDate = new Date(orderDate);
-          endDate.setHours(23, 59, 59, 999);
-          
-          // Formato de fecha para Mercado Pago: YYYY-MM-DDTHH:mm:ss.sss-03:00
-          const startDateStr = startDate.toISOString().replace('Z', '-03:00');
-          const endDateStr = endDate.toISOString().replace('Z', '-03:00');
-          
-          // Buscar pagos aprobados del día con monto similar (con margen de ±10%)
-          const minAmount = order.total * 0.9;
-          const maxAmount = order.total * 1.1;
-          
-          const searchUrlByDate = `https://api.mercadopago.com/v1/payments/search?status=approved&date_created.from=${startDateStr}&date_created.to=${endDateStr}`;
-          
-          console.log(`   🔍 Buscando pagos aprobados del ${startDateStr} al ${endDateStr}`);
-          console.log(`   💰 Buscando montos entre $${minAmount.toFixed(2)} y $${maxAmount.toFixed(2)}`);
-          
-          const controller2 = new AbortController();
-          const timeoutId2 = setTimeout(() => controller2.abort(), 15000);
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000);
           
           try {
-            const searchResponse2 = await fetch(searchUrlByDate, {
+            // Buscar pagos por preference_id
+            const searchUrl = `https://api.mercadopago.com/v1/payments/search?preference_id=${encodeURIComponent(preferenceId)}`;
+            
+            const searchResponse = await fetch(searchUrl, {
               method: 'GET',
               headers: {
                 'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json'
               },
-              signal: controller2.signal
+              signal: controller.signal
             });
             
-            clearTimeout(timeoutId2);
+            clearTimeout(timeoutId);
             
-            if (searchResponse2.ok) {
-              const searchResult2 = await searchResponse2.json();
+            if (searchResponse.ok) {
+              const searchResult = await searchResponse.json();
               
-              console.log(`   📊 Pagos aprobados del día: ${searchResult2.results?.length || 0} encontrados`);
+              console.log(`   📊 Pagos encontrados para preference_id: ${searchResult.results?.length || 0}`);
               
-              if (searchResult2.results && searchResult2.results.length > 0) {
-                // Buscar pagos con monto similar
-                const matchingPayments = searchResult2.results.filter(p => {
-                  const amount = parseFloat(p.transaction_amount);
-                  return amount >= minAmount && amount <= maxAmount;
-                });
+              if (searchResult.results && searchResult.results.length > 0) {
+                // Buscar el primer pago aprobado
+                const approvedPayment = searchResult.results.find(p => p.status === 'approved');
                 
-                console.log(`   💰 Pagos con monto similar ($${minAmount.toFixed(2)}-$${maxAmount.toFixed(2)}): ${matchingPayments.length} encontrados`);
-                
-                if (matchingPayments.length > 0) {
-                  // Si hay solo uno, es muy probable que sea el correcto
-                  if (matchingPayments.length === 1) {
-                    foundPayment = matchingPayments[0];
-                    console.log(`   ✅ Pago único encontrado por fecha y monto: ${foundPayment.id}`);
-                    console.log(`   📋 External reference del pago: ${foundPayment.external_reference}`);
-                  } else {
-                    // Si hay varios, mostrar todos para que el admin decida
-                    console.log(`   ⚠️ Múltiples pagos encontrados por fecha y monto: ${matchingPayments.length}`);
-                    // Usar el primero como candidato
-                    foundPayment = matchingPayments[0];
-                    console.log(`   💡 Usando el primer pago encontrado: ${foundPayment.id}`);
-                  }
+                if (approvedPayment) {
+                  foundPayment = approvedPayment;
+                  console.log(`   ✅ Pago aprobado encontrado para preference_id: ${preferenceId}`);
+                } else {
+                  // Hay pagos pero ninguno está aprobado
+                  foundPayment = { 
+                    ...searchResult.results[0], 
+                    allPayments: searchResult.results 
+                  };
+                  console.log(`   ⏳ Pagos encontrados pero no aprobados para preference_id: ${preferenceId}`);
                 }
               }
+            } else {
+              const errorText = await searchResponse.text();
+              console.log(`   ⚠️ Error buscando por preference_id: ${searchResponse.status} - ${errorText}`);
             }
           } catch (fetchError) {
-            console.log(`   ⚠️ Error buscando por fecha/monto: ${fetchError.message}`);
+            console.log(`   ⚠️ Error buscando por preference_id: ${fetchError.message}`);
+          }
+        }
+        
+        // Estrategia 2: Si no encontramos por preference_id, buscar por external_reference (fallback)
+        if (!foundPayment || foundPayment.status !== 'approved') {
+          console.log(`   🔍 No se encontró pago aprobado por preference_id, buscando por external_reference...`);
+          
+          const searchTerms = [
+            order.orderNumber, // #0005
+            order.orderNumber.replace('#', ''), // 0005
+            `#${order.orderNumber.replace('#', '').padStart(4, '0')}`, // #0005 (normalizado)
+          ];
+          
+          for (const searchTerm of searchTerms) {
+            const searchUrl = `https://api.mercadopago.com/v1/payments/search?external_reference=${encodeURIComponent(searchTerm)}`;
+            
+            console.log(`   🔍 Buscando en Mercado Pago con external_reference: "${searchTerm}"`);
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
+            
+            try {
+              const searchResponse = await fetch(searchUrl, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json'
+                },
+                signal: controller.signal
+              });
+              
+              clearTimeout(timeoutId);
+              
+              if (searchResponse.ok) {
+                const searchResult = await searchResponse.json();
+                
+                console.log(`   📊 Resultados con "${searchTerm}": ${searchResult.results?.length || 0} pagos encontrados`);
+                
+                if (searchResult.results && searchResult.results.length > 0) {
+                  // Buscar el primer pago aprobado
+                  const approvedPayment = searchResult.results.find(p => p.status === 'approved');
+                  
+                  if (approvedPayment) {
+                    foundPayment = approvedPayment;
+                    console.log(`   ✅ Pago aprobado encontrado con external_reference "${searchTerm}"`);
+                    break; // Salir del loop si encontramos un pago aprobado
+                  } else {
+                    // Guardar todos los pagos encontrados para mostrar en el resultado
+                    if (!foundPayment && searchResult.results.length > 0) {
+                      foundPayment = { 
+                        ...searchResult.results[0], 
+                        allPayments: searchResult.results 
+                      };
+                    }
+                  }
+                }
+              } else {
+                const errorText = await searchResponse.text();
+                console.log(`   ⚠️ Error con "${searchTerm}": ${searchResponse.status}`);
+              }
+            } catch (fetchError) {
+              console.log(`   ⚠️ Error buscando por external_reference "${searchTerm}": ${fetchError.message}`);
+            }
           }
         }
         
