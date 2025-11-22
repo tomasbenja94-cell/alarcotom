@@ -1,10 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { adminApi } from '../../../lib/api';
-
-// Normalizar API_URL igual que en api.ts
-let rawApiUrl = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
-rawApiUrl = rawApiUrl.replace(/\/+$/, '');
-const API_URL = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl}/api`;
+import { adminApi, systemApi } from '../../../lib/api';
 
 interface ServiceStatus {
   status: string;
@@ -36,67 +31,26 @@ export default function SystemConfig() {
   const logsIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const statusIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Cargar logs con timeout
+  // Cargar logs usando systemApi
   const loadLogs = async (service: 'backend' | 'whatsapp-bot', lines: number = 100) => {
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 segundos timeout
-      
-      const response = await fetch(`${API_URL}/system/logs/${service}?lines=${lines}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
-        },
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
+      const data = await systemApi.getLogs(service, lines);
       return data.logs || '';
     } catch (error: any) {
-      if (error.name === 'AbortError') {
-        console.warn(`Timeout cargando logs de ${service}`);
-        return `⏱️ Timeout: El servidor tardó demasiado en responder. El proxy puede tener un timeout muy corto.`;
-      }
       console.error(`Error cargando logs de ${service}:`, error);
       return `❌ Error al cargar logs: ${error instanceof Error ? error.message : 'Error desconocido'}`;
     }
   };
 
-  // Cargar estado del sistema con timeout
+  // Cargar estado del sistema usando systemApi (mejor manejo de errores y CORS)
   const loadSystemStatus = async () => {
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 segundos timeout
-      
-      const response = await fetch(`${API_URL}/system/status`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
-        },
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
+      const data = await systemApi.getStatus();
       setSystemStatus(data);
       setError(null); // Limpiar error si la petición fue exitosa
     } catch (error: any) {
-      if (error.name === 'AbortError') {
-        console.warn('Timeout cargando estado del sistema');
-        setError('⏱️ Timeout: El servidor tardó demasiado en responder. El proxy puede tener un timeout muy corto.');
-      } else {
-        console.error('Error cargando estado:', error);
-        setError(`Error al cargar estado: ${error instanceof Error ? error.message : 'Error desconocido'}`);
-      }
+      console.error('Error cargando estado:', error);
+      setError(`Error al cargar estado: ${error instanceof Error ? error.message : 'Error desconocido'}`);
     }
   };
 
@@ -149,19 +103,7 @@ export default function SystemConfig() {
     setSuccess(null);
 
     try {
-      const response = await fetch(`${API_URL}/system/whatsapp/disconnect`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Error al desconectar WhatsApp');
-      }
-
-      const data = await response.json();
+      const data = await systemApi.disconnectWhatsApp();
       setSuccess(data.message || 'WhatsApp desconectado correctamente');
       
       // Recargar logs después de un momento
@@ -188,19 +130,7 @@ export default function SystemConfig() {
     setSuccess(null);
 
     try {
-      const response = await fetch(`${API_URL}/system/restart/${service}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Error al reiniciar servicio');
-      }
-
-      const data = await response.json();
+      const data = await systemApi.restartService(service);
       setSuccess(data.message || `Servicio ${serviceName} reiniciado correctamente`);
       
       // Recargar estado después de un momento
