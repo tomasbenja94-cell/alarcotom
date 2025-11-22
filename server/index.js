@@ -7516,14 +7516,39 @@ app.options('/api/system/status', corsMiddleware, (req, res) => {
 // Obtener estado de servicios PM2
 app.get('/api/system/status', corsMiddleware, authenticateAdmin, async (req, res) => {
   try {
-    // Usar timeout más largo y mejor manejo de errores
-    const { stdout } = await execWithTimeout('pm2 jlist', 10000).catch((error) => {
+    // Usar timeout más corto para respuesta más rápida
+    const { stdout } = await execWithTimeout('pm2 jlist', 3000).catch((error) => {
       console.error('❌ Error ejecutando pm2 jlist:', error.message);
-      throw new Error(`Error al obtener estado de PM2: ${error.message}`);
+      // Si falla, devolver estado básico en lugar de error
+      return res.json({
+        services: {
+          backend: {
+            status: 'unknown',
+            uptime: 0,
+            restarts: 0,
+            memory: 0,
+            cpu: 0,
+            error: 'No se pudo obtener estado de PM2'
+          },
+          'whatsapp-bot': {
+            status: 'unknown',
+            uptime: 0,
+            restarts: 0,
+            memory: 0,
+            cpu: 0,
+            error: 'No se pudo obtener estado de PM2'
+          }
+        }
+      });
     });
     
     if (!stdout || stdout.trim() === '') {
-      return res.status(500).json({ error: 'PM2 no devolvió datos' });
+      return res.json({
+        services: {
+          backend: { status: 'unknown', uptime: 0, restarts: 0, memory: 0, cpu: 0 },
+          'whatsapp-bot': { status: 'unknown', uptime: 0, restarts: 0, memory: 0, cpu: 0 }
+        }
+      });
     }
     
     const processes = JSON.parse(stdout);
