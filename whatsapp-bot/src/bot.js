@@ -4236,10 +4236,10 @@ async function createOrderInDatabase(from, userSession) {
             customer_name: 'Cliente WhatsApp',
             customer_phone: customerJid, // Usar JID directamente
             customer_address: deliveryAddress,
-            status: userSession.paymentMethod === 'cash' ? 'confirmed' : 'pending',
+            status: 'pending', // SIEMPRE 'pending' inicialmente, independientemente del método de pago
             payment_method: userSession.paymentMethod === 'transfer' ? 'Transferencia' : 
                            userSession.paymentMethod === 'mercadopago' ? 'Mercado Pago' : 'Efectivo',
-            payment_status: userSession.paymentMethod === 'cash' ? 'completed' : 'pending',
+            payment_status: userSession.paymentMethod === 'cash' ? 'completed' : 'pending', // Para efectivo, payment_status = 'completed' (pago se hará al recibir)
             subtotal: parseFloat(orderTotal),
             delivery_fee: 0,
             total: parseFloat(orderTotal),
