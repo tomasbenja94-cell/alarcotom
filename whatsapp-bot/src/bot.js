@@ -1803,15 +1803,20 @@ async function handleTransferProof(from, message, userSession) {
                 } else {
                     // El pago no está aprobado aún
                     logger.warn(`⚠️ [Mercado Pago] Pago aún no confirmado para preference_id: ${preferenceId}`);
+                    logger.warn(`⚠️ [Mercado Pago] Estado recibido:`, JSON.stringify(paymentStatus, null, 2));
                     
                     // Resetear sesión pero mantener el flujo de pago
                     userSession.waitingForTransferProof = false;
                     
                     // Enviar mensaje indicando que aún no está confirmado
                     const mpLink = userSession.pendingOrder?.mercadoPagoLink || 'el enlace enviado';
-                    await sendMessage(from, `❗ Aún no recibimos la confirmación del pago.
+                    const orderNumber = userSession.pendingOrder?.orderNumber || 'tu pedido';
+                    
+                    await sendMessage(from, `⏳ *Pago en verificación*
 
-Si ya pagaste, esperá unos instantes o revisá que el comprobante corresponda al enlace enviado.
+💰 Estamos verificando tu pago de Mercado Pago para el pedido ${orderNumber}.
+
+Si ya realizaste el pago, puede tardar unos minutos en procesarse. Te notificaremos automáticamente cuando se confirme.
 
 🔄 Escribí "09" si querés cambiar el método de pago.`);
                     return; // Salir de la función
@@ -2062,7 +2067,32 @@ async function handlePaymentSelection(from, body, userSession) {
             try {
                 // Obtener información del pedido para generar el link
                 const orderTotal = userSession.pendingOrder?.total || 0;
-                const orderNumber = userSession.pendingOrder?.orderNumber || userSession.pendingOrder?.orderId || 'N/A';
+                // SIEMPRE usar orderNumber (formato #0005), nunca orderId (UUID)
+                let orderNumber = userSession.pendingOrder?.orderNumber;
+                
+                // Si no hay orderNumber pero hay orderId, buscar el pedido para obtener el orderNumber
+                if (!orderNumber && userSession.pendingOrder?.orderId) {
+                    try {
+                        const order = await apiRequest(`/orders/${userSession.pendingOrder.orderId}`);
+                        if (order && order.order_number) {
+                            orderNumber = order.order_number;
+                            // Actualizar la sesión con el orderNumber correcto
+                            if (!userSession.pendingOrder) {
+                                userSession.pendingOrder = {};
+                            }
+                            userSession.pendingOrder.orderNumber = orderNumber;
+                            logger.info(`✅ [Mercado Pago] OrderNumber obtenido del pedido: ${orderNumber}`);
+                        }
+                    } catch (error) {
+                        logger.warn(`⚠️ [Mercado Pago] No se pudo obtener orderNumber del pedido: ${error.message}`);
+                    }
+                }
+                
+                // Si aún no hay orderNumber, usar un fallback temporal
+                if (!orderNumber || orderNumber === 'N/A') {
+                    orderNumber = `TEMP-${Date.now()}`;
+                    logger.warn(`⚠️ [Mercado Pago] Usando orderNumber temporal: ${orderNumber}`);
+                }
                 
                 // Validar que el monto sea válido
                 const validAmount = parseFloat(orderTotal);
