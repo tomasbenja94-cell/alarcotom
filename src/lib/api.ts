@@ -429,6 +429,7 @@ export const systemApi = {
   getLogs: (service: string, lines: number = 50) => request(`/system/logs/${service}?lines=${lines}`),
   disconnectWhatsApp: () => request('/system/whatsapp/disconnect', { method: 'POST' }),
   restartService: (service: 'backend' | 'whatsapp-bot' | 'all') => request(`/system/restart/${service}`, { method: 'POST' }),
-  getQRCode: () => request('/system/whatsapp/qr')
+  getQRCode: () => request('/system/whatsapp/qr'),
+  updateService: (service: 'backend' | 'whatsapp-bot' | 'all') => request(`/system/update/${service}`, { method: 'POST' })
 };
 
