@@ -4646,6 +4646,198 @@ app.get('/api/payments/mercadopago/check-payment/:preferenceId', corsMiddleware,
   }
 });
 
+// Endpoint para verificar y aprobar pagos pendientes de Mercado Pago manualmente
+app.post('/api/payments/mercadopago/verify-pending', corsMiddleware, async (req, res) => {
+  try {
+    const { orderNumber } = req.body;
+    
+    console.log('🔍 [Mercado Pago Verify] Verificando pagos pendientes...');
+    
+    // Cargar configuración de Mercado Pago
+    if (!mercadoPagoConfig) {
+      const mpConfig = await getMercadoPagoConfig();
+      if (mpConfig && mpConfig.accessToken) {
+        mercadoPagoConfig = new MercadoPagoConfig({
+          accessToken: mpConfig.accessToken
+        });
+        mercadoPagoConfigured = true;
+      }
+    }
+    
+    if (!mercadoPagoConfig) {
+      return res.status(503).json({ 
+        error: 'Mercado Pago no está configurado',
+        status: 'error'
+      });
+    }
+    
+    // Buscar pedidos pendientes de Mercado Pago
+    const whereClause = {
+      paymentMethod: 'Mercado Pago',
+      paymentStatus: 'pending',
+      status: 'pending'
+    };
+    
+    if (orderNumber) {
+      whereClause.orderNumber = orderNumber;
+    }
+    
+    const pendingOrders = await prisma.order.findMany({
+      where: whereClause,
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+        paymentStatus: true,
+        customerPhone: true,
+        total: true,
+        createdAt: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+    
+    console.log(`📋 [Mercado Pago Verify] Encontrados ${pendingOrders.length} pedidos pendientes`);
+    
+    if (pendingOrders.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No hay pedidos pendientes para verificar',
+        approved: 0,
+        pending: 0
+      });
+    }
+    
+    const paymentClient = new Payment(mercadoPagoConfig);
+    let approvedCount = 0;
+    let pendingCount = 0;
+    const results = [];
+    
+    for (const order of pendingOrders) {
+      console.log(`\n🔍 [Mercado Pago Verify] Verificando pedido ${order.orderNumber}...`);
+      
+      try {
+        // Buscar pagos en Mercado Pago usando la API REST directamente
+        const searchUrl = `https://api.mercadopago.com/v1/payments/search?external_reference=${encodeURIComponent(order.orderNumber)}&status=approved`;
+        
+        // Obtener el access token
+        let accessToken = mercadoPagoAccessToken;
+        if (!accessToken) {
+          const mpConfig = await getMercadoPagoConfig();
+          accessToken = mpConfig?.accessToken;
+        }
+        
+        if (!accessToken) {
+          throw new Error('Mercado Pago access token no disponible');
+        }
+        
+        const searchResponse = await fetch(searchUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (searchResponse.ok) {
+          const searchResult = await searchResponse.json();
+          
+          if (searchResult.results && searchResult.results.length > 0) {
+            // Encontramos un pago aprobado
+            const payment = searchResult.results[0];
+            
+            console.log(`✅ [Mercado Pago Verify] Pago encontrado y aprobado para ${order.orderNumber}`);
+            console.log(`   Payment ID: ${payment.id}`);
+            console.log(`   Amount: $${payment.transaction_amount}`);
+            
+            // Actualizar el pedido
+            await prisma.order.update({
+              where: { id: order.id },
+              data: {
+                status: 'confirmed',
+                paymentStatus: 'approved'
+              }
+            });
+            
+            console.log(`✅ [Mercado Pago Verify] Pedido ${order.orderNumber} actualizado a confirmed/approved`);
+            
+            // Notificar al cliente vía WhatsApp
+            if (order.customerPhone) {
+              try {
+                const botWebhookUrl = process.env.BOT_WEBHOOK_URL || 'http://localhost:3001';
+                const notifyUrl = botWebhookUrl.endsWith('/') 
+                  ? `${botWebhookUrl}notify-payment` 
+                  : `${botWebhookUrl}/notify-payment`;
+                
+                await fetch(notifyUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    phone: order.customerPhone,
+                    message: `✅ *PAGO APROBADO*\n\n💰 Tu pago de Mercado Pago fue aprobado correctamente.\n\n🍳 Tu pedido está en preparación.\n\n⏱️ Tiempo estimado: 30-45 minutos\n\n¡Te avisamos cuando esté listo! 🚚`
+                  })
+                });
+                
+                console.log(`📱 [Mercado Pago Verify] Cliente ${order.customerPhone} notificado`);
+              } catch (notifyError) {
+                console.warn(`⚠️ [Mercado Pago Verify] No se pudo notificar al cliente: ${notifyError.message}`);
+              }
+            }
+            
+            approvedCount++;
+            results.push({
+              orderNumber: order.orderNumber,
+              status: 'approved',
+              paymentId: payment.id
+            });
+          } else {
+            console.log(`⏳ [Mercado Pago Verify] No se encontró pago aprobado para ${order.orderNumber}`);
+            pendingCount++;
+            results.push({
+              orderNumber: order.orderNumber,
+              status: 'pending',
+              message: 'Pago no encontrado o aún no aprobado'
+            });
+          }
+        } else {
+          const errorText = await searchResponse.text();
+          console.warn(`⚠️ [Mercado Pago Verify] Error al buscar pagos para ${order.orderNumber}: ${searchResponse.status} - ${errorText}`);
+          pendingCount++;
+          results.push({
+            orderNumber: order.orderNumber,
+            status: 'error',
+            message: `Error al buscar: ${searchResponse.status}`
+          });
+        }
+      } catch (error) {
+        console.error(`❌ [Mercado Pago Verify] Error verificando pedido ${order.orderNumber}:`, error.message);
+        pendingCount++;
+        results.push({
+          orderNumber: order.orderNumber,
+          status: 'error',
+          message: error.message
+        });
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: `Verificación completada: ${approvedCount} aprobados, ${pendingCount} pendientes/errores`,
+      approved: approvedCount,
+      pending: pendingCount,
+      results: results
+    });
+    
+  } catch (error) {
+    console.error('❌ [Mercado Pago Verify] Error general:', error);
+    res.status(500).json({ 
+      error: 'Error al verificar pagos',
+      details: error.message
+    });
+  }
+});
+
 // Endpoint para procesar pago desde redirección (backup del webhook)
 app.post('/api/payments/mercadopago/process-payment', corsMiddleware, async (req, res) => {
   try {
