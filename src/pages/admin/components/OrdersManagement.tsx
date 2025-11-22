@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { ordersApi, deliveryPersonsApi, transfersApi } from '../../../lib/api';
 
 interface Order {
@@ -68,9 +68,44 @@ export default function OrdersManagement() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Estados para notificaciones en tiempo real
+  const [pendingDeliveryCount, setPendingDeliveryCount] = useState(0);
+  const [pendingPickupCount, setPendingPickupCount] = useState(0);
+  const [notificationAnimation, setNotificationAnimation] = useState<'delivery' | 'pickup' | null>(null);
+  const previousOrdersRef = useRef<Order[]>([]);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToast({ message, type });
+  }, []);
+
+  // Función para reproducir sonido de notificación
+  const playNotificationSound = useCallback(() => {
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      
+      const ctx = audioContextRef.current;
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      
+      // Sonido corto y agradable (beep)
+      oscillator.frequency.value = 800;
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+      
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.2);
+    } catch (error) {
+      console.debug('No se pudo reproducir sonido de notificación:', error);
+    }
   }, []);
 
   useEffect(() => {
@@ -127,7 +162,40 @@ export default function OrdersManagement() {
         delivery_code: order.delivery_code || order.deliveryCode,
       }));
 
-      setOrders(normalized.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+      const sortedOrders = normalized.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setOrders(sortedOrders);
+      
+      // Detectar nuevos pedidos y actualizar contadores
+      if (silent && previousOrdersRef.current.length > 0) {
+        const previousOrderIds = new Set(previousOrdersRef.current.map(o => o.id));
+        const newOrders = sortedOrders.filter(o => !previousOrderIds.has(o.id) && o.status === 'pending');
+        
+        if (newOrders.length > 0) {
+          // Contar nuevos pedidos por tipo
+          const newDelivery = newOrders.filter(o => (o.delivery_fee || 0) > 0).length;
+          const newPickup = newOrders.filter(o => (o.delivery_fee || 0) === 0).length;
+          
+          if (newDelivery > 0) {
+            setNotificationAnimation('delivery');
+            playNotificationSound();
+            setTimeout(() => setNotificationAnimation(null), 1000);
+          }
+          if (newPickup > 0) {
+            setNotificationAnimation('pickup');
+            playNotificationSound();
+            setTimeout(() => setNotificationAnimation(null), 1000);
+          }
+        }
+      }
+      
+      // Actualizar contadores de pedidos pendientes
+      const pendingDelivery = sortedOrders.filter(o => o.status === 'pending' && (o.delivery_fee || 0) > 0).length;
+      const pendingPickup = sortedOrders.filter(o => o.status === 'pending' && (o.delivery_fee || 0) === 0).length;
+      setPendingDeliveryCount(pendingDelivery);
+      setPendingPickupCount(pendingPickup);
+      
+      // Guardar estado actual para la próxima comparación
+      previousOrdersRef.current = sortedOrders;
     } catch (error) {
       console.error('Error loading orders:', error);
       if (!silent) {
@@ -802,33 +870,66 @@ export default function OrdersManagement() {
         </div>
       </div>
 
-      {/* Selector de tipo de pedido: DOMICILIO o RETIRO - Mejorado */}
+      {/* Selector de tipo de pedido: DOMICILIO o RETIRO - Mejorado con notificaciones */}
       <div className="bg-white border-2 border-[#E5E5E5] rounded-2xl shadow-md p-4 mb-6">
         <div className="flex gap-3">
           <button
             onClick={() => setDeliveryType('delivery')}
-            className={`flex-1 px-6 py-4 text-sm font-bold transition-all rounded-xl flex items-center justify-center space-x-2 ${
+            className={`flex-1 px-6 py-4 text-sm font-bold transition-all rounded-xl flex items-center justify-center space-x-2 relative ${
               deliveryType === 'delivery'
                 ? 'bg-gradient-to-r from-[#111111] to-[#2A2A2A] text-white border-2 border-[#FFC300] shadow-lg'
                 : 'bg-white text-[#111111] hover:bg-[#F9F9F9] border-2 border-[#E5E5E5] hover:border-[#FFC300]'
-            }`}
+            } ${notificationAnimation === 'delivery' ? 'animate-pulse' : ''}`}
           >
             <span className="text-xl">🚚</span>
             <span>DOMICILIO</span>
+            {pendingDeliveryCount > 0 && (
+              <span 
+                className={`absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shadow-lg ${
+                  notificationAnimation === 'delivery' ? 'animate-bounce' : ''
+                }`}
+                style={{
+                  animation: notificationAnimation === 'delivery' ? 'vibrate 0.3s ease-in-out' : undefined
+                }}
+              >
+                {pendingDeliveryCount > 9 ? '9+' : pendingDeliveryCount}
+              </span>
+            )}
           </button>
           <button
             onClick={() => setDeliveryType('pickup')}
-            className={`flex-1 px-6 py-4 text-sm font-bold transition-all rounded-xl flex items-center justify-center space-x-2 ${
+            className={`flex-1 px-6 py-4 text-sm font-bold transition-all rounded-xl flex items-center justify-center space-x-2 relative ${
               deliveryType === 'pickup'
                 ? 'bg-gradient-to-r from-[#111111] to-[#2A2A2A] text-white border-2 border-[#FFC300] shadow-lg'
                 : 'bg-white text-[#111111] hover:bg-[#F9F9F9] border-2 border-[#E5E5E5] hover:border-[#FFC300]'
-            }`}
+            } ${notificationAnimation === 'pickup' ? 'animate-pulse' : ''}`}
           >
             <span className="text-xl">🏪</span>
             <span>RETIRO</span>
+            {pendingPickupCount > 0 && (
+              <span 
+                className={`absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shadow-lg ${
+                  notificationAnimation === 'pickup' ? 'animate-bounce' : ''
+                }`}
+                style={{
+                  animation: notificationAnimation === 'pickup' ? 'vibrate 0.3s ease-in-out' : undefined
+                }}
+              >
+                {pendingPickupCount > 9 ? '9+' : pendingPickupCount}
+              </span>
+            )}
           </button>
         </div>
       </div>
+      
+      {/* Estilos CSS para animación de vibración */}
+      <style>{`
+        @keyframes vibrate {
+          0%, 100% { transform: translateX(0); }
+          10%, 30%, 50%, 70%, 90% { transform: translateX(-3px); }
+          20%, 40%, 60%, 80% { transform: translateX(3px); }
+        }
+      `}</style>
 
       {/* Filtros y búsqueda - Mejorado */}
       <div className="bg-white border-2 border-[#E5E5E5] rounded-2xl shadow-md p-5 mb-6">
