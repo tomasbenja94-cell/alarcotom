@@ -7569,18 +7569,27 @@ app.post('/api/system/restart/:service', corsMiddleware, authenticateAdmin, asyn
   try {
     const { service } = req.params; // 'backend', 'whatsapp-bot', o 'all'
     
-    if (service === 'all') {
-      await execAsync('pm2 restart all');
-      res.json({ success: true, message: 'Todos los servicios reiniciados correctamente' });
-    } else if (service === 'backend' || service === 'whatsapp-bot') {
-      await execAsync(`pm2 restart ${service}`);
-      res.json({ success: true, message: `Servicio ${service} reiniciado correctamente` });
-    } else {
-      res.status(400).json({ error: 'Servicio no válido. Use: backend, whatsapp-bot, o all' });
-    }
+    // Responder inmediatamente antes de ejecutar el comando (para evitar que el servidor se cierre antes de responder)
+    res.json({ success: true, message: `Comando de reinicio de ${service} enviado. El servidor se reiniciará en breve.` });
+    
+    // Ejecutar el comando después de responder (con timeout para evitar que bloquee)
+    setTimeout(async () => {
+      try {
+        if (service === 'all') {
+          await execAsync('pm2 restart all', { timeout: 5000 });
+        } else if (service === 'backend' || service === 'whatsapp-bot') {
+          await execAsync(`pm2 restart ${service}`, { timeout: 5000 });
+        }
+        console.log(`✅ Servicio ${service} reiniciado correctamente`);
+      } catch (execError) {
+        console.error(`❌ Error ejecutando reinicio de ${service}:`, execError.message);
+      }
+    }, 100);
   } catch (error) {
-    console.error('Error reiniciando servicio:', error);
-    res.status(500).json({ error: 'Error al reiniciar servicio', details: error.message });
+    console.error('Error en endpoint de reinicio:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Error al reiniciar servicio', details: error.message });
+    }
   }
 });
 
