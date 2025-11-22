@@ -7513,7 +7513,7 @@ app.get('/api/system/status', corsMiddleware, authenticateAdmin, async (req, res
     
     const services = {
       backend: processes.find((p) => p.name === 'backend'),
-      'whatsapp-bot': processes.find((p) => p.name === 'whatsapp-bot')
+      'whatsapp-bot': processes.find((p) => p.name === 'whatsapp-bot' || p.name === 'bot')
     };
     
     res.json({
