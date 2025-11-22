@@ -4009,13 +4009,8 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
             }
             
             // Calcular el total del item: base + extras
-            // Si item.subtotal existe y parece correcto, usarlo; si no, calcular desde unit_price + extras
-            const itemSubtotal = item.subtotal || 0;
-            const calculatedItemTotal = baseSubtotal + extrasTotal;
-            
-            // Usar el mayor entre subtotal (que puede incluir extras) y el calculado
-            // Si el subtotal es mayor que el base, probablemente ya incluye extras
-            const itemTotal = itemSubtotal > baseSubtotal ? itemSubtotal : calculatedItemTotal;
+            // Siempre calcular desde unit_price + extras para evitar errores
+            const itemTotal = baseSubtotal + extrasTotal;
             
             // Agregar el total del item al final
             text += `\n$${itemTotal.toLocaleString()}`;
@@ -4024,8 +4019,12 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
             return text;
         }).join('\n');
         
-        // Usar el total calculado si es diferente del total del pedido
-        const finalTotal = calculatedTotal > 0 ? calculatedTotal : (order.total || 0);
+        // Calcular el total final: subtotal de items + delivery fee
+        const deliveryFee = order.delivery_fee || 0;
+        const calculatedSubtotal = calculatedTotal;
+        const finalTotal = calculatedSubtotal + deliveryFee;
+        
+        logger.info(`💰 [ORDER CONFIRM] Cálculo de total: subtotal=${calculatedSubtotal}, deliveryFee=${deliveryFee}, total=${finalTotal}`);
         
         // Detectar si es retiro o delivery
         // Verificar en notes primero (más confiable) - buscar "RETIRO EN LOCAL" o "RETIRO"
