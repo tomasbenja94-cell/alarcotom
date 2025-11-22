@@ -195,6 +195,7 @@ let botMessages = {};
 let isConnecting = false;
 let connectionAttempts = 0;
 let qrGenerated = false;
+let currentQR = null; // Guardar el QR actual para mostrarlo en el panel web
 let reconnectTimeout = null;
 let consecutiveErrors = 0;
 let lastErrorType = null;
@@ -1031,6 +1032,23 @@ webhookApp.post('/notify-order', async (req, res) => {
     }
 });
 
+// Endpoint para obtener el QR code actual
+webhookApp.get('/qr', (req, res) => {
+    if (currentQR) {
+        res.json({ 
+            qr: currentQR, 
+            available: true,
+            message: 'Escanea este código QR con WhatsApp para conectar el bot'
+        });
+    } else {
+        res.json({ 
+            qr: null, 
+            available: false,
+            message: 'No hay QR disponible. El bot está conectado o no se ha generado aún.'
+        });
+    }
+});
+
 webhookApp.listen(3001, () => {
     logger.info('🌐 Servidor webhook iniciado en puerto 3001');
 });
@@ -1102,6 +1120,7 @@ async function startBot() {
         // Cargar mensajes del bot
         await loadBotMessages();
         qrGenerated = false;
+        currentQR = null; // Limpiar QR al iniciar
         
         const hasValidSession = checkValidSession();
         if (hasValidSession) {
@@ -1144,9 +1163,8 @@ async function startBot() {
                 maxCommitRetries: 3, // Aumentado para mejor confiabilidad
                 delayBetweenTriesMs: 3000
             },
-            getMessage: async (key) => ({ conversation: 'Mensaje no disponible' }),
-            // Configuración adicional para mantener conexión estable 24/7
-            printQRInTerminal: true
+            getMessage: async (key) => ({ conversation: 'Mensaje no disponible' })
+            // printQRInTerminal está deprecado - ahora manejamos el QR manualmente en connection.update
         });
 
         const connectionTimeout = setTimeout(() => {
@@ -1171,6 +1189,9 @@ async function startBot() {
                 const { connection, lastDisconnect, qr } = update;
                 
                 if (qr && !qrGenerated) {
+                    // Guardar el QR para mostrarlo en el panel web
+                    currentQR = qr;
+                    
                     console.log('\n🔗 CÓDIGO QR PARA WHATSAPP:\n');
                     console.log('═'.repeat(60));
                     qrcode.generate(qr, { small: true });
@@ -1181,6 +1202,7 @@ async function startBot() {
                     console.log('3. Toca "Vincular un dispositivo"');
                     console.log('4. Escanea el código QR de arriba');
                     console.log('\n⏳ Esperando escaneo... (Tienes 60 segundos)\n');
+                    logger.info('📱 QR disponible en: http://localhost:3001/qr');
                     qrGenerated = true;
                 }
                 
@@ -1209,9 +1231,10 @@ async function startBot() {
                             fs.removeSync(CONFIG.sessionPath);
                             logger.info('🗑️ Sesión eliminada');
                         }
-                        consecutiveErrors = 0;
-                        connectionAttempts = 0;
+                    consecutiveErrors = 0;
+                    connectionAttempts = 0;
                     qrGenerated = false;
+                    currentQR = null; // Limpiar QR al cerrar sesión
                     reconnectTimeout = setTimeout(startBot, 5000);
                 } else if (statusCode === 440 || statusCode === 405) {
                     const errName = statusCode === 440 ? '440' : '405';
@@ -1233,6 +1256,7 @@ async function startBot() {
                         consecutiveErrors = 0;
                         connectionAttempts = 0;
                         qrGenerated = false;
+                        currentQR = null; // Limpiar QR al limpiar sesión
                         const delay = 10000;
                         logger.info(`🔄 Reiniciando con sesión limpia en ${delay/1000}s...`);
                         reconnectTimeout = setTimeout(startBot, delay);
@@ -1256,6 +1280,7 @@ async function startBot() {
                     consecutiveErrors = 0;
                     connectionAttempts = 0;
                     qrGenerated = false;
+                    currentQR = null; // Limpiar QR al tener demasiados errores
                     setTimeout(startBot, 30000);
                 }
             } else if (connection === 'open') {
@@ -1265,6 +1290,7 @@ async function startBot() {
                 connectionAttempts = 0;
                 lastErrorType = null;
                 qrGenerated = false;
+                currentQR = null; // Limpiar QR cuando se conecta exitosamente
                 badMacErrorCount = 0; // Resetear contador de errores Bad MAC al conectar exitosamente
                 
                 botNumber = sock.user?.id?.split(':')[0];
