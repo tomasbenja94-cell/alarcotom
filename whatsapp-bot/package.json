@@ -27,6 +27,7 @@
     "@supabase/supabase-js": "^2.39.0",
     "dotenv": "^16.3.1",
     "qrcode-terminal": "^0.12.0",
+    "qrcode": "^1.5.3",
     "pino": "^8.17.2",
     "pino-pretty": "^10.3.1",
     "node-cron": "^3.0.3",

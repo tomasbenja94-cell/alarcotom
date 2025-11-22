@@ -281,7 +281,7 @@ export default function SystemConfig() {
           <div className="flex flex-col items-center gap-4">
             <div className="bg-white p-4 rounded-lg border-2 border-gray-300">
               <img 
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCode)}`}
+                src={qrCode.startsWith('data:image') ? qrCode : `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCode)}`}
                 alt="QR Code WhatsApp"
                 className="w-64 h-64"
               />

@@ -7,6 +7,7 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
+import QRCode from 'qrcode';
 import pino from 'pino';
 import fs from 'fs-extra';
 import path from 'path';
@@ -1189,8 +1190,22 @@ async function startBot() {
                 const { connection, lastDisconnect, qr } = update;
                 
                 if (qr && !qrGenerated) {
-                    // Guardar el QR para mostrarlo en el panel web
-                    currentQR = qr;
+                    // Convertir QR string a base64 data URL para mostrarlo en el panel web
+                    try {
+                        const qrDataUrl = await QRCode.toDataURL(qr, {
+                            width: 300,
+                            margin: 2,
+                            color: {
+                                dark: '#000000',
+                                light: '#FFFFFF'
+                            }
+                        });
+                        currentQR = qrDataUrl;
+                    } catch (qrError) {
+                        logger.error('Error generando QR como imagen:', qrError);
+                        // Fallback: guardar el string original
+                        currentQR = qr;
+                    }
                     
                     console.log('\n🔗 CÓDIGO QR PARA WHATSAPP:\n');
                     console.log('═'.repeat(60));
