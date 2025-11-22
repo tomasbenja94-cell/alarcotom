@@ -4528,105 +4528,164 @@ app.post('/api/payments/mercadopago/create-preference', corsMiddleware, async (r
 });
 
 // Webhook de Mercado Pago (para recibir notificaciones de pago)
+// Mercado Pago puede enviar notificaciones en diferentes formatos:
+// 1. { type: 'payment', data: { id: '...' } }
+// 2. { action: 'payment.created', data: { id: '...' } }
+// 3. Query string: ?id=123456789
 app.post('/api/payments/mercadopago/webhook', async (req, res) => {
   try {
-    const { type, data } = req.body;
+    // Log completo de la notificación recibida
+    console.log('📦 [Mercado Pago Webhook] Notificación recibida:');
+    console.log('📦 Body completo:', JSON.stringify(req.body, null, 2));
+    console.log('📦 Query params:', JSON.stringify(req.query, null, 2));
+    console.log('📦 Headers:', JSON.stringify(req.headers, null, 2));
 
-    console.log('📦 [Mercado Pago Webhook] Notificación recibida:', { type, data });
+    // Obtener ID del pago de diferentes formatos posibles
+    let paymentId = null;
+    
+    // Formato 1: { type: 'payment', data: { id: '...' } }
+    if (req.body.type === 'payment' && req.body.data?.id) {
+      paymentId = req.body.data.id;
+    }
+    // Formato 2: { action: 'payment.created', data: { id: '...' } }
+    else if (req.body.action && req.body.data?.id) {
+      paymentId = req.body.data.id;
+    }
+    // Formato 3: Query string ?id=123456789
+    else if (req.query.id) {
+      paymentId = req.query.id;
+    }
+    // Formato 4: Body directo con id
+    else if (req.body.id) {
+      paymentId = req.body.id;
+    }
+    // Formato 5: data.id directo
+    else if (req.body.data?.id) {
+      paymentId = req.body.data.id;
+    }
 
-    if (type === 'payment') {
-      const paymentId = data.id;
-      console.log(`💰 [Mercado Pago Webhook] Procesando pago: ${paymentId}`);
-      
-      try {
-        // Obtener información del pago desde Mercado Pago
-        if (!mercadoPagoConfig) {
-          const mpConfig = await getMercadoPagoConfig();
-          if (mpConfig && mpConfig.accessToken) {
-            mercadoPagoConfig = new MercadoPagoConfig({
-              accessToken: mpConfig.accessToken
-            });
-          }
-        }
+    if (!paymentId) {
+      console.warn('⚠️ [Mercado Pago Webhook] No se pudo extraer el ID del pago de la notificación');
+      return res.status(200).json({ received: true, warning: 'No payment ID found' });
+    }
 
-        if (mercadoPagoConfig) {
-          const paymentClient = new Payment(mercadoPagoConfig);
-          const payment = await paymentClient.get({ id: paymentId });
-
-          console.log('💰 [Mercado Pago Webhook] Información del pago:', {
-            id: payment.id,
-            status: payment.status,
-            status_detail: payment.status_detail,
-            external_reference: payment.external_reference,
-            transaction_amount: payment.transaction_amount
+    console.log(`💰 [Mercado Pago Webhook] Procesando pago: ${paymentId}`);
+    
+    try {
+      // Obtener información del pago desde Mercado Pago
+      if (!mercadoPagoConfig) {
+        const mpConfig = await getMercadoPagoConfig();
+        if (mpConfig && mpConfig.accessToken) {
+          mercadoPagoConfig = new MercadoPagoConfig({
+            accessToken: mpConfig.accessToken
           });
+        }
+      }
 
-          // Si el pago está aprobado, actualizar el pedido automáticamente
-          if (payment.status === 'approved' && payment.external_reference) {
-            const orderNumber = payment.external_reference;
-            
-            // Buscar el pedido por order_number
-            const order = await prisma.order.findUnique({
-              where: { orderNumber: orderNumber },
-              select: {
-                id: true,
-                orderNumber: true,
-                status: true,
-                paymentStatus: true,
-                customerPhone: true
+      if (!mercadoPagoConfig) {
+        console.error('❌ [Mercado Pago Webhook] Mercado Pago no está configurado');
+        return res.status(200).json({ received: true, error: 'Mercado Pago not configured' });
+      }
+
+      const paymentClient = new Payment(mercadoPagoConfig);
+      const payment = await paymentClient.get({ id: paymentId });
+
+      console.log('💰 [Mercado Pago Webhook] Información del pago:', {
+        id: payment.id,
+        status: payment.status,
+        status_detail: payment.status_detail,
+        external_reference: payment.external_reference,
+        transaction_amount: payment.transaction_amount,
+        date_approved: payment.date_approved
+      });
+
+      // Si el pago está aprobado, actualizar el pedido automáticamente
+      if (payment.status === 'approved' && payment.external_reference) {
+        const orderNumber = payment.external_reference;
+        
+        console.log(`🔍 [Mercado Pago Webhook] Buscando pedido con orderNumber: ${orderNumber}`);
+        
+        // Buscar el pedido por order_number
+        const order = await prisma.order.findUnique({
+          where: { orderNumber: orderNumber },
+          select: {
+            id: true,
+            orderNumber: true,
+            status: true,
+            paymentStatus: true,
+            customerPhone: true,
+            total: true
+          }
+        });
+
+        if (order) {
+          // Solo actualizar si el pago aún no está aprobado (evitar duplicados)
+          if (order.paymentStatus !== 'approved') {
+            // Actualizar estado del pedido a confirmado y pago aprobado
+            await prisma.order.update({
+              where: { id: order.id },
+              data: {
+                status: 'confirmed',
+                paymentStatus: 'approved'
               }
             });
 
-            if (order) {
-              // Actualizar estado del pedido a confirmado y pago aprobado
-              await prisma.order.update({
-                where: { id: order.id },
-                data: {
-                  status: 'confirmed',
-                  paymentStatus: 'approved'
-                }
-              });
+            console.log(`✅ [Mercado Pago Webhook] Pedido ${orderNumber} aprobado automáticamente`);
 
-              console.log(`✅ [Mercado Pago Webhook] Pedido ${orderNumber} aprobado automáticamente`);
+            // Notificar al cliente vía WhatsApp (si el bot está disponible)
+            if (order.customerPhone) {
+              try {
+                const botWebhookUrl = process.env.BOT_WEBHOOK_URL || 'http://localhost:3001';
+                const notifyUrl = botWebhookUrl.endsWith('/') 
+                  ? `${botWebhookUrl}notify-payment` 
+                  : `${botWebhookUrl}/notify-payment`;
+                
+                console.log(`📱 [Mercado Pago Webhook] Notificando a cliente ${order.customerPhone} vía ${notifyUrl}`);
+                
+                const notifyResponse = await fetch(notifyUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    phone: order.customerPhone,
+                    message: `✅ *PAGO APROBADO*\n\n💰 Tu pago de Mercado Pago fue aprobado correctamente.\n\n🍳 Tu pedido está en preparación.\n\n⏱️ Tiempo estimado: 30-45 minutos\n\n¡Te avisamos cuando esté listo! 🚚`
+                  })
+                });
 
-              // Notificar al cliente vía WhatsApp (si el bot está disponible)
-              if (order.customerPhone) {
-                try {
-                  const botWebhookUrl = process.env.BOT_WEBHOOK_URL || 'http://localhost:3001';
-                  const notifyUrl = botWebhookUrl.endsWith('/') 
-                    ? `${botWebhookUrl}notify-payment` 
-                    : `${botWebhookUrl}/notify-payment`;
-                  
-                  await fetch(notifyUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      phone: order.customerPhone,
-                      message: `✅ *PAGO APROBADO*\n\n💰 Tu pago de Mercado Pago fue aprobado correctamente.\n\n🍳 Tu pedido está en preparación.\n\n⏱️ Tiempo estimado: 30-45 minutos\n\n¡Te avisamos cuando esté listo! 🚚`
-                    })
-                  });
-                } catch (notifyError) {
-                  console.warn('⚠️ [Mercado Pago Webhook] No se pudo notificar al cliente:', notifyError.message);
+                if (notifyResponse.ok) {
+                  console.log(`✅ [Mercado Pago Webhook] Cliente notificado exitosamente`);
+                } else {
+                  console.warn(`⚠️ [Mercado Pago Webhook] Error al notificar cliente: ${notifyResponse.status}`);
                 }
+              } catch (notifyError) {
+                console.error('❌ [Mercado Pago Webhook] Error al notificar al cliente:', notifyError);
+                console.error('❌ Stack:', notifyError.stack);
               }
             } else {
-              console.warn(`⚠️ [Mercado Pago Webhook] Pedido ${orderNumber} no encontrado`);
+              console.warn(`⚠️ [Mercado Pago Webhook] Pedido ${orderNumber} no tiene customerPhone`);
             }
           } else {
-            console.log(`ℹ️ [Mercado Pago Webhook] Pago ${paymentId} con estado: ${payment.status}`);
+            console.log(`ℹ️ [Mercado Pago Webhook] Pedido ${orderNumber} ya estaba aprobado, ignorando notificación duplicada`);
           }
+        } else {
+          console.warn(`⚠️ [Mercado Pago Webhook] Pedido ${orderNumber} no encontrado en la base de datos`);
         }
-      } catch (paymentError) {
-        console.error('❌ [Mercado Pago Webhook] Error al procesar pago:', paymentError);
-        // Continuar y responder 200 para que Mercado Pago no reintente
+      } else {
+        console.log(`ℹ️ [Mercado Pago Webhook] Pago ${paymentId} con estado: ${payment.status} (no aprobado aún)`);
+        if (!payment.external_reference) {
+          console.warn(`⚠️ [Mercado Pago Webhook] Pago ${paymentId} no tiene external_reference`);
+        }
       }
-      
-      res.status(200).json({ received: true });
-    } else {
-      res.status(200).json({ received: true, type });
+    } catch (paymentError) {
+      console.error('❌ [Mercado Pago Webhook] Error al procesar pago:', paymentError);
+      console.error('❌ Stack:', paymentError.stack);
+      // Continuar y responder 200 para que Mercado Pago no reintente
     }
+    
+    // Siempre responder 200 para que Mercado Pago no reintente
+    res.status(200).json({ received: true, paymentId });
   } catch (error) {
     console.error('❌ [Mercado Pago Webhook] Error general:', error);
+    console.error('❌ Stack:', error.stack);
     // Responder 200 para que Mercado Pago no reintente
     res.status(200).json({ received: true, error: error.message });
   }
