@@ -3906,17 +3906,21 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
         
         // Formatear items para mostrar con todas las opciones y extras
         const itemsText = (order.items || []).map((item) => {
-            const baseSubtotal = item.subtotal || (item.unit_price * item.quantity) || 0;
+            // Calcular el precio base del producto (sin extras)
+            // El subtotal puede incluir extras, así que calculamos desde unit_price
+            const unitPrice = item.unit_price || 0;
+            const baseSubtotal = unitPrice * item.quantity;
             let itemTotal = baseSubtotal;
-            let text = `• ${item.quantity}x ${item.product_name} - $${baseSubtotal.toLocaleString()}`;
+            let extrasTotal = 0;
+            
+            // Formato: nombre del producto primero
+            let text = `${item.product_name}`;
             
             if (item.selected_options) {
                 try {
                     const options = typeof item.selected_options === 'string' 
                         ? JSON.parse(item.selected_options) 
                         : item.selected_options;
-                    
-                    let extrasTotal = 0;
                     
                     // Si tiene estructura { options: [...], optionsText: [...] }
                     if (options.options && Array.isArray(options.options)) {
@@ -3925,16 +3929,16 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
                             const optPrice = opt.price || 0;
                             if (optPrice > 0) {
                                 extrasTotal += optPrice * item.quantity; // Multiplicar por cantidad
-                                text += `\n    └ ${optName} (+$${optPrice.toLocaleString()})`;
+                                text += `\n• ${optName} (+$${optPrice.toLocaleString()})`;
                             } else {
-                                text += `\n    └ ${optName}`;
+                                text += `\n• ${optName}`;
                             }
                         });
                     }
                     // Si tiene optionsText (texto formateado)
                     else if (options.optionsText && Array.isArray(options.optionsText)) {
                         options.optionsText.forEach((optText) => {
-                            text += `\n    └ ${optText}`;
+                            text += `\n• ${optText}`;
                             // Intentar extraer precio del texto si tiene formato (+$XX)
                             const priceMatch = optText.match(/\(\+\$([\d.,]+)\)/);
                             if (priceMatch) {
@@ -3949,7 +3953,7 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
                     else if (Array.isArray(options) && options.length > 0) {
                         options.forEach((opt) => {
                             if (typeof opt === 'string') {
-                                text += `\n    └ ${opt}`;
+                                text += `\n• ${opt}`;
                                 // Intentar extraer precio del texto si tiene formato (+$XX)
                                 const priceMatch = opt.match(/\(\+\$([\d.,]+)\)/);
                                 if (priceMatch) {
@@ -3962,9 +3966,9 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
                                 const optPrice = opt.price || 0;
                                 if (optPrice > 0) {
                                     extrasTotal += optPrice * item.quantity;
-                                    text += `\n    └ ${opt.name} (+$${optPrice.toLocaleString()})`;
+                                    text += `\n• ${opt.name} (+$${optPrice.toLocaleString()})`;
                                 } else {
-                                    text += `\n    └ ${opt.name}`;
+                                    text += `\n• ${opt.name}`;
                                 }
                             }
                         });
@@ -3975,7 +3979,7 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
                             const categoryOptions = Array.isArray(options[key]) ? options[key] : [];
                             categoryOptions.forEach((opt) => {
                                 if (typeof opt === 'string') {
-                                    text += `\n    └ ${opt}`;
+                                    text += `\n• ${opt}`;
                                     // Intentar extraer precio del texto si tiene formato (+$XX)
                                     const priceMatch = opt.match(/\(\+\$([\d.,]+)\)/);
                                     if (priceMatch) {
@@ -3988,9 +3992,9 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
                                     const optPrice = opt.price || 0;
                                     if (optPrice > 0) {
                                         extrasTotal += optPrice * item.quantity;
-                                        text += `\n    └ ${opt.name} (+$${optPrice.toLocaleString()})`;
+                                        text += `\n• ${opt.name} (+$${optPrice.toLocaleString()})`;
                                     } else {
-                                        text += `\n    └ ${opt.name}`;
+                                        text += `\n• ${opt.name}`;
                                     }
                                 }
                             });
@@ -4002,10 +4006,13 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
                     // Si falla el parsing, intentar mostrar como string
                     logger.debug(`⚠️ Error parseando opciones para ${item.product_name}:`, e);
                     if (typeof item.selected_options === 'string' && item.selected_options.length > 0) {
-                        text += `\n    └ Opciones: ${item.selected_options.substring(0, 100)}`;
+                        text += `\n• Opciones: ${item.selected_options.substring(0, 100)}`;
                     }
                 }
             }
+            
+            // Agregar el total del item al final
+            text += `\n$${itemTotal.toLocaleString()}`;
             
             calculatedTotal += itemTotal;
             return text;
