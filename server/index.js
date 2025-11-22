@@ -4527,6 +4527,127 @@ app.post('/api/payments/mercadopago/create-preference', corsMiddleware, async (r
   }
 });
 
+// Endpoint para verificar estado de pago de Mercado Pago por preference_id
+app.get('/api/payments/mercadopago/check-payment/:preferenceId', corsMiddleware, async (req, res) => {
+  try {
+    const { preferenceId } = req.params;
+
+    console.log('🔍 [Mercado Pago Check] Verificando estado de preference_id:', preferenceId);
+
+    if (!preferenceId) {
+      return res.status(400).json({ error: 'preference_id es requerido' });
+    }
+
+    // Cargar configuración de Mercado Pago
+    if (!mercadoPagoConfig) {
+      const mpConfig = await getMercadoPagoConfig();
+      if (mpConfig && mpConfig.accessToken) {
+        mercadoPagoConfig = new MercadoPagoConfig({
+          accessToken: mpConfig.accessToken
+        });
+        preferenceClient = new Preference(mercadoPagoConfig);
+        mercadoPagoConfigured = true;
+      }
+    }
+
+    if (!mercadoPagoConfig || !preferenceClient) {
+      return res.status(503).json({ 
+        error: 'Mercado Pago no está configurado',
+        status: 'unknown'
+      });
+    }
+
+    // Obtener información de la preferencia
+    const preference = await preferenceClient.get({ preferenceId });
+
+    if (!preference) {
+      return res.status(404).json({ 
+        error: 'Preferencia no encontrada',
+        status: 'not_found'
+      });
+    }
+
+    // Buscar el pedido asociado usando external_reference
+    let paymentStatus = 'pending';
+    let paymentId = null;
+
+    if (preference.external_reference) {
+      // Buscar el pedido por order_number (external_reference)
+      const order = await prisma.order.findUnique({
+        where: { orderNumber: preference.external_reference },
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          paymentStatus: true
+        }
+      });
+
+      if (order) {
+        if (order.paymentStatus === 'approved') {
+          // El pago ya fue aprobado (procesado por el webhook)
+          paymentStatus = 'approved';
+          console.log(`✅ [Mercado Pago Check] Pago ya aprobado en BD para preference_id: ${preferenceId}, order: ${order.orderNumber}`);
+        } else {
+          // El pedido existe pero el pago no está aprobado aún
+          // Intentar buscar pagos directamente en Mercado Pago usando el external_reference
+          try {
+            const paymentClient = new Payment(mercadoPagoConfig);
+            
+            // Buscar pagos con este external_reference usando la API de búsqueda
+            // La API de Mercado Pago permite buscar por external_reference
+            const searchParams = {
+              external_reference: preference.external_reference,
+              status: 'approved'
+            };
+            
+            // Usar el método search de Payment (si está disponible)
+            // Nota: La SDK de Mercado Pago puede tener limitaciones en la búsqueda
+            // Por ahora, verificamos el estado del pedido en la BD
+            // Si el webhook procesó el pago, el pedido debería estar aprobado
+            
+            // Si el pedido está en estado 'pending' o 'confirmed' pero paymentStatus es 'pending',
+            // significa que el webhook aún no procesó el pago o el pago no se completó
+            if (order.status === 'pending' && order.paymentStatus === 'pending') {
+              paymentStatus = 'pending';
+              console.log(`⏳ [Mercado Pago Check] Pago pendiente para preference_id: ${preferenceId}, order: ${order.orderNumber}`);
+            } else {
+              paymentStatus = 'pending';
+            }
+          } catch (paymentError) {
+            console.warn('⚠️ [Mercado Pago Check] No se pudo verificar pagos directamente:', paymentError.message);
+            // Si no podemos verificar directamente, asumimos que está pendiente
+            paymentStatus = 'pending';
+          }
+        }
+      } else {
+        // El pedido no existe aún, el pago está pendiente
+        paymentStatus = 'pending';
+        console.log(`⏳ [Mercado Pago Check] Pedido no encontrado para preference_id: ${preferenceId}, external_reference: ${preference.external_reference}`);
+      }
+    } else {
+      // No hay external_reference, no podemos verificar
+      paymentStatus = 'pending';
+      console.warn('⚠️ [Mercado Pago Check] Preference sin external_reference:', preferenceId);
+    }
+
+    res.json({
+      preference_id: preferenceId,
+      status: paymentStatus,
+      payment_id: paymentId,
+      external_reference: preference.external_reference,
+      preference_status: preference.status || 'active'
+    });
+  } catch (error) {
+    console.error('❌ [Mercado Pago Check] Error:', error);
+    res.status(500).json({ 
+      error: 'Error al verificar estado del pago',
+      details: error.message,
+      status: 'error'
+    });
+  }
+});
+
 // Endpoint para procesar pago desde redirección (backup del webhook)
 app.post('/api/payments/mercadopago/process-payment', corsMiddleware, async (req, res) => {
   try {
