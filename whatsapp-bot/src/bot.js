@@ -1751,7 +1751,7 @@ async function handleTransferProof(from, message, userSession) {
                         orderId = userSession.pendingOrder.orderId;
                     } else {
                         // Buscar el último pedido del usuario usando JID directamente
-                        const allOrders = await apiRequest('/orders');
+                        const allOrders = await apiRequest('/orders?all=true');
                         const userOrders = allOrders.filter(order => {
                             return order.customer_phone === customerJid;
                         });
@@ -1833,7 +1833,7 @@ Si ya realizaste el pago, puede tardar unos minutos en procesarse. Te notificare
             orderId = userSession.pendingOrder.orderId;
         } else {
             // Buscar el último pedido del usuario usando JID directamente
-            const allOrders = await apiRequest('/orders');
+            const allOrders = await apiRequest('/orders?all=true');
             const userOrders = allOrders.filter(order => {
                 // Buscar por JID directamente (phone ahora contiene el JID completo)
                 return order.customer_phone === customerJid;
@@ -2690,8 +2690,9 @@ async function validateOrderQueryWithIUC(from, messageText, customerJid) {
         const uniqueCodeFromMessage = match[1];
         
         // Buscar el pedido por su código único (unique_code)
+        // Usar all=true para obtener TODOS los pedidos, incluyendo los que aún no tienen customer_phone
         try {
-            const allOrders = await apiRequest('/orders');
+            const allOrders = await apiRequest('/orders?all=true');
             const orderWithCode = allOrders.find(order => order.unique_code === uniqueCodeFromMessage);
             
             if (!orderWithCode) {
@@ -3455,7 +3456,7 @@ async function handleMessage(message) {
                 
                 // Verificar si el pedido ya fue procesado o está en un estado final
                 try {
-                    const allOrders = await apiRequest('/orders');
+                    const allOrders = await apiRequest('/orders?all=true');
                     const orders = allOrders.filter(order => {
                         const orderNum = order.order_number?.replace('#', '') || '';
                         return orderNum === orderCode;
@@ -3756,10 +3757,11 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
         logger.info(`🔍 Buscando pedido con código: ${orderCode}`);
         
         // Buscar el pedido en la base de datos
-        logger.info(`📡 Haciendo request a /orders...`);
+        // Usar all=true para obtener TODOS los pedidos, incluyendo los que aún no tienen customer_phone
+        logger.info(`📡 Haciendo request a /orders?all=true...`);
         let allOrders;
         try {
-            allOrders = await apiRequest('/orders');
+            allOrders = await apiRequest('/orders?all=true');
             logger.info(`📦 Respuesta de API - Tipo: ${typeof allOrders}, Es array: ${Array.isArray(allOrders)}, Valor:`, JSON.stringify(allOrders).substring(0, 200));
             
             if (allOrders === null || allOrders === undefined) {
@@ -4366,7 +4368,7 @@ async function handleOrderStatus(from, codigo, userSession) {
         logger.info(`🔍 Buscando pedido con código: ${codigo}`);
         
         // Buscar pedido por order_number
-        const allOrders = await apiRequest('/orders');
+        const allOrders = await apiRequest('/orders?all=true');
         const orders = allOrders.filter(order => order.order_number === codigo);
         
         if (orders.length === 0) {
@@ -4394,7 +4396,7 @@ async function handleUserOrders(from, customerJid, userSession) {
         logger.info(`📋 Consultando pedidos del usuario: ${customerJid}`);
         
         // Buscar todos los pedidos del usuario usando JID directamente
-        const allOrders = await apiRequest('/orders');
+        const allOrders = await apiRequest('/orders?all=true');
         const userOrders = allOrders.filter(order => {
             // Buscar por JID directamente (customer_phone ahora contiene el JID completo)
             return order.customer_phone === customerJid;

@@ -1055,17 +1055,25 @@ app.delete('/api/extras/:id', async (req, res) => {
 // ========== PEDIDOS ==========
 app.get('/api/orders', async (req, res) => {
   try {
-    // Solo mostrar pedidos que:
-    // 1. Tienen customer_phone (confirmados en WhatsApp), O
-    // 2. Tienen payment_status != 'pending' (pagos aprobados)
-    // Esto evita que aparezcan pedidos de la web que aún no fueron confirmados en WhatsApp
-    const orders = await prisma.order.findMany({
-      where: {
+    // Si viene el parámetro 'all=true', mostrar todos los pedidos (para el bot)
+    const showAll = req.query.all === 'true';
+    
+    let whereClause = {};
+    if (!showAll) {
+      // Solo mostrar pedidos que:
+      // 1. Tienen customer_phone (confirmados en WhatsApp), O
+      // 2. Tienen payment_status != 'pending' (pagos aprobados)
+      // Esto evita que aparezcan pedidos de la web que aún no fueron confirmados en WhatsApp
+      whereClause = {
         OR: [
           { customerPhone: { not: null } }, // Tiene teléfono (confirmado en WhatsApp)
           { paymentStatus: { not: 'pending' } } // Pago aprobado (aunque no tenga teléfono aún)
         ]
-      },
+      };
+    }
+    
+    const orders = await prisma.order.findMany({
+      where: whereClause,
       include: {
         items: true
       },
@@ -1077,13 +1085,20 @@ app.get('/api/orders', async (req, res) => {
     if (error.code === 'P2022' && error.meta?.column?.includes('unique_code')) {
       console.warn('⚠️ unique_code no existe, obteniendo pedidos sin unique_code...');
       try {
-        const orders = await prisma.order.findMany({
-          where: {
+        // En el fallback también aplicar el filtro si no es 'all=true'
+        const showAll = req.query.all === 'true';
+        let whereClause = {};
+        if (!showAll) {
+          whereClause = {
             OR: [
-              { customerPhone: { not: null } }, // Tiene teléfono (confirmado en WhatsApp)
-              { paymentStatus: { not: 'pending' } } // Pago aprobado (aunque no tenga teléfono aún)
+              { customerPhone: { not: null } },
+              { paymentStatus: { not: 'pending' } }
             ]
-          },
+          };
+        }
+        
+        const orders = await prisma.order.findMany({
+          where: whereClause,
           select: {
             id: true,
             orderNumber: true,
