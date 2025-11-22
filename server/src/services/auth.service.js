@@ -60,12 +60,12 @@ class AdminAuthService {
     };
   }
 
-  // Generar access token
+  // Generar access token (sin expiración para sesión permanente)
   generateAccessToken(admin) {
     return jwt.sign(
       { userId: admin.id, role: admin.role, email: admin.email, type: 'admin' },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
+      JWT_SECRET
+      // Sin expiresIn para que nunca expire
     );
   }
 
@@ -115,10 +115,11 @@ class AdminAuthService {
     });
   }
 
-  // Verificar access token
+  // Verificar access token (ignorar expiración para sesión permanente)
   async verifyAccessToken(token) {
     try {
-      const decoded = jwt.verify(token, JWT_SECRET);
+      // Verificar token sin validar expiración
+      const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
       if (decoded.type !== 'admin') {
         throw new Error('Token inválido');
       }
@@ -131,7 +132,21 @@ class AdminAuthService {
 
       return { id: admin.id, role: admin.role, email: admin.email };
     } catch (error) {
-      throw new Error('Token inválido o expirado');
+      // Si el error es de expiración, ignorarlo y verificar solo la validez del token
+      if (error.name === 'TokenExpiredError') {
+        try {
+          const decoded = jwt.decode(token);
+          if (decoded && decoded.type === 'admin') {
+            const admin = await prisma.admin.findUnique({ where: { id: decoded.userId } });
+            if (admin && admin.isActive) {
+              return { id: admin.id, role: admin.role, email: admin.email };
+            }
+          }
+        } catch (decodeError) {
+          // Si falla el decode, lanzar error original
+        }
+      }
+      throw new Error('Token inválido');
     }
   }
 
