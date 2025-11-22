@@ -4527,6 +4527,83 @@ app.post('/api/payments/mercadopago/create-preference', corsMiddleware, async (r
   }
 });
 
+// Endpoint para procesar pago desde redirección (backup del webhook)
+app.post('/api/payments/mercadopago/process-payment', corsMiddleware, async (req, res) => {
+  try {
+    const { external_reference, payment_id, status } = req.body;
+
+    console.log('💰 [Mercado Pago Process] Procesando pago desde redirección:', {
+      external_reference,
+      payment_id,
+      status
+    });
+
+    if (!external_reference) {
+      return res.status(400).json({ error: 'external_reference es requerido' });
+    }
+
+    // Si el pago está aprobado, procesarlo
+    if (status === 'approved') {
+      // Buscar el pedido por order_number
+      const order = await prisma.order.findUnique({
+        where: { orderNumber: external_reference },
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          paymentStatus: true,
+          customerPhone: true
+        }
+      });
+
+      if (order) {
+        // Solo actualizar si el pago aún no está aprobado (evitar duplicados)
+        if (order.paymentStatus !== 'approved') {
+          await prisma.order.update({
+            where: { id: order.id },
+            data: {
+              status: 'confirmed',
+              paymentStatus: 'approved'
+            }
+          });
+
+          console.log(`✅ [Mercado Pago Process] Pedido ${external_reference} aprobado desde redirección`);
+
+          // Notificar al cliente vía WhatsApp
+          if (order.customerPhone) {
+            try {
+              const botWebhookUrl = process.env.BOT_WEBHOOK_URL || 'http://localhost:3001';
+              const notifyUrl = botWebhookUrl.endsWith('/') 
+                ? `${botWebhookUrl}notify-payment` 
+                : `${botWebhookUrl}/notify-payment`;
+              
+              await fetch(notifyUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  phone: order.customerPhone,
+                  message: `✅ *PAGO APROBADO*\n\n💰 Tu pago de Mercado Pago fue aprobado correctamente.\n\n🍳 Tu pedido está en preparación.\n\n⏱️ Tiempo estimado: 30-45 minutos\n\n¡Te avisamos cuando esté listo! 🚚`
+                })
+              });
+            } catch (notifyError) {
+              console.warn('⚠️ [Mercado Pago Process] No se pudo notificar al cliente:', notifyError.message);
+            }
+          }
+        } else {
+          console.log(`ℹ️ [Mercado Pago Process] Pedido ${external_reference} ya estaba aprobado`);
+        }
+      } else {
+        console.warn(`⚠️ [Mercado Pago Process] Pedido ${external_reference} no encontrado`);
+      }
+    }
+
+    res.json({ success: true, processed: true });
+  } catch (error) {
+    console.error('❌ [Mercado Pago Process] Error:', error);
+    res.status(500).json({ error: 'Error al procesar pago', details: error.message });
+  }
+});
+
 // Webhook de Mercado Pago (para recibir notificaciones de pago)
 // Mercado Pago puede enviar notificaciones en diferentes formatos:
 // 1. { type: 'payment', data: { id: '...' } }
