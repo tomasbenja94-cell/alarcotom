@@ -1689,6 +1689,10 @@ app.put('/api/orders/:id', async (req, res) => {
           setClauses.push(`notes = $${paramIndex++}`);
           values.push(orderData.notes);
         }
+        if (orderData.deliveryCode !== undefined) {
+          setClauses.push(`delivery_code = $${paramIndex++}`);
+          values.push(orderData.deliveryCode);
+        }
         
         setClauses.push(`updated_at = $${paramIndex++}`);
         values.push(new Date().toISOString());
