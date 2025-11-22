@@ -7597,7 +7597,38 @@ app.options('/api/system/whatsapp/disconnect', corsMiddleware, (req, res) => {
 app.get('/api/system/whatsapp/qr', corsMiddleware, authenticateAdmin, async (req, res) => {
   try {
     const botUrl = 'http://localhost:3001/qr';
-    const response = await fetch(botUrl);
+    
+    // Usar http o https según corresponda
+    const http = (await import('http')).default;
+    const https = (await import('https')).default;
+    const url = new URL(botUrl);
+    const httpModule = url.protocol === 'https:' ? https : http;
+    
+    const response = await new Promise((resolve, reject) => {
+      const request = httpModule.get(botUrl, (response) => {
+        let data = '';
+        response.on('data', (chunk) => {
+          data += chunk;
+        });
+        response.on('end', () => {
+          try {
+            const jsonData = JSON.parse(data);
+            resolve({ ok: response.statusCode === 200, json: () => Promise.resolve(jsonData) });
+          } catch (parseError) {
+            reject(new Error('Error al parsear respuesta del bot'));
+          }
+        });
+      });
+      
+      request.on('error', (error) => {
+        reject(error);
+      });
+      
+      request.setTimeout(5000, () => {
+        request.destroy();
+        reject(new Error('Timeout al obtener QR del bot'));
+      });
+    });
     
     if (!response.ok) {
       return res.json({ 
