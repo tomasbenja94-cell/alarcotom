@@ -2806,47 +2806,10 @@ app.post('/api/orders/:id/approve',
       req.user.role
     );
     
-    // Notificar al cliente
-    if (order.customerPhone && order.customerPhone.trim() !== '') {
-      try {
-        // Obtener IUC del cliente para incluirlo en el mensaje
-        const customer = await prisma.customer.findUnique({
-          where: { phone: order.customerPhone }
-        });
-        
-        const webhookUrl = process.env.BOT_WEBHOOK_URL || 'https://elbuenmenu.site';
-        let message = `✅ ¡Tu pedido ${order.orderNumber} ha sido aprobado!\n\n🍔 Estamos preparando tu pedido\n⏰ Tiempo estimado: 20-30 minutos\n📱 Te avisaremos cuando esté listo\n\n`;
-        
-        // Incluir IUC en el mensaje si está disponible
-        if (customer && customer.iuc) {
-          message += `🔐 Tu identificador único (IUC): ${customer.iuc}\n\n`;
-          message += `💡 Para consultar este pedido en el futuro, enviá:\n*PEDIDO CONFIRMADO - ${customer.iuc} - El Buen Menú*\n\nCódigo de pedido: ${order.orderNumber}\n\n`;
-        }
-        
-        message += `¡Gracias por elegirnos! ❤️`;
-        
-        const response = await fetch(`${webhookUrl}/notify-order`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            orderId: order.id,
-            orderNumber: order.orderNumber,
-            customerPhone: order.customerPhone,
-            status: 'confirmed',
-            message: message
-          })
-        });
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`❌ Error en webhook (${response.status}):`, errorText);
-        } else {
-          console.log(`✅ Notificación de aprobación enviada exitosamente`);
-        }
-      } catch (error) {
-        console.error('❌ Error notifying customer:', error);
-      }
-    }
+    // NO notificar al cliente cuando el admin aprueba
+    // Solo se notifica cuando:
+    // 1. El pago se aprueba automáticamente (PAGO RECIBIDO/PREPARANDO)
+    // 2. El repartidor marca "en camino" (PEDIDO EN CAMINO)
     
     res.json(objectToSnakeCase(approvedOrder));
   } catch (error) {
@@ -4917,16 +4880,16 @@ app.post('/api/payments/mercadopago/verify-pending', corsMiddleware, async (req,
             console.log(`   Payment ID: ${payment.id}`);
             console.log(`   Amount: $${payment.transaction_amount}`);
             
-            // Actualizar el pedido: solo aprobar el pago, mantener status en 'pending' para que el admin lo apruebe
+            // Actualizar el pedido: pago aprobado, pedido en preparación
             await prisma.order.update({
               where: { id: order.id },
               data: {
-                status: 'pending', // Mantener en pending hasta que el admin apruebe
+                status: 'confirmed', // Pago aprobado = pedido confirmado/en preparación
                 paymentStatus: 'approved' // El pago está aprobado
               }
             });
             
-            console.log(`✅ [Mercado Pago Verify] Pedido ${order.orderNumber} - Pago aprobado, pedido pendiente de aprobación del admin`);
+            console.log(`✅ [Mercado Pago Verify] Pedido ${order.orderNumber} - Pago aprobado, pedido en preparación`);
             
             // Notificar al cliente vía WhatsApp
             if (order.customerPhone) {
@@ -4941,7 +4904,7 @@ app.post('/api/payments/mercadopago/verify-pending', corsMiddleware, async (req,
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     phone: order.customerPhone,
-                    message: `✅ *PAGO APROBADO*\n\n💰 Tu pago de Mercado Pago fue aprobado correctamente.\n\n⏳ Tu pedido está pendiente de aprobación.\n\nTe notificaremos cuando el administrador lo apruebe y comience la preparación. 🍳`
+                    message: `✅ *PAGO RECIBIDO*\n\n💰 Tu pago de Mercado Pago fue aprobado correctamente.\n\n🍳 Tu pedido está en preparación.\n\n⏱️ Tiempo estimado: 30-45 minutos\n\n¡Te avisamos cuando esté en camino! 🚚`
                   })
                 });
                 
@@ -5047,12 +5010,12 @@ app.post('/api/payments/mercadopago/process-payment', corsMiddleware, async (req
           await prisma.order.update({
             where: { id: order.id },
             data: {
-              status: 'pending', // Mantener en pending hasta que el admin apruebe
+              status: 'confirmed', // Pago aprobado = pedido confirmado/en preparación
               paymentStatus: 'approved' // El pago está aprobado
             }
           });
 
-          console.log(`✅ [Mercado Pago Process] Pedido ${external_reference} - Pago aprobado, pedido pendiente de aprobación del admin`);
+          console.log(`✅ [Mercado Pago Process] Pedido ${external_reference} - Pago aprobado, pedido en preparación`);
 
           // Notificar al cliente vía WhatsApp
           if (order.customerPhone) {
@@ -5183,16 +5146,16 @@ app.post('/api/payments/mercadopago/webhook', async (req, res) => {
         if (order) {
           // Solo actualizar si el pago aún no está aprobado (evitar duplicados)
           if (order.paymentStatus !== 'approved') {
-            // Actualizar: solo aprobar el pago, mantener status en 'pending' para que el admin lo apruebe
+            // Actualizar: pago aprobado = pedido confirmado/en preparación
             await prisma.order.update({
               where: { id: order.id },
               data: {
-                status: 'pending', // Mantener en pending hasta que el admin apruebe
+                status: 'confirmed', // Pago aprobado = pedido confirmado/en preparación
                 paymentStatus: 'approved' // El pago está aprobado
               }
             });
 
-            console.log(`✅ [Mercado Pago Webhook] Pedido ${orderNumber} - Pago aprobado, pedido pendiente de aprobación del admin`);
+            console.log(`✅ [Mercado Pago Webhook] Pedido ${orderNumber} - Pago aprobado, pedido en preparación`);
 
             // Notificar al cliente vía WhatsApp (si el bot está disponible)
             if (order.customerPhone) {
@@ -5209,7 +5172,7 @@ app.post('/api/payments/mercadopago/webhook', async (req, res) => {
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     phone: order.customerPhone,
-                    message: `✅ *PAGO APROBADO*\n\n💰 Tu pago de Mercado Pago fue aprobado correctamente.\n\n⏳ Tu pedido está pendiente de aprobación.\n\nTe notificaremos cuando el administrador lo apruebe y comience la preparación. 🍳`
+                    message: `✅ *PAGO RECIBIDO*\n\n💰 Tu pago de Mercado Pago fue aprobado correctamente.\n\n🍳 Tu pedido está en preparación.\n\n⏱️ Tiempo estimado: 30-45 minutos\n\n¡Te avisamos cuando esté en camino! 🚚`
                   })
                 });
 
