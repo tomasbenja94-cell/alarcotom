@@ -7593,6 +7593,37 @@ app.options('/api/system/whatsapp/disconnect', corsMiddleware, (req, res) => {
   res.sendStatus(200);
 });
 
+// Endpoint para obtener el QR code del bot (proxy desde localhost:3001)
+app.get('/api/system/whatsapp/qr', corsMiddleware, authenticateAdmin, async (req, res) => {
+  try {
+    const botUrl = 'http://localhost:3001/qr';
+    const response = await fetch(botUrl);
+    
+    if (!response.ok) {
+      return res.json({ 
+        qr: null, 
+        available: false,
+        message: 'El bot no está disponible o no hay QR generado'
+      });
+    }
+    
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Error obteniendo QR del bot:', error.message);
+    res.json({ 
+      qr: null, 
+      available: false,
+      message: 'Error al obtener QR del bot'
+    });
+  }
+});
+
+// Manejar OPTIONS para CORS preflight
+app.options('/api/system/whatsapp/qr', corsMiddleware, (req, res) => {
+  res.sendStatus(200);
+});
+
 // Desconectar WhatsApp (borrar sesión)
 app.post('/api/system/whatsapp/disconnect', corsMiddleware, authenticateAdmin, async (req, res) => {
   try {

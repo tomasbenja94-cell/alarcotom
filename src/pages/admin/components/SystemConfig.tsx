@@ -56,18 +56,10 @@ export default function SystemConfig() {
     }
   };
 
-  // Cargar QR code del bot
+  // Cargar QR code del bot a través del backend
   const loadQRCode = async () => {
     try {
-      // El bot está en localhost:3001 cuando se accede desde el servidor
-      const botUrl = process.env.NODE_ENV === 'production' 
-        ? 'http://localhost:3001' 
-        : 'http://localhost:3001';
-      
-      const response = await fetch(`${botUrl}/qr`);
-      if (!response.ok) throw new Error('Error al obtener QR');
-      
-      const data = await response.json();
+      const data = await systemApi.getQRCode();
       if (data.available && data.qr) {
         setQrCode(data.qr);
         setQrAvailable(true);
