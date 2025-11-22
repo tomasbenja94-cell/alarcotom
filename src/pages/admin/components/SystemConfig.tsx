@@ -61,14 +61,22 @@ export default function SystemConfig() {
     try {
       const data = await systemApi.getQRCode();
       if (data.available && data.qr) {
-        setQrCode(data.qr);
-        setQrAvailable(true);
+        // Verificar que el QR sea un data URL válido
+        if (data.qr.startsWith('data:image')) {
+          setQrCode(data.qr);
+          setQrAvailable(true);
+        } else {
+          console.warn('⚠️ QR recibido no es un data URL válido:', data.qr.substring(0, 50));
+          setQrCode(null);
+          setQrAvailable(false);
+        }
       } else {
         setQrCode(null);
         setQrAvailable(false);
       }
     } catch (error) {
       // Silenciar errores si el bot no está disponible
+      console.error('Error cargando QR code:', error);
       setQrCode(null);
       setQrAvailable(false);
     }
@@ -281,9 +289,10 @@ export default function SystemConfig() {
           <div className="flex flex-col items-center gap-4">
             <div className="bg-white p-4 rounded-lg border-2 border-gray-300">
               <img 
-                src={qrCode.startsWith('data:image') ? qrCode : `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCode)}`}
+                src={qrCode}
                 alt="QR Code WhatsApp"
                 className="w-64 h-64"
+                style={{ maxWidth: '256px', maxHeight: '256px' }}
               />
             </div>
             <div className="text-center text-sm text-gray-600">
