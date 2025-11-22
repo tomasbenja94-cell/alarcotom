@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { adminApi } from '../../../lib/api';
 
+// Normalizar API_URL igual que en api.ts
+let rawApiUrl = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
+rawApiUrl = rawApiUrl.replace(/\/+$/, '');
+const API_URL = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl}/api`;
+
 interface ServiceStatus {
   status: string;
   uptime: number;
@@ -31,44 +36,67 @@ export default function SystemConfig() {
   const logsIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const statusIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Cargar logs
+  // Cargar logs con timeout
   const loadLogs = async (service: 'backend' | 'whatsapp-bot', lines: number = 100) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api'}/system/logs/${service}?lines=${lines}`, {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 segundos timeout
+      
+      const response = await fetch(`${API_URL}/system/logs/${service}?lines=${lines}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
-        }
+        },
+        signal: controller.signal
       });
       
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
-        throw new Error('Error al cargar logs');
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
       }
       
       const data = await response.json();
       return data.logs || '';
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.warn(`Timeout cargando logs de ${service}`);
+        return `⏱️ Timeout: El servidor tardó demasiado en responder. El proxy puede tener un timeout muy corto.`;
+      }
       console.error(`Error cargando logs de ${service}:`, error);
-      return `Error al cargar logs: ${error instanceof Error ? error.message : 'Error desconocido'}`;
+      return `❌ Error al cargar logs: ${error instanceof Error ? error.message : 'Error desconocido'}`;
     }
   };
 
-  // Cargar estado del sistema
+  // Cargar estado del sistema con timeout
   const loadSystemStatus = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api'}/system/status`, {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 segundos timeout
+      
+      const response = await fetch(`${API_URL}/system/status`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
-        }
+        },
+        signal: controller.signal
       });
       
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
-        throw new Error('Error al cargar estado');
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
       }
       
       const data = await response.json();
       setSystemStatus(data);
-    } catch (error) {
-      console.error('Error cargando estado:', error);
+      setError(null); // Limpiar error si la petición fue exitosa
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.warn('Timeout cargando estado del sistema');
+        setError('⏱️ Timeout: El servidor tardó demasiado en responder. El proxy puede tener un timeout muy corto.');
+      } else {
+        console.error('Error cargando estado:', error);
+        setError(`Error al cargar estado: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+      }
     }
   };
 
@@ -84,25 +112,25 @@ export default function SystemConfig() {
     
     init();
 
-    // Actualizar logs cada 3 segundos
+    // Actualizar logs cada 10 segundos (reducido para evitar saturación)
     logsIntervalRef.current = setInterval(async () => {
-      const backend = await loadLogs('backend', 50); // Solo últimas 50 líneas para actualización
-      const whatsapp = await loadLogs('whatsapp-bot', 50);
+      const backend = await loadLogs('backend', 30); // Solo últimas 30 líneas para actualización
+      const whatsapp = await loadLogs('whatsapp-bot', 30);
       setBackendLogs(prev => {
         // Mantener las últimas líneas y agregar nuevas
-        const prevLines = prev.split('\n').slice(-50);
+        const prevLines = prev.split('\n').slice(-30);
         const newLines = backend.split('\n');
-        return [...prevLines, ...newLines].slice(-100).join('\n');
+        return [...prevLines, ...newLines].slice(-60).join('\n');
       });
       setWhatsappLogs(prev => {
-        const prevLines = prev.split('\n').slice(-50);
+        const prevLines = prev.split('\n').slice(-30);
         const newLines = whatsapp.split('\n');
-        return [...prevLines, ...newLines].slice(-100).join('\n');
+        return [...prevLines, ...newLines].slice(-60).join('\n');
       });
-    }, 3000);
+    }, 10000); // Aumentado a 10 segundos
 
-    // Actualizar estado cada 5 segundos
-    statusIntervalRef.current = setInterval(loadSystemStatus, 5000);
+    // Actualizar estado cada 15 segundos (reducido para evitar saturación)
+    statusIntervalRef.current = setInterval(loadSystemStatus, 15000); // Aumentado a 15 segundos
 
     return () => {
       if (logsIntervalRef.current) clearInterval(logsIntervalRef.current);
@@ -131,7 +159,7 @@ export default function SystemConfig() {
     setSuccess(null);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api'}/system/whatsapp/disconnect`, {
+      const response = await fetch(`${API_URL}/system/whatsapp/disconnect`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
@@ -170,7 +198,7 @@ export default function SystemConfig() {
     setSuccess(null);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api'}/system/restart/${service}`, {
+      const response = await fetch(`${API_URL}/system/restart/${service}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
