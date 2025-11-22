@@ -2240,18 +2240,38 @@ Escribe "09" si querés cambiar el método de pago.`;
             userSession.paymentMethod = 'cash';
             userSession.waitingForPayment = false;
             
-            await sendMessage(from, `✅ Pago en efectivo confirmado.
-
-Escribe "09" si querés cambiar el método de pago.`);
-            
             // Si el pedido viene de la web, actualizar el existente; si no, crear uno nuevo
             try {
+                let orderResult;
                 if (userSession.pendingOrder?.orderId) {
-                    await updateWebOrderPayment(from, userSession, 'Efectivo');
+                    orderResult = await updateWebOrderPayment(from, userSession, 'Efectivo');
                 } else {
-                    await createOrderInDatabase(from, userSession);
+                    orderResult = await createOrderInDatabase(from, userSession);
                 }
-                await sendMessage(from, botMessages.order_received || 'Pedido recibido');
+                
+                // Obtener el total del pedido para mostrarlo
+                const orderTotal = userSession.pendingOrder?.total || orderResult?.total || 0;
+                const formattedTotal = new Intl.NumberFormat('es-AR', {
+                    style: 'currency',
+                    currency: 'ARS',
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0
+                }).format(orderTotal);
+                
+                // Mensaje de confirmación mejorado
+                await sendMessage(from, `✅ *PAGO EN EFECTIVO CONFIRMADO*
+
+💰 *Monto a pagar:* ${formattedTotal}
+
+💵 El pago se realizará al recibir el pedido.
+
+🍳 Tu pedido está en preparación.
+
+⏱️ Tiempo estimado: 30-45 minutos
+
+📱 Te avisaremos cuando esté en camino.
+
+¡Gracias por tu pedido! ❤️`);
                 
                 // Resetear sesión después de crear pedido
                 // Limpiar sesión completamente después de procesar pedido en efectivo
@@ -4329,7 +4349,8 @@ async function updateWebOrderPayment(from, userSession, paymentMethod) {
         logger.info(`✅ Pedido ${orderId} actualizado con método de pago: ${paymentMethod} y JID: ${customerJid}`);
         logger.info(`📋 Resultado de actualización:`, JSON.stringify(updateResult, null, 2));
         
-        // NO crear transferencia pendiente aquí - se creará cuando se reciba el comprobante en handleTransferProof
+        // Retornar el pedido actualizado para que el llamador pueda usarlo
+        return updateResult;
 
     } catch (error) {
         logger.error('❌ Error al actualizar pedido web:', error);
