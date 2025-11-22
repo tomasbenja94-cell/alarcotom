@@ -5,6 +5,8 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { PrismaClient } from '@prisma/client';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 
@@ -7409,6 +7411,157 @@ app.get('/api/health', (req, res) => {
     service: 'backend',
     time: new Date().toISOString()
   });
+});
+
+// ========== SISTEMA DE CONFIGURACIÓN Y LOGS ==========
+const execAsync = promisify(exec);
+
+// Obtener logs de PM2
+app.get('/api/system/logs/:service', authenticateAdmin, async (req, res) => {
+  try {
+    const { service } = req.params; // 'backend' o 'whatsapp-bot'
+    const lines = parseInt(req.query.lines) || 100;
+    
+    // Intentar leer logs directamente del archivo (más confiable)
+    const homeDir = process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE || '/root';
+    const logPaths = [
+      path.join(homeDir, '.pm2', 'logs', `${service}-out.log`),
+      path.join(homeDir, '.pm2', 'logs', `${service}-error.log`),
+      path.join('/root', '.pm2', 'logs', `${service}-out.log`),
+      path.join('/root', '.pm2', 'logs', `${service}-error.log`),
+    ];
+    
+    let allLogs = '';
+    
+    // Leer archivos de log
+    for (const logPath of logPaths) {
+      if (fs.existsSync(logPath)) {
+        try {
+          const logContent = fs.readFileSync(logPath, 'utf-8');
+          const logLines = logContent.split('\n').filter(line => line.trim() !== '');
+          allLogs += logLines.slice(-Math.floor(lines / 2)).join('\n') + '\n';
+        } catch (readError) {
+          console.warn(`No se pudo leer ${logPath}:`, readError.message);
+        }
+      }
+    }
+    
+    // Si no hay logs de archivos, intentar con PM2 CLI
+    if (!allLogs || allLogs.trim() === '') {
+      try {
+        const { stdout } = await execAsync(`pm2 logs ${service} --lines ${lines} --nostream --raw`);
+        if (stdout && stdout.trim()) {
+          allLogs = stdout;
+        }
+      } catch (pm2Error) {
+        console.warn('Error obteniendo logs con PM2 CLI:', pm2Error.message);
+      }
+    }
+    
+    // Si aún no hay logs, devolver mensaje
+    if (!allLogs || allLogs.trim() === '') {
+      allLogs = `No se encontraron logs para ${service}. Verifica que el servicio esté corriendo con PM2.`;
+    }
+    
+    res.json({ logs: allLogs.trim(), source: 'file' });
+  } catch (error) {
+    console.error('Error obteniendo logs:', error);
+    res.status(500).json({ error: 'Error al obtener logs', details: error.message });
+  }
+});
+
+// Obtener estado de servicios PM2
+app.get('/api/system/status', authenticateAdmin, async (req, res) => {
+  try {
+    const { stdout } = await execAsync('pm2 jlist');
+    const processes = JSON.parse(stdout);
+    
+    const services = {
+      backend: processes.find((p: any) => p.name === 'backend'),
+      'whatsapp-bot': processes.find((p: any) => p.name === 'whatsapp-bot')
+    };
+    
+    res.json({
+      services: {
+        backend: {
+          status: services.backend?.pm2_env?.status || 'stopped',
+          uptime: services.backend?.pm2_env?.pm_uptime || 0,
+          restarts: services.backend?.pm2_env?.restart_time || 0,
+          memory: services.backend?.monit?.memory || 0,
+          cpu: services.backend?.monit?.cpu || 0
+        },
+        'whatsapp-bot': {
+          status: services['whatsapp-bot']?.pm2_env?.status || 'stopped',
+          uptime: services['whatsapp-bot']?.pm2_env?.pm_uptime || 0,
+          restarts: services['whatsapp-bot']?.pm2_env?.restart_time || 0,
+          memory: services['whatsapp-bot']?.monit?.memory || 0,
+          cpu: services['whatsapp-bot']?.monit?.cpu || 0
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error obteniendo estado:', error);
+    res.status(500).json({ error: 'Error al obtener estado de servicios', details: error.message });
+  }
+});
+
+// Desconectar WhatsApp (borrar sesión)
+app.post('/api/system/whatsapp/disconnect', authenticateAdmin, async (req, res) => {
+  try {
+    // Ruta de la sesión de WhatsApp
+    const sessionPath = path.join(__dirname, '../whatsapp-bot/auth');
+    
+    // Verificar si existe la carpeta de sesión
+    if (fs.existsSync(sessionPath)) {
+      // Eliminar todos los archivos de la sesión
+      const files = fs.readdirSync(sessionPath);
+      for (const file of files) {
+        const filePath = path.join(sessionPath, file);
+        if (fs.statSync(filePath).isFile()) {
+          fs.unlinkSync(filePath);
+        } else {
+          fs.rmSync(filePath, { recursive: true, force: true });
+        }
+      }
+      console.log('✅ Sesión de WhatsApp eliminada');
+    }
+    
+    // Reiniciar el bot de WhatsApp para que genere nuevo QR
+    try {
+      await execAsync('pm2 restart whatsapp-bot');
+      console.log('✅ WhatsApp bot reiniciado para generar nuevo QR');
+    } catch (restartError) {
+      console.warn('⚠️ No se pudo reiniciar whatsapp-bot automáticamente:', restartError.message);
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Sesión de WhatsApp desconectada. El bot se reiniciará y mostrará un nuevo QR.' 
+    });
+  } catch (error) {
+    console.error('Error desconectando WhatsApp:', error);
+    res.status(500).json({ error: 'Error al desconectar WhatsApp', details: error.message });
+  }
+});
+
+// Reiniciar servicios
+app.post('/api/system/restart/:service', authenticateAdmin, async (req, res) => {
+  try {
+    const { service } = req.params; // 'backend', 'whatsapp-bot', o 'all'
+    
+    if (service === 'all') {
+      await execAsync('pm2 restart all');
+      res.json({ success: true, message: 'Todos los servicios reiniciados correctamente' });
+    } else if (service === 'backend' || service === 'whatsapp-bot') {
+      await execAsync(`pm2 restart ${service}`);
+      res.json({ success: true, message: `Servicio ${service} reiniciado correctamente` });
+    } else {
+      res.status(400).json({ error: 'Servicio no válido. Use: backend, whatsapp-bot, o all' });
+    }
+  } catch (error) {
+    console.error('Error reiniciando servicio:', error);
+    res.status(500).json({ error: 'Error al reiniciar servicio', details: error.message });
+  }
 });
 
 // ========== INICIAR SERVIDOR ==========
