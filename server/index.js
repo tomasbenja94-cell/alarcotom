@@ -18,7 +18,7 @@ import { deliveryCodeService } from './src/services/delivery-code.service.js';
 import { auditService } from './src/services/audit.service.js';
 import { authenticateDriver, authorizeDriver, authenticateAdmin, authorize, validateApiKey } from './src/middlewares/auth.middleware.js';
 import { validate } from './src/middlewares/validation.middleware.js';
-import { securityHeaders, corsMiddleware, generalRateLimit, loginRateLimit, deliveryCodeRateLimit, deliveryLocationRateLimit, deliveryPollingRateLimit } from './src/middlewares/security.middleware.js';
+import { securityHeaders, corsMiddleware, generalRateLimit, systemRateLimit, loginRateLimit, deliveryCodeRateLimit, deliveryLocationRateLimit, deliveryPollingRateLimit } from './src/middlewares/security.middleware.js';
 import { userRateLimit, ipRateLimit, endpointRateLimit, criticalActionRateLimit, createResourceRateLimit } from './src/middlewares/rate-limit-advanced.middleware.js';
 import { verifyWebhookSignature, validateWebhookApiKey } from './src/middlewares/webhook-auth.middleware.js';
 import { idempotencyMiddleware, webhookIdempotencyMiddleware } from './src/middlewares/idempotency.middleware.js';
@@ -1055,7 +1055,7 @@ app.delete('/api/extras/:id', async (req, res) => {
 });
 
 // ========== PEDIDOS ==========
-app.get('/api/orders', async (req, res) => {
+app.get('/api/orders', systemRateLimit, async (req, res) => {
   try {
     // Si viene el parámetro 'all=true', mostrar todos los pedidos (para el bot)
     const showAll = req.query.all === 'true';
@@ -2162,7 +2162,7 @@ app.post('/api/whatsapp-messages', async (req, res) => {
 });
 
 // ========== TRANSFERENCIAS PENDIENTES ==========
-app.get('/api/pending-transfers', async (req, res) => {
+app.get('/api/pending-transfers', systemRateLimit, async (req, res) => {
   // Si hay query param status, filtrar por ese estado, sino devolver todas
   const whereClause = req.query.status 
     ? { status: req.query.status }
@@ -2515,7 +2515,7 @@ app.put('/api/pending-transfers/:id', async (req, res) => {
 });
 
 // ========== REPARTIDORES ==========
-app.get('/api/delivery-persons', async (req, res) => {
+app.get('/api/delivery-persons', systemRateLimit, async (req, res) => {
   try {
     const deliveryPersons = await prisma.deliveryPerson.findMany({
       orderBy: { createdAt: 'desc' }
@@ -5474,7 +5474,7 @@ app.get('/api/system/emergency-state', corsMiddleware, async (req, res) => {
 
 // ========== HORARIOS ESPECIALES ==========
 // Obtener horario especial activo
-app.get('/api/system/special-hours', corsMiddleware, async (req, res) => {
+app.get('/api/system/special-hours', corsMiddleware, systemRateLimit, async (req, res) => {
   try {
     // Verificar si hay un horario especial activo y no expirado
     const now = new Date();
@@ -5580,7 +5580,7 @@ app.delete('/api/system/special-hours', corsMiddleware, async (req, res) => {
   }
 });
 
-app.get('/api/system/no-stock-state', corsMiddleware, async (req, res) => {
+app.get('/api/system/no-stock-state', corsMiddleware, systemRateLimit, async (req, res) => {
   try {
     const state = await prisma.systemState.findFirst({
       orderBy: { updatedAt: 'desc' }
@@ -5689,7 +5689,7 @@ app.post('/api/system/no-stock-mode', corsMiddleware, async (req, res) => {
 
 // ========== CHECKLIST DIARIO ==========
 // Obtener tareas del día actual
-app.get('/api/system/checklist/today', corsMiddleware, async (req, res) => {
+app.get('/api/system/checklist/today', corsMiddleware, systemRateLimit, async (req, res) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -5793,7 +5793,7 @@ app.delete('/api/system/checklist/task/:id', corsMiddleware, async (req, res) =>
 
 // ========== NOTIFICACIONES DEL SISTEMA ==========
 // Obtener notificaciones
-app.get('/api/system/notifications', corsMiddleware, async (req, res) => {
+app.get('/api/system/notifications', corsMiddleware, systemRateLimit, async (req, res) => {
   try {
     const { limit = 50 } = req.query;
     
@@ -5897,7 +5897,7 @@ app.post('/api/system/ai-recommendations/:id/acknowledge', corsMiddleware, async
 
 // ========== MODO LLUVIA / PICO DE DEMANDA ==========
 // Obtener estado actual
-app.get('/api/system/peak-demand-state', corsMiddleware, async (req, res) => {
+app.get('/api/system/peak-demand-state', corsMiddleware, systemRateLimit, async (req, res) => {
   try {
     const mode = await prisma.peakDemandMode.findFirst({
       orderBy: { updatedAt: 'desc' }
@@ -7433,7 +7433,7 @@ app.options('/api/system/logs/:service', corsMiddleware, (req, res) => {
 });
 
 // Obtener logs de PM2
-app.get('/api/system/logs/:service', corsMiddleware, authenticateAdmin, async (req, res) => {
+app.get('/api/system/logs/:service', corsMiddleware, systemRateLimit, authenticateAdmin, async (req, res) => {
   try {
     const { service } = req.params; // 'backend' o 'whatsapp-bot'
     const lines = parseInt(req.query.lines) || 100;
@@ -7650,7 +7650,7 @@ app.options('/api/system/update/:service', corsMiddleware, (req, res) => {
 });
 
 // Actualizar código del backend o bot desde GitHub
-app.post('/api/system/update/:service', corsMiddleware, authenticateAdmin, async (req, res) => {
+app.post('/api/system/update/:service', corsMiddleware, systemRateLimit, authenticateAdmin, async (req, res) => {
   try {
     const { service } = req.params; // 'backend', 'whatsapp-bot', o 'all'
     

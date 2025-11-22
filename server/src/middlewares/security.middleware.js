@@ -47,10 +47,27 @@ const corsOptions = {
 
 export const corsMiddleware = cors(corsOptions);
 
+// ========== RATE LIMITING PARA SISTEMA/ADMIN (MÁS PERMISIVO) ==========
+// Para endpoints del panel de admin que hacen polling frecuente
+export const systemRateLimit = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minuto
+  max: 200, // 200 requests por minuto para endpoints del sistema
+  message: 'Demasiadas peticiones del sistema, intenta más tarde',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    // Saltar rate limiting para webhooks autenticados con API key
+    if (req.headers['x-api-key'] === process.env.INTERNAL_API_KEY) {
+      return true;
+    }
+    return false;
+  }
+});
+
 // ========== RATE LIMITING GENERAL ==========
 export const generalRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 1000, // 1000 requests por IP (aumentado para desarrollo)
+  max: 2000, // 2000 requests por IP (aumentado para soportar múltiples componentes)
   message: 'Demasiadas peticiones, intenta más tarde',
   standardHeaders: true,
   legacyHeaders: false,
@@ -65,6 +82,10 @@ export const generalRateLimit = rateLimit({
     }
     // Saltar rate limiting para todas las rutas de delivery en desarrollo
     if (process.env.NODE_ENV !== 'production' && req.path?.startsWith('/api/delivery')) {
+      return true;
+    }
+    // Saltar rate limiting para endpoints del sistema (tienen su propio rate limit)
+    if (req.path?.startsWith('/api/system/')) {
       return true;
     }
     return false;
