@@ -3907,10 +3907,8 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
         // Formatear items para mostrar con todas las opciones y extras
         const itemsText = (order.items || []).map((item) => {
             // Calcular el precio base del producto (sin extras)
-            // El subtotal puede incluir extras, así que calculamos desde unit_price
             const unitPrice = item.unit_price || 0;
             const baseSubtotal = unitPrice * item.quantity;
-            let itemTotal = baseSubtotal;
             let extrasTotal = 0;
             
             // Formato: nombre del producto primero
@@ -4001,7 +3999,6 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
                         });
                     }
                     
-                    itemTotal = baseSubtotal + extrasTotal;
                 } catch (e) {
                     // Si falla el parsing, intentar mostrar como string
                     logger.debug(`⚠️ Error parseando opciones para ${item.product_name}:`, e);
@@ -4010,6 +4007,15 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
                     }
                 }
             }
+            
+            // Calcular el total del item: base + extras
+            // Si item.subtotal existe y parece correcto, usarlo; si no, calcular desde unit_price + extras
+            const itemSubtotal = item.subtotal || 0;
+            const calculatedItemTotal = baseSubtotal + extrasTotal;
+            
+            // Usar el mayor entre subtotal (que puede incluir extras) y el calculado
+            // Si el subtotal es mayor que el base, probablemente ya incluye extras
+            const itemTotal = itemSubtotal > baseSubtotal ? itemSubtotal : calculatedItemTotal;
             
             // Agregar el total del item al final
             text += `\n$${itemTotal.toLocaleString()}`;
