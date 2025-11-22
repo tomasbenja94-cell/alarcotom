@@ -4940,16 +4940,6 @@ app.post('/api/payments/mercadopago/verify-pending', corsMiddleware, async (req,
             message: 'Pago no encontrado en Mercado Pago. Verifica que el external_reference coincida.'
           });
         }
-        } else {
-          const errorText = await searchResponse.text();
-          console.warn(`⚠️ [Mercado Pago Verify] Error al buscar pagos para ${order.orderNumber}: ${searchResponse.status} - ${errorText}`);
-          pendingCount++;
-          results.push({
-            orderNumber: order.orderNumber,
-            status: 'error',
-            message: `Error al buscar: ${searchResponse.status}`
-          });
-        }
       } catch (error) {
         console.error(`❌ [Mercado Pago Verify] Error verificando pedido ${order.orderNumber}:`, error.message);
         pendingCount++;
