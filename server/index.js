@@ -1631,6 +1631,109 @@ app.put('/api/orders/:id', async (req, res) => {
       return res.status(404).json({ error: 'Pedido no encontrado' });
     }
     
+    // Descontar insumos si el pedido pasa de 'pending' o 'confirmed' a 'ready' o 'confirmed'
+    const previousStatus = previousOrder.status;
+    const newStatus = orderData.status;
+    const shouldDeductIngredients = (
+      (previousStatus === 'pending' || previousStatus === 'confirmed') &&
+      (newStatus === 'ready' || newStatus === 'confirmed') &&
+      previousStatus !== newStatus
+    );
+    
+    if (shouldDeductIngredients) {
+      try {
+        console.log(`📦 [UPDATE ORDER] Descontando insumos para pedido ${previousOrder.orderNumber} (${previousStatus} → ${newStatus})`);
+        
+        // Obtener todos los items del pedido
+        const orderItems = await prisma.orderItem.findMany({
+          where: { orderId: previousOrder.id },
+          select: {
+            productId: true,
+            quantity: true
+          }
+        });
+
+        // Acumular los insumos a descontar
+        const ingredientsToDeduct = new Map(); // Map<ingredientId, totalQuantity>
+
+        for (const item of orderItems) {
+          if (!item.productId) continue;
+
+          // Buscar la receta del producto
+          const recipe = await prisma.recipe.findUnique({
+            where: { productId: item.productId }
+          });
+
+          if (!recipe || !recipe.ingredients) continue;
+
+          // Parsear los ingredientes (puede ser JSON string o objeto)
+          let ingredients;
+          try {
+            ingredients = typeof recipe.ingredients === 'string' 
+              ? JSON.parse(recipe.ingredients) 
+              : recipe.ingredients;
+          } catch (e) {
+            console.error(`❌ [UPDATE ORDER] Error parseando ingredientes de receta ${recipe.id}:`, e);
+            continue;
+          }
+
+          if (!Array.isArray(ingredients)) continue;
+
+          // Para cada ingrediente en la receta, calcular la cantidad a descontar
+          for (const ingredient of ingredients) {
+            const ingredientId = ingredient.ingredient_id || ingredient.ingredientId;
+            const quantityPerUnit = parseFloat(ingredient.quantity || 0);
+            
+            if (!ingredientId || isNaN(quantityPerUnit) || quantityPerUnit <= 0) continue;
+
+            // Calcular cantidad total: cantidad por unidad * cantidad del item
+            const totalQuantity = quantityPerUnit * item.quantity;
+
+            // Acumular en el Map
+            if (ingredientsToDeduct.has(ingredientId)) {
+              ingredientsToDeduct.set(ingredientId, ingredientsToDeduct.get(ingredientId) + totalQuantity);
+            } else {
+              ingredientsToDeduct.set(ingredientId, totalQuantity);
+            }
+          }
+        }
+
+        // Descontar los insumos acumulados
+        for (const [ingredientId, totalQuantity] of ingredientsToDeduct.entries()) {
+          try {
+            const ingredient = await prisma.ingredient.findUnique({
+              where: { id: ingredientId }
+            });
+
+            if (!ingredient) {
+              console.warn(`⚠️ [UPDATE ORDER] Insumo ${ingredientId} no encontrado`);
+              continue;
+            }
+
+            const newStock = Math.max(0, (ingredient.currentStock || 0) - totalQuantity);
+
+            await prisma.ingredient.update({
+              where: { id: ingredientId },
+              data: { currentStock: newStock }
+            });
+
+            console.log(`✅ [UPDATE ORDER] Descontado ${totalQuantity} ${ingredient.unit} de ${ingredient.name} (stock: ${ingredient.currentStock} → ${newStock})`);
+          } catch (error) {
+            console.error(`❌ [UPDATE ORDER] Error descontando insumo ${ingredientId}:`, error);
+          }
+        }
+
+        if (ingredientsToDeduct.size > 0) {
+          console.log(`✅ [UPDATE ORDER] Insumos descontados correctamente para pedido ${previousOrder.orderNumber}`);
+        } else {
+          console.log(`ℹ️ [UPDATE ORDER] No se encontraron recetas para los productos del pedido ${previousOrder.orderNumber}`);
+        }
+      } catch (error) {
+        console.error('❌ [UPDATE ORDER] Error al descontar insumos:', error);
+        // No fallar la actualización del pedido si hay error al descontar insumos, solo loguear
+      }
+    }
+    
     // Actualizar el pedido
     let order;
     try {
