@@ -7454,28 +7454,45 @@ app.get('/api/system/logs/:service', corsMiddleware, authenticateAdmin, async (r
     
     let allLogs = '';
     
-    // Leer archivos de log
+    // Leer archivos de log de forma optimizada (solo las últimas líneas)
     for (const logPath of logPaths) {
       if (fs.existsSync(logPath)) {
         try {
-          const logContent = fs.readFileSync(logPath, 'utf-8');
+          // Leer solo las últimas líneas del archivo (más eficiente para archivos grandes)
+          const stats = fs.statSync(logPath);
+          const fileSize = stats.size;
+          const maxBytes = 50000; // Leer máximo 50KB desde el final
+          const startPos = fileSize > maxBytes ? fileSize - maxBytes : 0;
+          
+          const fileHandle = fs.openSync(logPath, 'r');
+          const buffer = Buffer.alloc(fileSize - startPos);
+          fs.readSync(fileHandle, buffer, 0, buffer.length, startPos);
+          fs.closeSync(fileHandle);
+          
+          const logContent = buffer.toString('utf-8');
           const logLines = logContent.split('\n').filter(line => line.trim() !== '');
-          allLogs += logLines.slice(-Math.floor(lines / 2)).join('\n') + '\n';
+          // Tomar solo las últimas líneas solicitadas
+          const recentLines = logLines.slice(-Math.floor(lines / 2));
+          allLogs += recentLines.join('\n') + '\n';
         } catch (readError) {
           console.warn(`No se pudo leer ${logPath}:`, readError.message);
         }
       }
     }
     
-    // Si no hay logs de archivos, intentar con PM2 CLI
+    // Si no hay logs de archivos, intentar con PM2 CLI (solo como fallback, con timeout más corto)
     if (!allLogs || allLogs.trim() === '') {
       try {
-        const { stdout } = await execAsync(`pm2 logs ${service} --lines ${lines} --nostream --raw`);
+        // Usar menos líneas y timeout más corto para respuesta más rápida
+        const { stdout } = await execWithTimeout(`pm2 logs ${service} --lines ${Math.min(lines, 50)} --nostream --raw`, 5000).catch((error) => {
+          console.warn('⚠️ Error obteniendo logs con PM2 CLI:', error.message);
+          return { stdout: '' };
+        });
         if (stdout && stdout.trim()) {
           allLogs = stdout;
         }
       } catch (pm2Error) {
-        console.warn('Error obteniendo logs con PM2 CLI:', pm2Error.message);
+        console.warn('⚠️ Error obteniendo logs con PM2 CLI:', pm2Error.message);
       }
     }
     
