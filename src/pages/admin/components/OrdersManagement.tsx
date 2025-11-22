@@ -168,11 +168,20 @@ export default function OrdersManagement() {
       // Detectar nuevos pedidos y actualizar contadores
       if (silent && previousOrdersRef.current.length > 0) {
         const previousOrderIds = new Set(previousOrdersRef.current.map(o => o.id));
-        // Solo detectar nuevos pedidos que fueron confirmados en WhatsApp
+        // Solo detectar nuevos pedidos que fueron confirmados en WhatsApp Y tienen método de pago confirmado
         const newOrders = sortedOrders.filter(o => {
           if (previousOrderIds.has(o.id) || o.status !== 'pending') return false;
           const hasPhone = o.customer_phone && o.customer_phone.trim() !== '';
-          return hasPhone; // Solo pedidos confirmados en WhatsApp
+          if (!hasPhone) return false;
+          
+          // Verificar que el método de pago esté confirmado
+          const paymentMethod = (o.payment_method || '').toLowerCase();
+          const isPaymentPending = paymentMethod.includes('pendiente') || 
+                                   paymentMethod === '' || 
+                                   paymentMethod === 'null' ||
+                                   o.payment_status === 'pending';
+          
+          return !isPaymentPending; // Solo pedidos con método de pago confirmado
         });
         
         if (newOrders.length > 0) {
@@ -194,17 +203,35 @@ export default function OrdersManagement() {
       }
       
       // Actualizar contadores de pedidos pendientes
-      // Solo contar pedidos confirmados en WhatsApp (tienen customer_phone)
+      // Solo contar pedidos confirmados en WhatsApp Y con método de pago confirmado
       const pendingDelivery = sortedOrders.filter(o => {
         if (o.status !== 'pending' || (o.delivery_fee || 0) === 0) return false;
         const hasPhone = o.customer_phone && o.customer_phone.trim() !== '';
-        return hasPhone; // Solo pedidos confirmados en WhatsApp
+        if (!hasPhone) return false;
+        
+        // Verificar que el método de pago esté confirmado
+        const paymentMethod = (o.payment_method || '').toLowerCase();
+        const isPaymentPending = paymentMethod.includes('pendiente') || 
+                                 paymentMethod === '' || 
+                                 paymentMethod === 'null' ||
+                                 o.payment_status === 'pending';
+        
+        return !isPaymentPending; // Solo pedidos con método de pago confirmado
       }).length;
       
       const pendingPickup = sortedOrders.filter(o => {
         if (o.status !== 'pending' || (o.delivery_fee || 0) > 0) return false;
         const hasPhone = o.customer_phone && o.customer_phone.trim() !== '';
-        return hasPhone; // Solo pedidos confirmados en WhatsApp
+        if (!hasPhone) return false;
+        
+        // Verificar que el método de pago esté confirmado
+        const paymentMethod = (o.payment_method || '').toLowerCase();
+        const isPaymentPending = paymentMethod.includes('pendiente') || 
+                                 paymentMethod === '' || 
+                                 paymentMethod === 'null' ||
+                                 o.payment_status === 'pending';
+        
+        return !isPaymentPending; // Solo pedidos con método de pago confirmado
       }).length;
       
       setPendingDeliveryCount(pendingDelivery);
@@ -713,7 +740,7 @@ export default function OrdersManagement() {
     // Filtrar por estado simplificado: PENDIENTES - CANCELADAS - COMPLETADAS
     if (activeFilter === 'pending') {
       // Solo pedidos pendientes de aceptar
-      // IMPORTANTE: Solo mostrar pedidos confirmados en WhatsApp (tienen customer_phone)
+      // IMPORTANTE: Solo mostrar pedidos confirmados en WhatsApp Y con método de pago confirmado
       filtered = filtered.filter(order => {
         if (order.status !== 'pending') return false;
         
@@ -723,6 +750,18 @@ export default function OrdersManagement() {
         // Solo mostrar si tiene teléfono (confirmado en WhatsApp)
         if (!hasPhone) {
           return false; // Excluir pedidos de la web que aún no fueron confirmados en WhatsApp
+        }
+        
+        // Verificar que el método de pago esté confirmado (no "Pendiente de selección (Web)")
+        const paymentMethod = (order.payment_method || '').toLowerCase();
+        const isPaymentPending = paymentMethod.includes('pendiente') || 
+                                 paymentMethod === '' || 
+                                 paymentMethod === 'null' ||
+                                 order.payment_status === 'pending';
+        
+        // Excluir si el método de pago aún no está confirmado
+        if (isPaymentPending) {
+          return false; // Excluir pedidos que aún no tienen método de pago confirmado
         }
         
         // Si es pedido de retiro (deliveryFee === 0) y pago en efectivo
