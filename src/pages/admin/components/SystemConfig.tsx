@@ -333,6 +333,31 @@ export default function SystemConfig() {
         </div>
       </div>
 
+      {/* QR Code para WhatsApp */}
+      {qrAvailable && qrCode && (
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">📱 Código QR de WhatsApp</h2>
+          <div className="flex flex-col items-center gap-4">
+            <div className="bg-white p-4 rounded-lg border-2 border-gray-300">
+              <img 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCode)}`}
+                alt="QR Code WhatsApp"
+                className="w-64 h-64"
+              />
+            </div>
+            <div className="text-center text-sm text-gray-600">
+              <p className="font-semibold mb-2">📱 Instrucciones:</p>
+              <ol className="list-decimal list-inside space-y-1 text-left max-w-md">
+                <li>Abre WhatsApp en tu teléfono</li>
+                <li>Configuración → Dispositivos vinculados</li>
+                <li>Toca "Vincular un dispositivo"</li>
+                <li>Escanea el código QR de arriba</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Logs */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-4">
