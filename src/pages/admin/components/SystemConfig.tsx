@@ -144,62 +144,6 @@ export default function SystemConfig() {
     }
   };
 
-  // Reiniciar servicio
-  const handleRestartService = async (service: 'backend' | 'whatsapp-bot' | 'all') => {
-    const serviceName = service === 'all' ? 'todos los servicios' : service;
-    if (!confirm(`¿Estás seguro de que deseas reiniciar ${serviceName}?`)) {
-      return;
-    }
-
-    setActionLoading(`restart-${service}`);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const data = await systemApi.restartService(service);
-      setSuccess(data.message || `Servicio ${serviceName} reiniciado correctamente`);
-      
-      // Recargar estado después de un momento
-      setTimeout(loadSystemStatus, 2000);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Error al reiniciar servicio');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  // Actualizar servicio desde GitHub
-  const handleUpdateService = async (service: 'backend' | 'whatsapp-bot' | 'all') => {
-    const serviceName = service === 'all' ? 'todos los servicios' : service;
-    if (!confirm(`¿Estás seguro de que deseas actualizar ${serviceName} desde GitHub?\n\nEsto ejecutará:\n1. git pull\n2. npm install (si es necesario)\n3. Reinicio del servicio\n\nEsto puede tardar varios minutos.`)) {
-      return;
-    }
-
-    setActionLoading(`update-${service}`);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const data = await systemApi.updateService(service);
-      setSuccess(data.message || `Actualización de ${serviceName} iniciada. Revisa los logs para ver el progreso.`);
-      
-      // Recargar estado y logs después de un momento (la actualización puede tardar)
-      setTimeout(async () => {
-        await loadSystemStatus();
-        const backend = await loadLogs('backend', 50);
-        const whatsapp = await loadLogs('whatsapp-bot', 50);
-        setBackendLogs(backend);
-        setWhatsappLogs(whatsapp);
-      }, 5000);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Error al iniciar actualización');
-    } finally {
-      // No quitar el loading inmediatamente, la actualización puede tardar
-      setTimeout(() => {
-        setActionLoading(null);
-      }, 10000);
-    }
-  };
 
   // Formatear tiempo de actividad
   const formatUptime = (ms: number) => {
@@ -320,79 +264,14 @@ export default function SystemConfig() {
 
       {/* Controles */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">🎮 Controles del Sistema</h2>
-        
-        {/* Sección de Reinicio */}
-        <div className="mb-6">
-          <h3 className="text-md font-semibold text-gray-700 mb-3">🔄 Reiniciar Servicios</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button
-              onClick={() => handleRestartService('backend')}
-              disabled={actionLoading === 'restart-backend'}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {actionLoading === 'restart-backend' ? '⏳ Reiniciando...' : '🔄 Reiniciar Backend'}
-            </button>
-            
-            <button
-              onClick={() => handleRestartService('whatsapp-bot')}
-              disabled={actionLoading === 'restart-whatsapp-bot'}
-              className="bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {actionLoading === 'restart-whatsapp-bot' ? '⏳ Reiniciando...' : '🔄 Reiniciar WhatsApp Bot'}
-            </button>
-            
-            <button
-              onClick={() => handleRestartService('all')}
-              disabled={actionLoading === 'restart-all'}
-              className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {actionLoading === 'restart-all' ? '⏳ Reiniciando todo...' : '🔄 Reiniciar Todo'}
-            </button>
-          </div>
-        </div>
-
-        {/* Sección de Actualización */}
-        <div className="mb-6 border-t pt-6">
-          <h3 className="text-md font-semibold text-gray-700 mb-3">⬇️ Actualizar Código desde GitHub</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button
-              onClick={() => handleUpdateService('backend')}
-              disabled={actionLoading === 'update-backend'}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {actionLoading === 'update-backend' ? '⏳ Actualizando...' : '⬇️ Actualizar Backend'}
-            </button>
-            
-            <button
-              onClick={() => handleUpdateService('whatsapp-bot')}
-              disabled={actionLoading === 'update-whatsapp-bot'}
-              className="bg-teal-600 hover:bg-teal-700 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {actionLoading === 'update-whatsapp-bot' ? '⏳ Actualizando...' : '⬇️ Actualizar Bot'}
-            </button>
-            
-            <button
-              onClick={() => handleUpdateService('all')}
-              disabled={actionLoading === 'update-all'}
-              className="bg-orange-600 hover:bg-orange-700 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {actionLoading === 'update-all' ? '⏳ Actualizando todo...' : '⬇️ Actualizar Todo'}
-            </button>
-          </div>
-        </div>
-
-        {/* Sección de WhatsApp */}
-        <div className="border-t pt-6">
-          <h3 className="text-md font-semibold text-gray-700 mb-3">📱 WhatsApp</h3>
-          <button
-            onClick={handleDisconnectWhatsApp}
-            disabled={actionLoading === 'disconnect'}
-            className="bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed w-full"
-          >
-            {actionLoading === 'disconnect' ? '⏳ Desconectando...' : '📱 Desconectar WhatsApp'}
-          </button>
-        </div>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">📱 Controles de WhatsApp</h2>
+        <button
+          onClick={handleDisconnectWhatsApp}
+          disabled={actionLoading === 'disconnect'}
+          className="bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed w-full"
+        >
+          {actionLoading === 'disconnect' ? '⏳ Desconectando...' : '📱 Desconectar WhatsApp'}
+        </button>
       </div>
 
       {/* QR Code para WhatsApp */}
