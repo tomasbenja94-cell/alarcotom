@@ -168,12 +168,11 @@ export default function OrdersManagement() {
       // Detectar nuevos pedidos y actualizar contadores
       if (silent && previousOrdersRef.current.length > 0) {
         const previousOrderIds = new Set(previousOrdersRef.current.map(o => o.id));
-        // Solo detectar nuevos pedidos que fueron confirmados en WhatsApp o tienen pago aprobado
+        // Solo detectar nuevos pedidos que fueron confirmados en WhatsApp
         const newOrders = sortedOrders.filter(o => {
           if (previousOrderIds.has(o.id) || o.status !== 'pending') return false;
           const hasPhone = o.customer_phone && o.customer_phone.trim() !== '';
-          const hasApprovedPayment = o.payment_status && o.payment_status !== 'pending';
-          return hasPhone || hasApprovedPayment;
+          return hasPhone; // Solo pedidos confirmados en WhatsApp
         });
         
         if (newOrders.length > 0) {
@@ -195,19 +194,17 @@ export default function OrdersManagement() {
       }
       
       // Actualizar contadores de pedidos pendientes
-      // Solo contar pedidos confirmados en WhatsApp o con pago aprobado
+      // Solo contar pedidos confirmados en WhatsApp (tienen customer_phone)
       const pendingDelivery = sortedOrders.filter(o => {
         if (o.status !== 'pending' || (o.delivery_fee || 0) === 0) return false;
         const hasPhone = o.customer_phone && o.customer_phone.trim() !== '';
-        const hasApprovedPayment = o.payment_status && o.payment_status !== 'pending';
-        return hasPhone || hasApprovedPayment;
+        return hasPhone; // Solo pedidos confirmados en WhatsApp
       }).length;
       
       const pendingPickup = sortedOrders.filter(o => {
         if (o.status !== 'pending' || (o.delivery_fee || 0) > 0) return false;
         const hasPhone = o.customer_phone && o.customer_phone.trim() !== '';
-        const hasApprovedPayment = o.payment_status && o.payment_status !== 'pending';
-        return hasPhone || hasApprovedPayment;
+        return hasPhone; // Solo pedidos confirmados en WhatsApp
       }).length;
       
       setPendingDeliveryCount(pendingDelivery);
@@ -716,17 +713,16 @@ export default function OrdersManagement() {
     // Filtrar por estado simplificado: PENDIENTES - CANCELADAS - COMPLETADAS
     if (activeFilter === 'pending') {
       // Solo pedidos pendientes de aceptar
-      // IMPORTANTE: Solo mostrar pedidos confirmados en WhatsApp o con pago aprobado
+      // IMPORTANTE: Solo mostrar pedidos confirmados en WhatsApp (tienen customer_phone)
       filtered = filtered.filter(order => {
         if (order.status !== 'pending') return false;
         
-        // Verificar si el pedido fue confirmado en WhatsApp (tiene customer_phone) o tiene pago aprobado
+        // Verificar si el pedido fue confirmado en WhatsApp (tiene customer_phone)
         const hasPhone = order.customer_phone && order.customer_phone.trim() !== '';
-        const hasApprovedPayment = order.payment_status && order.payment_status !== 'pending';
         
-        // Solo mostrar si tiene teléfono (confirmado en WhatsApp) o pago aprobado
-        if (!hasPhone && !hasApprovedPayment) {
-          return false; // Excluir pedidos de la web que aún no fueron confirmados
+        // Solo mostrar si tiene teléfono (confirmado en WhatsApp)
+        if (!hasPhone) {
+          return false; // Excluir pedidos de la web que aún no fueron confirmados en WhatsApp
         }
         
         // Si es pedido de retiro (deliveryFee === 0) y pago en efectivo
