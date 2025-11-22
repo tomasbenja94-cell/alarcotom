@@ -1892,8 +1892,10 @@ Escribe el número de la opción.`;
 // ---------------------------------------------------------------------------
 // SHOW PAYMENT OPTIONS
 // ---------------------------------------------------------------------------
-async function showPaymentOptions(from, userSession) {
-    await sendMessage(from, `🔄 Cambio de método de pago
+async function showPaymentOptions(from, userSession, isChange = false) {
+    if (isChange) {
+        // Mensaje cuando el usuario cambia el método de pago (escribe "09")
+        await sendMessage(from, `🔄 Cambio de método de pago
 
 Elegí tu método de pago:
 
@@ -1903,6 +1905,21 @@ Elegí tu método de pago:
 4️⃣ Cancelar pago
 
 Escribí el número de la opción.`);
+    } else {
+        // Mensaje inicial cuando se muestra por primera vez
+        await sendMessage(from, `✅ ¡Perfecto! Tu pedido está confirmado.
+
+💳 *MÉTODO DE PAGO*
+
+Elegí cómo querés pagar:
+
+1️⃣ Mercado Pago
+2️⃣ Transferencia (CVU)
+3️⃣ Efectivo
+4️⃣ Cancelar pago
+
+Escribí el número de la opción.`);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1921,7 +1938,7 @@ async function handlePaymentSelection(from, body, userSession) {
             userSession.waitingForTransferProof = false;
             userSession.waitingForPayment = true;
             userSession.waitingForComplaint = false;
-            await showPaymentOptions(from, userSession);
+            await showPaymentOptions(from, userSession, true); // true = es cambio de método
             return;
         }
         
@@ -3351,7 +3368,7 @@ async function handleMessage(message) {
                 userSession.paymentMethod = null;
                 userSession.waitingForTransferProof = false;
                 userSession.waitingForPayment = true;
-                await showPaymentOptions(from, userSession);
+                await showPaymentOptions(from, userSession, true); // true = es cambio de método
                 return;
             }
             
@@ -3426,7 +3443,7 @@ async function handleMessage(message) {
                 userSession.paymentMethod = null;
                 userSession.waitingForTransferProof = false;
                 userSession.waitingForPayment = true;
-                await showPaymentOptions(from, userSession);
+                await showPaymentOptions(from, userSession, true); // true = es cambio de método
                 return;
             }
             

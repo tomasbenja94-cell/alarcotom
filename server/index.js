@@ -4483,10 +4483,23 @@ app.post('/api/payments/mercadopago/create-preference', corsMiddleware, async (r
       throw new Error('No se pudo generar la preferencia de pago');
     }
   } catch (error) {
-    console.error('❌ Error al crear preferencia de Mercado Pago:', error);
+    console.error('❌ Error al crear preferencia de Mercado Pago:');
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Error completo:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+    
+    // Si es un error de Mercado Pago API, mostrar más detalles
+    if (error.response) {
+      console.error('❌ Mercado Pago API Response:', error.response.status, error.response.data);
+    }
+    if (error.cause) {
+      console.error('❌ Error cause:', error.cause);
+    }
+    
     res.status(500).json({ 
       error: 'Error al generar link de pago',
-      details: error.message,
+      details: error.message || 'Error desconocido',
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
       fallback: true
     });
   }
