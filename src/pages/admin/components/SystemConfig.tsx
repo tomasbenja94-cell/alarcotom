@@ -100,37 +100,27 @@ export default function SystemConfig() {
     }
   };
 
-  // Inicializar logs y estado
+  // Inicializar logs y estado (solo una vez al montar, sin polling automático)
   useEffect(() => {
     const init = async () => {
-      await loadSystemStatus();
-      const backend = await loadLogs('backend');
-      const whatsapp = await loadLogs('whatsapp-bot');
-      setBackendLogs(backend);
-      setWhatsappLogs(whatsapp);
+      setLoading(true);
+      try {
+        await loadSystemStatus();
+        const backend = await loadLogs('backend');
+        const whatsapp = await loadLogs('whatsapp-bot');
+        setBackendLogs(backend);
+        setWhatsappLogs(whatsapp);
+      } catch (error) {
+        console.error('Error inicializando datos del sistema:', error);
+      } finally {
+        setLoading(false);
+      }
     };
     
     init();
 
-    // Actualizar logs cada 10 segundos (reducido para evitar saturación)
-    logsIntervalRef.current = setInterval(async () => {
-      const backend = await loadLogs('backend', 30); // Solo últimas 30 líneas para actualización
-      const whatsapp = await loadLogs('whatsapp-bot', 30);
-      setBackendLogs(prev => {
-        // Mantener las últimas líneas y agregar nuevas
-        const prevLines = prev.split('\n').slice(-30);
-        const newLines = backend.split('\n');
-        return [...prevLines, ...newLines].slice(-60).join('\n');
-      });
-      setWhatsappLogs(prev => {
-        const prevLines = prev.split('\n').slice(-30);
-        const newLines = whatsapp.split('\n');
-        return [...prevLines, ...newLines].slice(-60).join('\n');
-      });
-    }, 10000); // Aumentado a 10 segundos
-
-    // Actualizar estado cada 15 segundos (reducido para evitar saturación)
-    statusIntervalRef.current = setInterval(loadSystemStatus, 15000); // Aumentado a 15 segundos
+    // NO hacer polling automático para evitar timeouts del proxy
+    // El usuario puede actualizar manualmente con el botón de refresh
 
     return () => {
       if (logsIntervalRef.current) clearInterval(logsIntervalRef.current);
@@ -261,9 +251,29 @@ export default function SystemConfig() {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">⚙️ Configuraciones del Sistema</h1>
-        <div className="text-sm text-gray-500">
-          Actualización en tiempo real
-        </div>
+        <button
+          onClick={async () => {
+            setLoading(true);
+            setError(null);
+            try {
+              await loadSystemStatus();
+              const backend = await loadLogs('backend');
+              const whatsapp = await loadLogs('whatsapp-bot');
+              setBackendLogs(backend);
+              setWhatsappLogs(whatsapp);
+              setSuccess('Datos actualizados correctamente');
+              setTimeout(() => setSuccess(null), 3000);
+            } catch (error) {
+              setError('Error al actualizar datos');
+            } finally {
+              setLoading(false);
+            }
+          }}
+          disabled={loading}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+        >
+          🔄 {loading ? 'Actualizando...' : 'Actualizar'}
+        </button>
       </div>
 
       {/* Mensajes de éxito/error */}
