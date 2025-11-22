@@ -1582,6 +1582,9 @@ app.put('/api/orders/:id', async (req, res) => {
     }
     if (req.body.total !== undefined) orderData.total = req.body.total;
     if (req.body.notes !== undefined) orderData.notes = req.body.notes;
+    if (req.body.delivery_code !== undefined || req.body.deliveryCode !== undefined) {
+      orderData.deliveryCode = req.body.delivery_code || req.body.deliveryCode;
+    }
 
     console.log(`📝 [UPDATE ORDER] Actualizando pedido ${req.params.id} con datos:`, JSON.stringify(orderData, null, 2));
     

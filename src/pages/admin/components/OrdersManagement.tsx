@@ -16,6 +16,7 @@ interface Order {
   items: OrderItem[];
   delivery_person_id?: string;
   notes?: string;
+  delivery_code?: string;
 }
 
 interface OrderItem {
@@ -123,6 +124,7 @@ export default function OrdersManagement() {
           selected_options: it.selected_options || it.selectedOptions,
         })),
         delivery_person_id: order.delivery_person_id || order.deliveryPersonId,
+        delivery_code: order.delivery_code || order.deliveryCode,
       }));
 
       setOrders(normalized.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
@@ -163,8 +165,15 @@ export default function OrdersManagement() {
         await ordersApi.update(orderId, { status: 'ready' });
         showToast('Pedido aprobado y disponible para repartidores', 'success');
       } else {
-        // Pedido de retiro: marcarlo como 'ready' y notificar al cliente
-        await ordersApi.update(orderId, { status: 'ready' });
+        // Pedido de retiro: generar código de entrega y marcarlo como 'ready'
+        // Generar código de 4 dígitos
+        const deliveryCode = Math.floor(1000 + Math.random() * 9000).toString();
+        
+        // Actualizar pedido con estado 'ready' y código de entrega
+        await ordersApi.update(orderId, { 
+          status: 'ready',
+          delivery_code: deliveryCode
+        });
         
         // Enviar notificación al cliente
         if (order.customer_phone) {
@@ -552,6 +561,22 @@ export default function OrdersManagement() {
     <div>${order.notes}</div>
   </div>
   ` : ''}
+
+  ${(() => {
+    const isPickup = (order.delivery_fee || 0) === 0;
+    const hasDeliveryCode = order.delivery_code && order.delivery_code.trim() !== '';
+    
+    if (isPickup && hasDeliveryCode) {
+      return `
+  <div class="section" style="border: 3px solid #000; padding: 15px; text-align: center; background: #f9f9f9; margin-top: 20px;">
+    <div class="section-title" style="font-size: 16px; margin-bottom: 10px;">🔐 CÓDIGO DE RETIRO</div>
+    <div style="font-size: 32px; font-weight: bold; letter-spacing: 5px; margin: 10px 0; color: #000;">${order.delivery_code}</div>
+    <div style="font-size: 10px; color: #666; margin-top: 5px;">Presentá este código al retirar</div>
+  </div>
+      `;
+    }
+    return '';
+  })()}
 
   <div class="footer">
     <div class="divider"></div>
