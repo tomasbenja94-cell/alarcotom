@@ -4787,7 +4787,81 @@ app.post('/api/payments/mercadopago/verify-pending', corsMiddleware, async (req,
             }
           } else {
             const errorText = await searchResponse.text();
-            console.log(`   ⚠️ Error con "${searchTerm}": ${searchResponse.status} - ${errorText.substring(0, 200)}`);
+            console.log(`   ⚠️ Error con "${searchTerm}": ${searchResponse.status}`);
+          }
+        }
+        
+        // Estrategia 2: Si no encontramos por external_reference, buscar por fecha y monto
+        if (!foundPayment || foundPayment.status !== 'approved') {
+          console.log(`   🔍 No se encontró pago aprobado por external_reference, buscando por fecha y monto...`);
+          
+          // Buscar pagos del día de creación del pedido
+          const orderDate = new Date(order.createdAt);
+          const startDate = new Date(orderDate);
+          startDate.setHours(0, 0, 0, 0);
+          const endDate = new Date(orderDate);
+          endDate.setHours(23, 59, 59, 999);
+          
+          // Formato de fecha para Mercado Pago: YYYY-MM-DDTHH:mm:ss.sss-03:00
+          const startDateStr = startDate.toISOString().replace('Z', '-03:00');
+          const endDateStr = endDate.toISOString().replace('Z', '-03:00');
+          
+          // Buscar pagos aprobados del día con monto similar (con margen de ±10%)
+          const minAmount = order.total * 0.9;
+          const maxAmount = order.total * 1.1;
+          
+          const searchUrlByDate = `https://api.mercadopago.com/v1/payments/search?status=approved&date_created.from=${startDateStr}&date_created.to=${endDateStr}`;
+          
+          console.log(`   🔍 Buscando pagos aprobados del ${startDateStr} al ${endDateStr}`);
+          console.log(`   💰 Buscando montos entre $${minAmount.toFixed(2)} y $${maxAmount.toFixed(2)}`);
+          
+          const controller2 = new AbortController();
+          const timeoutId2 = setTimeout(() => controller2.abort(), 15000);
+          
+          try {
+            const searchResponse2 = await fetch(searchUrlByDate, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+              },
+              signal: controller2.signal
+            });
+            
+            clearTimeout(timeoutId2);
+            
+            if (searchResponse2.ok) {
+              const searchResult2 = await searchResponse2.json();
+              
+              console.log(`   📊 Pagos aprobados del día: ${searchResult2.results?.length || 0} encontrados`);
+              
+              if (searchResult2.results && searchResult2.results.length > 0) {
+                // Buscar pagos con monto similar
+                const matchingPayments = searchResult2.results.filter(p => {
+                  const amount = parseFloat(p.transaction_amount);
+                  return amount >= minAmount && amount <= maxAmount;
+                });
+                
+                console.log(`   💰 Pagos con monto similar ($${minAmount.toFixed(2)}-$${maxAmount.toFixed(2)}): ${matchingPayments.length} encontrados`);
+                
+                if (matchingPayments.length > 0) {
+                  // Si hay solo uno, es muy probable que sea el correcto
+                  if (matchingPayments.length === 1) {
+                    foundPayment = matchingPayments[0];
+                    console.log(`   ✅ Pago único encontrado por fecha y monto: ${foundPayment.id}`);
+                    console.log(`   📋 External reference del pago: ${foundPayment.external_reference}`);
+                  } else {
+                    // Si hay varios, mostrar todos para que el admin decida
+                    console.log(`   ⚠️ Múltiples pagos encontrados por fecha y monto: ${matchingPayments.length}`);
+                    // Usar el primero como candidato
+                    foundPayment = matchingPayments[0];
+                    console.log(`   💡 Usando el primer pago encontrado: ${foundPayment.id}`);
+                  }
+                }
+              }
+            }
+          } catch (fetchError) {
+            console.log(`   ⚠️ Error buscando por fecha/monto: ${fetchError.message}`);
           }
         }
         
