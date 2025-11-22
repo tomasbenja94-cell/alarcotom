@@ -4917,16 +4917,16 @@ app.post('/api/payments/mercadopago/verify-pending', corsMiddleware, async (req,
             console.log(`   Payment ID: ${payment.id}`);
             console.log(`   Amount: $${payment.transaction_amount}`);
             
-            // Actualizar el pedido
+            // Actualizar el pedido: solo aprobar el pago, mantener status en 'pending' para que el admin lo apruebe
             await prisma.order.update({
               where: { id: order.id },
               data: {
-                status: 'confirmed',
-                paymentStatus: 'approved'
+                status: 'pending', // Mantener en pending hasta que el admin apruebe
+                paymentStatus: 'approved' // El pago está aprobado
               }
             });
             
-            console.log(`✅ [Mercado Pago Verify] Pedido ${order.orderNumber} actualizado a confirmed/approved`);
+            console.log(`✅ [Mercado Pago Verify] Pedido ${order.orderNumber} - Pago aprobado, pedido pendiente de aprobación del admin`);
             
             // Notificar al cliente vía WhatsApp
             if (order.customerPhone) {
@@ -5047,12 +5047,12 @@ app.post('/api/payments/mercadopago/process-payment', corsMiddleware, async (req
           await prisma.order.update({
             where: { id: order.id },
             data: {
-              status: 'confirmed',
-              paymentStatus: 'approved'
+              status: 'pending', // Mantener en pending hasta que el admin apruebe
+              paymentStatus: 'approved' // El pago está aprobado
             }
           });
 
-          console.log(`✅ [Mercado Pago Process] Pedido ${external_reference} aprobado desde redirección`);
+          console.log(`✅ [Mercado Pago Process] Pedido ${external_reference} - Pago aprobado, pedido pendiente de aprobación del admin`);
 
           // Notificar al cliente vía WhatsApp
           if (order.customerPhone) {
@@ -5183,16 +5183,16 @@ app.post('/api/payments/mercadopago/webhook', async (req, res) => {
         if (order) {
           // Solo actualizar si el pago aún no está aprobado (evitar duplicados)
           if (order.paymentStatus !== 'approved') {
-            // Actualizar estado del pedido a confirmado y pago aprobado
+            // Actualizar: solo aprobar el pago, mantener status en 'pending' para que el admin lo apruebe
             await prisma.order.update({
               where: { id: order.id },
               data: {
-                status: 'confirmed',
-                paymentStatus: 'approved'
+                status: 'pending', // Mantener en pending hasta que el admin apruebe
+                paymentStatus: 'approved' // El pago está aprobado
               }
             });
 
-            console.log(`✅ [Mercado Pago Webhook] Pedido ${orderNumber} aprobado automáticamente`);
+            console.log(`✅ [Mercado Pago Webhook] Pedido ${orderNumber} - Pago aprobado, pedido pendiente de aprobación del admin`);
 
             // Notificar al cliente vía WhatsApp (si el bot está disponible)
             if (order.customerPhone) {
