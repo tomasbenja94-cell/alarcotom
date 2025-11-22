@@ -7416,6 +7416,16 @@ app.get('/api/health', (req, res) => {
 // ========== SISTEMA DE CONFIGURACIÓN Y LOGS ==========
 const execAsync = promisify(exec);
 
+// Wrapper para execAsync con timeout
+const execWithTimeout = (command, timeoutMs = 10000) => {
+  return Promise.race([
+    execAsync(command),
+    new Promise((_, reject) => 
+      setTimeout(() => reject(new Error(`Comando timeout después de ${timeoutMs}ms`)), timeoutMs)
+    )
+  ]);
+};
+
 // Manejar OPTIONS para CORS preflight
 app.options('/api/system/logs/:service', corsMiddleware, (req, res) => {
   res.sendStatus(200);
@@ -7483,7 +7493,7 @@ app.options('/api/system/status', corsMiddleware, (req, res) => {
 // Obtener estado de servicios PM2
 app.get('/api/system/status', corsMiddleware, authenticateAdmin, async (req, res) => {
   try {
-    const { stdout } = await execAsync('pm2 jlist');
+    const { stdout } = await execWithTimeout('pm2 jlist', 5000);
     const processes = JSON.parse(stdout);
     
     const services = {
@@ -7576,9 +7586,9 @@ app.post('/api/system/restart/:service', corsMiddleware, authenticateAdmin, asyn
     setTimeout(async () => {
       try {
         if (service === 'all') {
-          await execAsync('pm2 restart all', { timeout: 5000 });
+          await execWithTimeout('pm2 restart all', 5000);
         } else if (service === 'backend' || service === 'whatsapp-bot') {
-          await execAsync(`pm2 restart ${service}`, { timeout: 5000 });
+          await execWithTimeout(`pm2 restart ${service}`, 5000);
         }
         console.log(`✅ Servicio ${service} reiniciado correctamente`);
       } catch (execError) {
