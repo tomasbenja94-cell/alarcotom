@@ -7443,13 +7443,16 @@ app.get('/api/system/logs/:service', corsMiddleware, authenticateAdmin, async (r
       return res.status(400).json({ error: 'Servicio no válido. Use: backend o whatsapp-bot' });
     }
     
+    // Mapear 'whatsapp-bot' a 'bot' para los archivos de log de PM2
+    const pm2ServiceName = service === 'whatsapp-bot' ? 'bot' : service;
+    
     // Intentar leer logs directamente del archivo (más confiable)
     const homeDir = process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE || '/root';
     const logPaths = [
-      path.join(homeDir, '.pm2', 'logs', `${service}-out.log`),
-      path.join(homeDir, '.pm2', 'logs', `${service}-error.log`),
-      path.join('/root', '.pm2', 'logs', `${service}-out.log`),
-      path.join('/root', '.pm2', 'logs', `${service}-error.log`),
+      path.join(homeDir, '.pm2', 'logs', `${pm2ServiceName}-out.log`),
+      path.join(homeDir, '.pm2', 'logs', `${pm2ServiceName}-error.log`),
+      path.join('/root', '.pm2', 'logs', `${pm2ServiceName}-out.log`),
+      path.join('/root', '.pm2', 'logs', `${pm2ServiceName}-error.log`),
     ];
     
     let allLogs = '';
@@ -7484,16 +7487,34 @@ app.get('/api/system/logs/:service', corsMiddleware, authenticateAdmin, async (r
     if (!allLogs || allLogs.trim() === '') {
       try {
         // Usar menos líneas y timeout más corto para respuesta más rápida
-        const { stdout } = await execWithTimeout(`pm2 logs ${service} --lines ${Math.min(lines, 50)} --nostream --raw`, 5000).catch((error) => {
+        // Usar el nombre correcto del proceso PM2 (bot en lugar de whatsapp-bot)
+        const { stdout } = await execWithTimeout(`pm2 logs ${pm2ServiceName} --lines ${Math.min(lines, 50)} --nostream --raw`, 5000).catch((error) => {
           console.warn('⚠️ Error obteniendo logs con PM2 CLI:', error.message);
           return { stdout: '' };
         });
         if (stdout && stdout.trim()) {
-          allLogs = stdout;
+          // Filtrar mensajes de PM2 como "[TAILING]" y códigos de escape ANSI
+          let cleanedLogs = stdout
+            .replace(/\[1m\[90m\[TAILING\].*?\[39m\[22m/g, '') // Eliminar mensaje TAILING
+            .replace(/\x1b\[[0-9;]*m/g, '') // Eliminar códigos de escape ANSI
+            .replace(/\[1m\[90m/g, '') // Eliminar códigos de formato
+            .replace(/\[39m\[22m/g, '') // Eliminar códigos de formato
+            .trim();
+          allLogs = cleanedLogs;
         }
       } catch (pm2Error) {
         console.warn('⚠️ Error obteniendo logs con PM2 CLI:', pm2Error.message);
       }
+    }
+    
+    // Filtrar mensajes de PM2 y códigos de escape ANSI de los logs leídos de archivos también
+    if (allLogs) {
+      allLogs = allLogs
+        .replace(/\[1m\[90m\[TAILING\].*?\[39m\[22m/g, '') // Eliminar mensaje TAILING
+        .replace(/\x1b\[[0-9;]*m/g, '') // Eliminar códigos de escape ANSI
+        .replace(/\[1m\[90m/g, '') // Eliminar códigos de formato
+        .replace(/\[39m\[22m/g, '') // Eliminar códigos de formato
+        .trim();
     }
     
     // Si aún no hay logs, devolver mensaje
@@ -7528,26 +7549,24 @@ setInterval(async () => {
     const { stdout } = await execWithTimeout('pm2 jlist', 2000);
     if (stdout && stdout.trim()) {
       const processes = JSON.parse(stdout);
-      const services = {
-        backend: processes.find((p) => p.name === 'backend'),
-        'whatsapp-bot': processes.find((p) => p.name === 'whatsapp-bot' || p.name === 'bot')
-      };
+      const botProcess = processes.find((p) => p.name === 'bot' || p.name === 'whatsapp-bot');
+      const backendProcess = processes.find((p) => p.name === 'backend');
       
       systemStatusCache = {
         services: {
           backend: {
-            status: services.backend?.pm2_env?.status || 'stopped',
-            uptime: services.backend?.pm2_env?.pm_uptime || 0,
-            restarts: services.backend?.pm2_env?.restart_time || 0,
-            memory: services.backend?.monit?.memory || 0,
-            cpu: services.backend?.monit?.cpu || 0
+            status: backendProcess?.pm2_env?.status || 'stopped',
+            uptime: backendProcess?.pm2_env?.pm_uptime || 0,
+            restarts: backendProcess?.pm2_env?.restart_time || 0,
+            memory: backendProcess?.monit?.memory || 0,
+            cpu: backendProcess?.monit?.cpu || 0
           },
           'whatsapp-bot': {
-            status: services['whatsapp-bot']?.pm2_env?.status || 'stopped',
-            uptime: services['whatsapp-bot']?.pm2_env?.pm_uptime || 0,
-            restarts: services['whatsapp-bot']?.pm2_env?.restart_time || 0,
-            memory: services['whatsapp-bot']?.monit?.memory || 0,
-            cpu: services['whatsapp-bot']?.monit?.cpu || 0
+            status: botProcess?.pm2_env?.status || 'stopped',
+            uptime: botProcess?.pm2_env?.pm_uptime || 0,
+            restarts: botProcess?.pm2_env?.restart_time || 0,
+            memory: botProcess?.monit?.memory || 0,
+            cpu: botProcess?.monit?.cpu || 0
           }
         },
         lastUpdate: Date.now()
@@ -7597,10 +7616,10 @@ app.post('/api/system/whatsapp/disconnect', corsMiddleware, authenticateAdmin, a
     
     // Reiniciar el bot de WhatsApp para que genere nuevo QR
     try {
-      await execAsync('pm2 restart whatsapp-bot');
+      await execAsync('pm2 restart bot');
       console.log('✅ WhatsApp bot reiniciado para generar nuevo QR');
     } catch (restartError) {
-      console.warn('⚠️ No se pudo reiniciar whatsapp-bot automáticamente:', restartError.message);
+      console.warn('⚠️ No se pudo reiniciar bot automáticamente:', restartError.message);
     }
     
     res.json({ 
@@ -7631,8 +7650,11 @@ app.post('/api/system/restart/:service', corsMiddleware, authenticateAdmin, asyn
       try {
         if (service === 'all') {
           await execWithTimeout('pm2 restart all', 5000);
-        } else if (service === 'backend' || service === 'whatsapp-bot') {
-          await execWithTimeout(`pm2 restart ${service}`, 5000);
+        } else if (service === 'backend') {
+          await execWithTimeout('pm2 restart backend', 5000);
+        } else if (service === 'whatsapp-bot') {
+          // El proceso se llama 'bot' en PM2, no 'whatsapp-bot'
+          await execWithTimeout('pm2 restart bot', 5000);
         }
         console.log(`✅ Servicio ${service} reiniciado correctamente`);
       } catch (execError) {
