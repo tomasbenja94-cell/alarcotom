@@ -7563,41 +7563,6 @@ app.get('/api/system/status', corsMiddleware, authenticateAdmin, async (req, res
   try {
     // Responder inmediatamente con datos del cache (muy rápido, evita timeout)
     res.json(systemStatusCache);
-    
-    if (!stdout || stdout.trim() === '') {
-      return res.json({
-        services: {
-          backend: { status: 'unknown', uptime: 0, restarts: 0, memory: 0, cpu: 0 },
-          'whatsapp-bot': { status: 'unknown', uptime: 0, restarts: 0, memory: 0, cpu: 0 }
-        }
-      });
-    }
-    
-    const processes = JSON.parse(stdout);
-    
-    const services = {
-      backend: processes.find((p) => p.name === 'backend'),
-      'whatsapp-bot': processes.find((p) => p.name === 'whatsapp-bot' || p.name === 'bot')
-    };
-    
-    res.json({
-      services: {
-        backend: {
-          status: services.backend?.pm2_env?.status || 'stopped',
-          uptime: services.backend?.pm2_env?.pm_uptime || 0,
-          restarts: services.backend?.pm2_env?.restart_time || 0,
-          memory: services.backend?.monit?.memory || 0,
-          cpu: services.backend?.monit?.cpu || 0
-        },
-        'whatsapp-bot': {
-          status: services['whatsapp-bot']?.pm2_env?.status || 'stopped',
-          uptime: services['whatsapp-bot']?.pm2_env?.pm_uptime || 0,
-          restarts: services['whatsapp-bot']?.pm2_env?.restart_time || 0,
-          memory: services['whatsapp-bot']?.monit?.memory || 0,
-          cpu: services['whatsapp-bot']?.monit?.cpu || 0
-        }
-      }
-    });
   } catch (error) {
     console.error('Error obteniendo estado:', error);
     res.status(500).json({ error: 'Error al obtener estado de servicios', details: error.message });
