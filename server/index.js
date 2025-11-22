@@ -4716,6 +4716,8 @@ app.post('/api/payments/mercadopago/verify-pending', corsMiddleware, async (req,
     
     for (const order of pendingOrders) {
       console.log(`\n🔍 [Mercado Pago Verify] Verificando pedido ${order.orderNumber}...`);
+      console.log(`   📅 Creado: ${order.createdAt}`);
+      console.log(`   💰 Total: $${order.total}`);
       
       try {
         // Obtener el access token
@@ -4731,37 +4733,67 @@ app.post('/api/payments/mercadopago/verify-pending', corsMiddleware, async (req,
         
         // Buscar pagos en Mercado Pago - primero sin filtrar por estado
         // Luego verificar el estado de cada pago encontrado
-        const searchUrl = `https://api.mercadopago.com/v1/payments/search?external_reference=${encodeURIComponent(order.orderNumber)}`;
+        // Intentar buscar con diferentes formatos del orderNumber
+        const searchTerms = [
+          order.orderNumber, // #0005
+          order.orderNumber.replace('#', ''), // 0005
+          `#${order.orderNumber.replace('#', '').padStart(4, '0')}`, // #0005 (normalizado)
+        ];
         
-        console.log(`   🔍 Buscando en Mercado Pago: ${searchUrl}`);
+        let foundPayment = null;
+        
+        for (const searchTerm of searchTerms) {
+          const searchUrl = `https://api.mercadopago.com/v1/payments/search?external_reference=${encodeURIComponent(searchTerm)}`;
+          
+          console.log(`   🔍 Buscando en Mercado Pago con: "${searchTerm}"`);
         
         // Agregar timeout de 10 segundos para cada búsqueda
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
         
-        const searchResponse = await fetch(searchUrl, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-          },
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (searchResponse.ok) {
-          const searchResult = await searchResponse.json();
+          const searchResponse = await fetch(searchUrl, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            },
+            signal: controller.signal
+          });
           
-          console.log(`   📊 Resultados de búsqueda: ${searchResult.results?.length || 0} pagos encontrados`);
+          clearTimeout(timeoutId);
           
-          if (searchResult.results && searchResult.results.length > 0) {
-            // Buscar el primer pago aprobado
-            const approvedPayment = searchResult.results.find(p => p.status === 'approved');
+          if (searchResponse.ok) {
+            const searchResult = await searchResponse.json();
             
-            if (approvedPayment) {
-              // Encontramos un pago aprobado
-              const payment = approvedPayment;
+            console.log(`   📊 Resultados con "${searchTerm}": ${searchResult.results?.length || 0} pagos encontrados`);
+            
+            if (searchResult.results && searchResult.results.length > 0) {
+              // Buscar el primer pago aprobado
+              const approvedPayment = searchResult.results.find(p => p.status === 'approved');
+              
+              if (approvedPayment) {
+                foundPayment = approvedPayment;
+                console.log(`   ✅ Pago aprobado encontrado con término "${searchTerm}"`);
+                break; // Salir del loop si encontramos un pago aprobado
+              } else {
+                // Guardar todos los pagos encontrados para mostrar en el resultado
+                if (!foundPayment && searchResult.results.length > 0) {
+                  foundPayment = { 
+                    ...searchResult.results[0], 
+                    allPayments: searchResult.results 
+                  };
+                }
+              }
+            }
+          } else {
+            const errorText = await searchResponse.text();
+            console.log(`   ⚠️ Error con "${searchTerm}": ${searchResponse.status} - ${errorText.substring(0, 200)}`);
+          }
+        }
+        
+        if (foundPayment && foundPayment.status === 'approved') {
+          // Encontramos un pago aprobado
+          const payment = foundPayment;
             
             console.log(`✅ [Mercado Pago Verify] Pago encontrado y aprobado para ${order.orderNumber}`);
             console.log(`   Payment ID: ${payment.id}`);
@@ -4808,32 +4840,32 @@ app.post('/api/payments/mercadopago/verify-pending', corsMiddleware, async (req,
                 paymentId: payment.id,
                 amount: payment.transaction_amount
               });
-            } else {
-              // Hay pagos pero ninguno está aprobado
-              const paymentStatuses = searchResult.results.map(p => `${p.status}(${p.status_detail || 'N/A'})`).join(', ');
-              console.log(`⏳ [Mercado Pago Verify] Pagos encontrados pero no aprobados para ${order.orderNumber}: ${paymentStatuses}`);
-              pendingCount++;
-              results.push({
-                orderNumber: order.orderNumber,
-                status: 'pending',
-                message: `Pagos encontrados pero no aprobados. Estados: ${paymentStatuses}`,
-                payments: searchResult.results.map(p => ({
-                  id: p.id,
-                  status: p.status,
-                  status_detail: p.status_detail,
-                  amount: p.transaction_amount
-                }))
-              });
-            }
-          } else {
-            console.log(`⏳ [Mercado Pago Verify] No se encontró ningún pago para ${order.orderNumber}`);
-            pendingCount++;
-            results.push({
-              orderNumber: order.orderNumber,
-              status: 'pending',
-              message: 'Pago no encontrado en Mercado Pago'
-            });
-          }
+        } else if (foundPayment && foundPayment.allPayments) {
+          // Hay pagos pero ninguno está aprobado
+          const paymentStatuses = foundPayment.allPayments.map(p => `${p.status}(${p.status_detail || 'N/A'})`).join(', ');
+          console.log(`⏳ [Mercado Pago Verify] Pagos encontrados pero no aprobados para ${order.orderNumber}: ${paymentStatuses}`);
+          pendingCount++;
+          results.push({
+            orderNumber: order.orderNumber,
+            status: 'pending',
+            message: `Pagos encontrados pero no aprobados. Estados: ${paymentStatuses}`,
+            payments: foundPayment.allPayments.map(p => ({
+              id: p.id,
+              status: p.status,
+              status_detail: p.status_detail,
+              amount: p.transaction_amount,
+              external_reference: p.external_reference
+            }))
+          });
+        } else {
+          console.log(`⏳ [Mercado Pago Verify] No se encontró ningún pago para ${order.orderNumber}`);
+          pendingCount++;
+          results.push({
+            orderNumber: order.orderNumber,
+            status: 'pending',
+            message: 'Pago no encontrado en Mercado Pago. Verifica que el external_reference coincida.'
+          });
+        }
         } else {
           const errorText = await searchResponse.text();
           console.warn(`⚠️ [Mercado Pago Verify] Error al buscar pagos para ${order.orderNumber}: ${searchResponse.status} - ${errorText}`);
