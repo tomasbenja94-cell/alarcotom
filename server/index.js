@@ -7513,34 +7513,56 @@ app.options('/api/system/status', corsMiddleware, (req, res) => {
   res.sendStatus(200);
 });
 
-// Obtener estado de servicios PM2
-app.get('/api/system/status', corsMiddleware, authenticateAdmin, async (req, res) => {
+// Cache para el estado del sistema (se actualiza cada 5 segundos)
+let systemStatusCache = {
+  services: {
+    backend: { status: 'unknown', uptime: 0, restarts: 0, memory: 0, cpu: 0 },
+    'whatsapp-bot': { status: 'unknown', uptime: 0, restarts: 0, memory: 0, cpu: 0 }
+  },
+  lastUpdate: 0
+};
+
+// Actualizar cache en segundo plano cada 5 segundos
+setInterval(async () => {
   try {
-    // Usar timeout más corto para respuesta más rápida
-    const { stdout } = await execWithTimeout('pm2 jlist', 3000).catch((error) => {
-      console.error('❌ Error ejecutando pm2 jlist:', error.message);
-      // Si falla, devolver estado básico en lugar de error
-      return res.json({
+    const { stdout } = await execWithTimeout('pm2 jlist', 2000);
+    if (stdout && stdout.trim()) {
+      const processes = JSON.parse(stdout);
+      const services = {
+        backend: processes.find((p) => p.name === 'backend'),
+        'whatsapp-bot': processes.find((p) => p.name === 'whatsapp-bot' || p.name === 'bot')
+      };
+      
+      systemStatusCache = {
         services: {
           backend: {
-            status: 'unknown',
-            uptime: 0,
-            restarts: 0,
-            memory: 0,
-            cpu: 0,
-            error: 'No se pudo obtener estado de PM2'
+            status: services.backend?.pm2_env?.status || 'stopped',
+            uptime: services.backend?.pm2_env?.pm_uptime || 0,
+            restarts: services.backend?.pm2_env?.restart_time || 0,
+            memory: services.backend?.monit?.memory || 0,
+            cpu: services.backend?.monit?.cpu || 0
           },
           'whatsapp-bot': {
-            status: 'unknown',
-            uptime: 0,
-            restarts: 0,
-            memory: 0,
-            cpu: 0,
-            error: 'No se pudo obtener estado de PM2'
+            status: services['whatsapp-bot']?.pm2_env?.status || 'stopped',
+            uptime: services['whatsapp-bot']?.pm2_env?.pm_uptime || 0,
+            restarts: services['whatsapp-bot']?.pm2_env?.restart_time || 0,
+            memory: services['whatsapp-bot']?.monit?.memory || 0,
+            cpu: services['whatsapp-bot']?.monit?.cpu || 0
           }
-        }
-      });
-    });
+        },
+        lastUpdate: Date.now()
+      };
+    }
+  } catch (error) {
+    console.warn('⚠️ Error actualizando cache de estado:', error.message);
+  }
+}, 5000);
+
+// Obtener estado de servicios PM2 (responde inmediatamente desde cache)
+app.get('/api/system/status', corsMiddleware, authenticateAdmin, async (req, res) => {
+  try {
+    // Responder inmediatamente con datos del cache (muy rápido, evita timeout)
+    res.json(systemStatusCache);
     
     if (!stdout || stdout.trim() === '') {
       return res.json({
