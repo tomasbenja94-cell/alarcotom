@@ -23,6 +23,7 @@ import { userRateLimit, ipRateLimit, endpointRateLimit, criticalActionRateLimit,
 import { verifyWebhookSignature, validateWebhookApiKey } from './src/middlewares/webhook-auth.middleware.js';
 import { idempotencyMiddleware, webhookIdempotencyMiddleware } from './src/middlewares/idempotency.middleware.js';
 import { errorHandler } from './src/middlewares/error-handler.middleware.js';
+import { inputSanitization, ddosDetection, csrfProtection, requestTimeout, validateRawQuery, safeRawQuery } from './src/middlewares/advanced-security.middleware.js';
 import { createDeliveryPersonSchema, loginDriverSchema, locationUpdateSchema, deliverOrderSchema, registerPaymentSchema, cancelDeliverySchema } from './src/validators/index.js';
 import { sendWebhookWithApiKey, sendWebhookWithIdempotency } from './src/utils/webhook-client.utils.js';
 import { orderStateValidator } from './src/services/order-state-validator.service.js';
@@ -273,8 +274,23 @@ app.use('/proofs', (req, res, next) => {
 // ========== MIDDLEWARES DE SEGURIDAD ==========
 app.use(securityHeaders); // Headers de seguridad
 app.use(corsMiddleware); // CORS configurado
-app.use(express.json({ limit: '50mb' })); // Aumentar límite para imágenes en base64
-app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Para form-data
+
+// Protección DDoS (debe ir antes de otros middlewares)
+app.use(ddosDetection);
+
+// Timeout de requests (30 segundos)
+app.use(requestTimeout(30000));
+
+// Límite de tamaño de request (10MB para JSON, 50MB para form-data)
+app.use(express.json({ limit: '10mb' })); // JSON limitado a 10MB
+app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Form-data hasta 50MB
+
+// Sanitización de inputs (protección SQL injection, XSS, path traversal)
+app.use(inputSanitization);
+
+// Protección CSRF
+app.use(csrfProtection);
+
 // Rate limiting general (excluye delivery autenticado)
 app.use(generalRateLimit); // Rate limiting general
 // ipRateLimit deshabilitado para evitar bloqueos de IP en desarrollo
