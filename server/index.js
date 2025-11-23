@@ -1083,9 +1083,10 @@ app.get('/api/orders', systemRateLimit, async (req, res) => {
       // Solo mostrar pedidos que:
       // 1. Tienen customer_phone (confirmados en WhatsApp), O
       // 2. Tienen payment_status != 'pending' (pagos aprobados)
-      // Y NO tienen transferencias pendientes (pending_transfers con status = 'pending')
+      // Y si tienen payment_status = 'pending', NO deben tener transferencias pendientes
       // Esto evita que aparezcan pedidos de la web que aún no fueron confirmados en WhatsApp
       // Y también evita que aparezcan pedidos por transferencia antes de aprobar la transferencia
+      // PERO si el payment_status != 'pending' (ya aprobado), el pedido aparece sin importar las transferencias
       whereClause = {
         AND: [
           {
@@ -1095,14 +1096,26 @@ app.get('/api/orders', systemRateLimit, async (req, res) => {
             ]
           },
           {
-            // Excluir pedidos con transferencias pendientes
-            NOT: {
-              pendingTransfers: {
-                some: {
-                  status: 'pending'
-                }
+            // Si payment_status = 'pending', excluir si tiene transferencias pendientes
+            // Si payment_status != 'pending', incluir siempre (ya está aprobado)
+            OR: [
+              { paymentStatus: { not: 'pending' } }, // Ya aprobado, mostrar siempre
+              {
+                // Si está pendiente, solo mostrar si NO tiene transferencias pendientes
+                AND: [
+                  { paymentStatus: 'pending' },
+                  {
+                    NOT: {
+                      pendingTransfers: {
+                        some: {
+                          status: 'pending'
+                        }
+                      }
+                    }
+                  }
+                ]
               }
-            }
+            ]
           }
         ]
       };
@@ -1134,14 +1147,26 @@ app.get('/api/orders', systemRateLimit, async (req, res) => {
                 ]
               },
               {
-                // Excluir pedidos con transferencias pendientes
-                NOT: {
-                  pendingTransfers: {
-                    some: {
-                      status: 'pending'
-                    }
+                // Si payment_status = 'pending', excluir si tiene transferencias pendientes
+                // Si payment_status != 'pending', incluir siempre (ya está aprobado)
+                OR: [
+                  { paymentStatus: { not: 'pending' } }, // Ya aprobado, mostrar siempre
+                  {
+                    // Si está pendiente, solo mostrar si NO tiene transferencias pendientes
+                    AND: [
+                      { paymentStatus: 'pending' },
+                      {
+                        NOT: {
+                          pendingTransfers: {
+                            some: {
+                              status: 'pending'
+                            }
+                          }
+                        }
+                      }
+                    ]
                   }
-                }
+                ]
               }
             ]
           };
