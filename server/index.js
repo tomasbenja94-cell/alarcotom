@@ -304,6 +304,7 @@ app.use('/api/admin', adminRoutes); // Rutas de admin
 app.use('/api/delivery', deliveryRoutes); // Rutas adicionales de repartidores
 app.use('/api/monitoring', monitoringRoutes); // Rutas de monitoring (solo admin)
 app.use('/api', statsRoutes); // Rutas de estadísticas (montado en /api, rutas internas: /stats/sales)
+app.use('/api/stores', storesRoutes); // Rutas de stores (multi-tenant)
 
 // ========== HELPER: Convertir camelCase a snake_case ==========
 function toSnakeCase(str) {
@@ -347,8 +348,16 @@ app.get('/', (req, res) => {
 // ========== CATEGORÍAS ==========
 app.get('/api/categories', async (req, res) => {
   try {
+    const storeId = req.query.storeId;
+    const whereClause = { isActive: true };
+    
+    // Si hay storeId, filtrar por store
+    if (storeId) {
+      whereClause.storeId = storeId;
+    }
+    
     const categories = await prisma.category.findMany({
-      where: { isActive: true },
+      where: whereClause,
       orderBy: { displayOrder: 'asc' }
     });
     res.json(objectToSnakeCase(categories));
@@ -703,9 +712,18 @@ app.delete('/api/recipes/:id', corsMiddleware, async (req, res) => {
 
 app.get('/api/products', corsMiddleware, async (req, res) => {
   try {
+    const storeId = req.query.storeId;
+    const whereClause = {};
+    
+    // Si hay storeId, filtrar por store
+    if (storeId) {
+      whereClause.storeId = storeId;
+    }
+    
     // Obtener todos los productos sin filtrar por isAvailable
     // El frontend puede filtrar si es necesario
     const products = await prisma.product.findMany({
+      where: whereClause,
       include: {
         category: true,
         productOptionCategories: {
@@ -1077,8 +1095,15 @@ app.get('/api/orders', systemRateLimit, async (req, res) => {
   try {
     // Si viene el parámetro 'all=true', mostrar todos los pedidos (para el bot)
     const showAll = req.query.all === 'true';
+    const storeId = req.query.storeId;
     
     let whereClause = {};
+    
+    // Si hay storeId, filtrar por store
+    if (storeId) {
+      whereClause.storeId = storeId;
+    }
+    
     if (!showAll) {
       // Solo mostrar pedidos que:
       // 1. Tienen customer_phone (confirmados en WhatsApp), O
@@ -1338,6 +1363,7 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
       total: req.body.total,
       notes: req.body.notes,
       orderNumber,
+      storeId: req.body.store_id || req.body.storeId || null, // Agregar storeId si viene en el request
       items: {
         create: (req.body.items || []).map(item => {
           // Asegurar que selectedOptions se guarde como string JSON
