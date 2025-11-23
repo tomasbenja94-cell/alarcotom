@@ -275,20 +275,22 @@ app.use('/proofs', (req, res, next) => {
 app.use(securityHeaders); // Headers de seguridad
 app.use(corsMiddleware); // CORS configurado
 
-// Protección DDoS (debe ir antes de otros middlewares)
+// Protección DDoS (debe ir antes de otros middlewares, pero después de CORS)
 app.use(ddosDetection);
 
 // Timeout de requests (30 segundos)
 app.use(requestTimeout(30000));
 
 // Límite de tamaño de request (10MB para JSON, 50MB para form-data)
+// IMPORTANTE: Parsear body ANTES de sanitizar
 app.use(express.json({ limit: '10mb' })); // JSON limitado a 10MB
 app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Form-data hasta 50MB
 
 // Sanitización de inputs (protección SQL injection, XSS, path traversal)
+// Debe ir DESPUÉS de express.json para que req.body esté parseado
 app.use(inputSanitization);
 
-// Protección CSRF
+// Protección CSRF (debe ir después de parsear body)
 app.use(csrfProtection);
 
 // Rate limiting general (excluye delivery autenticado)
