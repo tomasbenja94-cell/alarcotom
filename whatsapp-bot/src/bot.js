@@ -41,6 +41,43 @@ const API_CONFIG = {
     url: process.env.API_URL || 'https://api.elbuenmenu.site/api'
 };
 
+// ---------------------------------------------------------------------------
+// STORE CONFIGURATION (Multi-tenant)
+// ---------------------------------------------------------------------------
+const STORE_ID = process.env.STORE_ID || 'el-buen-menu';
+let storeConfig = null;
+
+// Función para cargar configuración del store
+async function loadStoreConfig() {
+    try {
+        const store = await apiRequest(`/stores/${STORE_ID}`);
+        storeConfig = store;
+        logger.info(`✅ Store config cargado: ${store.name}`);
+        
+        // Cargar mensajes personalizados del store si existen
+        try {
+            const botMessagesResponse = await apiRequest(`/bot-messages?storeId=${STORE_ID}`);
+            if (botMessagesResponse && botMessagesResponse.length > 0) {
+                botMessages = {};
+                botMessagesResponse.forEach(msg => {
+                    botMessages[msg.message_key] = msg.message_text;
+                });
+                logger.info('✅ Mensajes del bot cargados desde la API para store:', STORE_ID);
+            }
+        } catch (error) {
+            logger.debug('⚠️ No se pudieron cargar mensajes personalizados del store:', error.message);
+        }
+    } catch (error) {
+        logger.error('Error cargando store config:', error);
+        // Usar valores por defecto
+        storeConfig = {
+            id: STORE_ID,
+            name: 'El Buen Menú',
+            menuUrl: 'https://elbuenmenu.site/menu'
+        };
+    }
+}
+
 // Función para hacer requests a la API local con retry y mejor manejo de errores
 async function apiRequest(endpoint, options = {}) {
     const maxRetries = 3;
@@ -1116,6 +1153,9 @@ async function startBot() {
         isConnecting = true;
         connectionAttempts++;
         
+        // Cargar configuración del store antes de iniciar
+        await loadStoreConfig();
+        
         logger.info('\n🚀 INICIANDO BOT DE WHATSAPP PROFESIONAL...\n');
         
         // Cargar mensajes del bot
@@ -1792,7 +1832,7 @@ async function handleTransferProof(from, message, userSession) {
                         orderId = userSession.pendingOrder.orderId;
                     } else {
                         // Buscar el último pedido del usuario usando JID directamente
-                        const allOrders = await apiRequest('/orders?all=true');
+                        const allOrders = await apiRequest(`/orders?storeId=${STORE_ID}&all=true`);
                         const userOrders = allOrders.filter(order => {
                             return order.customer_phone === customerJid;
                         });
@@ -2174,7 +2214,7 @@ async function handlePaymentSelection(from, body, userSession) {
                     body: JSON.stringify({
                         amount: validAmount,
                         orderNumber: orderNumber,
-                        description: `Pedido ${orderNumber} - El Buen Menú`
+                        description: `Pedido ${orderNumber} - ${storeConfig?.name || 'El Buen Menú'}`
                     })
                 });
                 
@@ -2621,7 +2661,8 @@ async function showMainMenu(from, customerId) {
             // Ignorar error, solo no mostrar info de fidelidad
         }
         
-        const welcomeMessage = `👋 *¡Bienvenido a El Buen Menú!*\n\n${loyaltyDisplay}📌 *¿Qué necesitás hacer?*\n\n` +
+        const storeName = storeConfig?.name || 'El Buen Menú';
+        const welcomeMessage = `👋 *¡Bienvenido a ${storeName}!*\n\n${loyaltyDisplay}📌 *¿Qué necesitás hacer?*\n\n` +
             `*1️⃣* Ver Menú 📋\n` +
             `*2️⃣* Consultar un Pedido 🔍\n` +
             `*3️⃣* Mis Pedidos 📦\n` +
@@ -2637,7 +2678,8 @@ async function showMainMenu(from, customerId) {
     } catch (error) {
         logger.error('❌ Error mostrando menú principal:', error);
         // Fallback a menú simple
-        const fallbackMessage = `👋 *¡Bienvenido a El Buen Menú!*\n\n📌 *¿Qué necesitás hacer?*\n\n1️⃣ Ver Menú 📋\n2️⃣ Consultar un Pedido 🔍\n3️⃣ Mis Pedidos 📦\n4️⃣ Mi Link de Invitación 🔗\n5️⃣ Mis Puntos ⭐\n6️⃣ Canjear Código 🎟️\n7️⃣ Enviar Reclamo 📝\n8️⃣ Ver Horarios 🕒\n9️⃣ ¿Cómo usar el bot? ❓\n\n💡 Podés responder con el *número* o la *palabra clave*.`;
+        const storeName = storeConfig?.name || 'El Buen Menú';
+        const fallbackMessage = `👋 *¡Bienvenido a ${storeName}!*\n\n📌 *¿Qué necesitás hacer?*\n\n1️⃣ Ver Menú 📋\n2️⃣ Consultar un Pedido 🔍\n3️⃣ Mis Pedidos 📦\n4️⃣ Mi Link de Invitación 🔗\n5️⃣ Mis Puntos ⭐\n6️⃣ Canjear Código 🎟️\n7️⃣ Enviar Reclamo 📝\n8️⃣ Ver Horarios 🕒\n9️⃣ ¿Cómo usar el bot? ❓\n\n💡 Podés responder con el *número* o la *palabra clave*.`;
         await sendMessage(from, fallbackMessage);
     }
 }
@@ -2655,7 +2697,7 @@ async function validateOrderQueryWithIUC(from, messageText, customerJid) {
         const isNewWebOrder = messageText.includes('Código de pedido:') && 
                              (messageText.includes('Tu identificador único (IUC) se te asignará') ||
                               messageText.includes('se te asignará cuando el pedido sea aprobado') ||
-                              messageText.includes('PEDIDO CONFIRMADO - El Buen Menú'));
+                              messageText.includes(`PEDIDO CONFIRMADO - ${storeConfig?.name || 'El Buen Menú'}`));
         
         if (isNewWebOrder) {
             // Es un pedido nuevo desde la web, no requiere IUC aún
@@ -2700,7 +2742,8 @@ async function validateOrderQueryWithIUC(from, messageText, customerJid) {
         
         // Validar formato del mensaje: PEDIDO CONFIRMADO - XXXX - El Buen Menú
         // El código XXXX ahora es el unique_code del pedido, no el IUC del cliente
-        const orderPattern = /PEDIDO CONFIRMADO\s*-\s*(\d{4})\s*-\s*El Buen Menú/i;
+        const storeName = storeConfig?.name || 'El Buen Menú';
+        const orderPattern = new RegExp(`PEDIDO CONFIRMADO\\s*-\\s*(\\d{4})\\s*-\\s*${storeName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
         const match = messageText.match(orderPattern);
         
         if (!match) {
@@ -2753,7 +2796,8 @@ async function validateOrderQueryWithIUC(from, messageText, customerJid) {
                 }
             }
             
-            await sendMessage(from, `⚠️ *Error de validación*\n\nEl formato del mensaje no es correcto.\n\nRecordá: *PEDIDO CONFIRMADO - XXXX - El Buen Menú*\n\nDonde XXXX es el código único de 4 dígitos que recibiste al crear el pedido.\n\nIntento ${(customer?.intentos_invalidos || 0) + 1}/5.`);
+            const storeName = storeConfig?.name || 'El Buen Menú';
+            await sendMessage(from, `⚠️ *Error de validación*\n\nEl formato del mensaje no es correcto.\n\nRecordá: *PEDIDO CONFIRMADO - XXXX - ${storeName}*\n\nDonde XXXX es el código único de 4 dígitos que recibiste al crear el pedido.\n\nIntento ${(customer?.intentos_invalidos || 0) + 1}/5.`);
             return { valid: false };
         }
         
@@ -2762,7 +2806,7 @@ async function validateOrderQueryWithIUC(from, messageText, customerJid) {
         // Buscar el pedido por su código único (unique_code)
         // Usar all=true para obtener TODOS los pedidos, incluyendo los que aún no tienen customer_phone
         try {
-            const allOrders = await apiRequest('/orders?all=true');
+            const allOrders = await apiRequest(`/orders?storeId=${STORE_ID}&all=true`);
             const orderWithCode = allOrders.find(order => order.unique_code === uniqueCodeFromMessage);
             
             if (!orderWithCode) {
@@ -2885,7 +2929,7 @@ async function handleBotHelp(from) {
             `• Podés consultar tus pedidos en cualquier momento\n\n` +
             `*❓ ¿NECESITÁS AYUDA?*\n\n` +
             `Si tenés alguna duda, escribí "reclamo" o "ayuda" y te ayudaremos.\n\n` +
-            `¡Esperamos que disfrutes de El Buen Menú! 🍔❤️`;
+            `¡Esperamos que disfrutes de ${storeConfig?.name || 'El Buen Menú'}! 🍔❤️`;
         
         await sendMessage(from, helpMessage);
     } catch (error) {
@@ -3470,7 +3514,7 @@ async function handleMessage(message) {
         if (!isActiveFlow && !/^\d{4}$/.test(body) && 
             !messageText.includes('PEDIDO CONFIRMADO') && 
             !messageText.includes('Código de pedido:') &&
-            !messageText.includes('PEDIDO - El Buen Menú')) {
+            !messageText.includes(`PEDIDO - ${storeConfig?.name || 'El Buen Menú'}`)) {
             userSession.step = 'welcome';
             userSession.pendingOrder = null;
             userSession.paymentMethod = null;
@@ -3509,7 +3553,7 @@ async function handleMessage(message) {
                 const customer = customers.find(c => c.phone === customerJid);
                 const hasIUC = customer && customer.iuc;
                 
-                if (!hasIUC || messageText.includes('PEDIDO CONFIRMADO - El Buen Menú') || messageText.includes('Tu identificador único')) {
+                if (!hasIUC || messageText.includes(`PEDIDO CONFIRMADO - ${storeConfig?.name || 'El Buen Menú'}`) || messageText.includes('Tu identificador único')) {
                     // Es un mensaje sin IUC (pedido nuevo o cliente sin IUC), procesarlo
                     logger.info(`🌐 Procesando pedido nuevo (sin IUC) de ${from}`);
                 } else {
@@ -3526,7 +3570,7 @@ async function handleMessage(message) {
                 
                 // Verificar si el pedido ya fue procesado o está en un estado final
                 try {
-                    const allOrders = await apiRequest('/orders?all=true');
+                    const allOrders = await apiRequest(`/orders?storeId=${STORE_ID}&all=true`);
                     const orders = allOrders.filter(order => {
                         const orderNum = order.order_number?.replace('#', '') || '';
                         return orderNum === orderCode;
@@ -3582,7 +3626,7 @@ async function handleMessage(message) {
         
         // Detectar pedidos antiguos (compatibilidad)
         if (messageText && (
-            messageText.includes('PEDIDO - El Buen Menú') || 
+            messageText.includes(`PEDIDO - ${storeConfig?.name || 'El Buen Menú'}`) || 
             messageText.includes('DETALLE DEL PEDIDO:') ||
             (messageText.includes('1x') && messageText.includes('$'))
         )) {
@@ -3734,7 +3778,8 @@ async function handleMessage(message) {
         
         // 10. OPCIONES DEL MENÚ PRINCIPAL
         if (body === '1' || (body.includes('menu') && !body.includes('menú principal') && !body.includes('menu principal')) || body.includes('ver menu') || body.includes('ver menú') || body.includes('productos')) {
-            const menuMessage = botMessages?.menu || `📋 *NUESTRO MENÚ COMPLETO*\n\n🌐 https://elbuenmenu.site/menu\n\n¡Elegí tus productos favoritos y hacé tu pedido! 🍔\n\n💡 Podés agregar productos al carrito y confirmar tu pedido desde la web.`;
+            const menuUrl = storeConfig?.menuUrl || `https://elbuenmenu.site/menu?store=${STORE_ID}`;
+            const menuMessage = botMessages?.menu || `📋 *NUESTRO MENÚ COMPLETO*\n\n🌐 ${menuUrl}\n\n¡Elegí tus productos favoritos y hacé tu pedido! 🍔\n\n💡 Podés agregar productos al carrito y confirmar tu pedido desde la web.`;
             
             await sendMessage(from, menuMessage);
             userSession.step = 'welcome';
@@ -3776,7 +3821,8 @@ async function handleMessage(message) {
         }
         
         if (body.includes('ubicacion') || body.includes('ubicación') || body.includes('donde') || body.includes('dirección') || body.includes('direccion') || body.includes('local')) {
-            const locationMessage = botMessages?.location || `📍 *NUESTRA UBICACIÓN*\n\n🏪 El Buen Menú\n\n💡 Escribí "delivery" para información de envíos.\n\nO visitanos en nuestro local.`;
+            const storeName = storeConfig?.name || 'El Buen Menú';
+            const locationMessage = botMessages?.location || `📍 *NUESTRA UBICACIÓN*\n\n🏪 ${storeName}\n\n💡 Escribí "delivery" para información de envíos.\n\nO visitanos en nuestro local.`;
             await sendMessage(from, locationMessage);
             userSession.step = 'welcome';
             return;
@@ -3831,7 +3877,7 @@ async function handleWebOrderConfirmed(from, messageText, userSession) {
         logger.info(`📡 Haciendo request a /orders?all=true...`);
         let allOrders;
         try {
-            allOrders = await apiRequest('/orders?all=true');
+            allOrders = await apiRequest(`/orders?storeId=${STORE_ID}&all=true`);
             logger.info(`📦 Respuesta de API - Tipo: ${typeof allOrders}, Es array: ${Array.isArray(allOrders)}, Valor:`, JSON.stringify(allOrders).substring(0, 200));
             
             if (allOrders === null || allOrders === undefined) {
@@ -4302,6 +4348,7 @@ async function createOrderInDatabase(from, userSession) {
             subtotal: parseFloat(orderTotal),
             delivery_fee: 0,
             total: parseFloat(orderTotal),
+            store_id: STORE_ID, // Agregar storeId al crear el pedido
             notes: `Pedido desde WhatsApp Bot\n\nDetalle original:\n${orderText}`,
             items: itemsArray.map(item => ({
                 product_name: item.product_name,
@@ -4429,7 +4476,7 @@ async function handleOrderStatus(from, codigo, userSession) {
         logger.info(`🔍 Buscando pedido con código: ${codigo}`);
         
         // Buscar pedido por order_number
-        const allOrders = await apiRequest('/orders?all=true');
+        const allOrders = await apiRequest(`/orders?storeId=${STORE_ID}&all=true`);
         const orders = allOrders.filter(order => order.order_number === codigo);
         
         if (orders.length === 0) {
@@ -4457,7 +4504,7 @@ async function handleUserOrders(from, customerJid, userSession) {
         logger.info(`📋 Consultando pedidos del usuario: ${customerJid}`);
         
         // Buscar todos los pedidos del usuario usando JID directamente
-        const allOrders = await apiRequest('/orders?all=true');
+        const allOrders = await apiRequest(`/orders?storeId=${STORE_ID}&all=true`);
         const userOrders = allOrders.filter(order => {
             // Buscar por JID directamente (customer_phone ahora contiene el JID completo)
             return order.customer_phone === customerJid;

@@ -21,10 +21,13 @@ model Category {
   imageUrl     String?   @map("image_url")
   displayOrder Int       @default(0) @map("display_order")
   isActive     Boolean   @default(true) @map("is_active")
+  storeId      String?   @map("store_id")
+  store        Store?    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   products     Product[]
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
+  @@index([storeId])
   @@map("categories")
 }
 
@@ -32,6 +35,8 @@ model Product {
   id                      String                  @id @default(uuid())
   categoryId              String?                 @map("category_id")
   category                Category?               @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  storeId                 String?                 @map("store_id")
+  store                   Store?                  @relation(fields: [storeId], references: [id], onDelete: Cascade)
   name                    String
   description             String?
   price                   Float
@@ -44,6 +49,7 @@ model Product {
   createdAt               DateTime                @default(now()) @map("created_at")
   updatedAt               DateTime                @updatedAt @map("updated_at")
 
+  @@index([storeId])
   @@map("products")
 }
 
@@ -123,6 +129,8 @@ model Order {
   customerAddress     String?                    @map("customer_address")
   customerLat         Float?                     @map("customer_lat") // Latitud de la dirección del cliente
   customerLng         Float?                     @map("customer_lng") // Longitud de la dirección del cliente
+  storeId            String?                   @map("store_id")
+  store              Store?                     @relation(fields: [storeId], references: [id], onDelete: SetNull)
   status              String                     @default("pending") // pending, confirmed, preparing, ready, assigned, in_transit, delivered, cancelled
   paymentMethod       String?                    @map("payment_method")
   paymentStatus       String                     @default("pending") @map("payment_status")
@@ -142,6 +150,7 @@ model Order {
   createdAt           DateTime                   @default(now()) @map("created_at")
   updatedAt           DateTime                   @updatedAt @map("updated_at")
 
+  @@index([storeId])
   @@map("orders")
 }
 
@@ -190,6 +199,8 @@ model PendingTransfer {
   id                String    @id @default(uuid())
   orderId           String    @map("order_id")
   order             Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  storeId           String?   @map("store_id")
+  store             Store?    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   transferReference String?   @map("transfer_reference")
   amount            Float
   status            String    @default("pending")
@@ -198,6 +209,7 @@ model PendingTransfer {
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
+  @@index([storeId])
   @@map("pending_transfers")
 }
 
@@ -247,11 +259,14 @@ model Admin {
   email       String   @unique
   passwordHash String  @map("password_hash") // Hash bcrypt
   role        String   @default("admin") // admin, super_admin, operator, viewer
+  storeId     String?  @map("store_id") // ID del store asignado (null para super_admin)
+  store       Store?   @relation(fields: [storeId], references: [id], onDelete: SetNull)
   isActive    Boolean  @default(true) @map("is_active")
   refreshTokens RefreshToken[]
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  @@index([storeId])
   @@map("admins")
 }
 

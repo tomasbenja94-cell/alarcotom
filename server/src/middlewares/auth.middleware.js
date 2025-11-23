@@ -75,6 +75,44 @@ export const authorize = (...allowedRoles) => {
   };
 };
 
+// ========== MIDDLEWARE PARA VERIFICAR ACCESO AL STORE ==========
+export const authorizeStoreAccess = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'No autenticado' });
+  }
+
+  // Si es usuario mock de desarrollo, permitir acceso
+  if (req.user.id === 'admin-dev') {
+    return next();
+  }
+
+  // Superadmin puede acceder a cualquier store
+  if (req.user.role === 'super_admin') {
+    return next();
+  }
+
+  // Obtener storeId del request (query, params o body)
+  const storeId = req.query.storeId || req.params.storeId || req.body.storeId || req.body.store_id;
+
+  // Si no hay storeId en el request, permitir (puede ser endpoint global)
+  if (!storeId) {
+    return next();
+  }
+
+  // Admin de tienda solo puede acceder a su propio store
+  if (req.user.storeId && req.user.storeId !== storeId) {
+    console.warn('Intento de acceso a store no autorizado', {
+      userId: req.user.id,
+      userStoreId: req.user.storeId,
+      requestedStoreId: storeId,
+      path: req.path
+    });
+    return res.status(403).json({ error: 'No tienes permiso para acceder a este store' });
+  }
+
+  next();
+};
+
 // ========== MIDDLEWARE DE AUTENTICACIÓN REPARTIDOR ==========
 export const authenticateDriver = async (req, res, next) => {
   try {

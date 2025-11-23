@@ -55,7 +55,8 @@ class AdminAuthService {
       admin: {
         id: admin.id,
         email: admin.email,
-        role: admin.role
+        role: admin.role,
+        storeId: admin.storeId
       }
     };
   }
@@ -63,7 +64,7 @@ class AdminAuthService {
   // Generar access token (sin expiración para sesión permanente)
   generateAccessToken(admin) {
     return jwt.sign(
-      { userId: admin.id, role: admin.role, email: admin.email, type: 'admin' },
+      { userId: admin.id, role: admin.role, email: admin.email, storeId: admin.storeId, type: 'admin' },
       JWT_SECRET
       // Sin expiresIn para que nunca expire
     );
@@ -130,7 +131,7 @@ class AdminAuthService {
         throw new Error('Usuario no autorizado');
       }
 
-      return { id: admin.id, role: admin.role, email: admin.email };
+      return { id: admin.id, role: admin.role, email: admin.email, storeId: admin.storeId };
     } catch (error) {
       // Si el error es de expiración, ignorarlo y verificar solo la validez del token
       if (error.name === 'TokenExpiredError') {
@@ -139,7 +140,7 @@ class AdminAuthService {
           if (decoded && decoded.type === 'admin') {
             const admin = await prisma.admin.findUnique({ where: { id: decoded.userId } });
             if (admin && admin.isActive) {
-              return { id: admin.id, role: admin.role, email: admin.email };
+              return { id: admin.id, role: admin.role, email: admin.email, storeId: admin.storeId };
             }
           }
         } catch (decodeError) {
