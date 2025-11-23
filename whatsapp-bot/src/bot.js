@@ -1890,17 +1890,16 @@ Si ya realizaste el pago, puede tardar unos minutos en procesarse. Te notificare
         if (userSession.pendingOrder?.orderId) {
             orderId = userSession.pendingOrder.orderId;
         } else {
-            // Buscar el último pedido del usuario usando JID directamente
-            const allOrders = await apiRequest('/orders?all=true');
-            const userOrders = allOrders.filter(order => {
-                // Buscar por JID directamente (phone ahora contiene el JID completo)
-                return order.customer_phone === customerJid;
-            });
-            if (userOrders.length > 0) {
-                const lastOrder = userOrders.sort((a, b) => 
-                    new Date(b.created_at) - new Date(a.created_at)
-                )[0];
-                orderId = lastOrder.id;
+            // Si no hay orderId, crear el pedido ahora (cuando se recibe el comprobante)
+            // Esto asegura que el pedido solo aparezca después de enviar el comprobante
+            try {
+                logger.info('📝 [TRANSFER PROOF] No hay orderId, creando pedido ahora...');
+                orderId = await createOrderInDatabase(from, userSession);
+                logger.info(`✅ [TRANSFER PROOF] Pedido creado con ID: ${orderId}`);
+            } catch (error) {
+                logger.error('❌ Error al crear pedido al recibir comprobante:', error);
+                await sendMessage(from, '❌ Hubo un error al procesar tu comprobante. Por favor, contactanos directamente.');
+                return;
             }
         }
         
@@ -2264,14 +2263,16 @@ Escribe "09" si querés cambiar el método de pago.`;
             
             await sendMessage(from, transferData);
             
-            // Actualizar pedido en base de datos (pero NO confirmar aún)
+            // NO crear el pedido todavía - solo guardar en sesión
+            // El pedido se creará cuando se reciba el comprobante
+            // Esto evita que aparezca en "Pedidos" antes de que se apruebe la transferencia
             try {
                 if (userSession.pendingOrder?.orderId) {
+                    // Si es un pedido web, actualizar el método de pago pero NO crear pedido nuevo
                     await updateWebOrderPayment(from, userSession, 'Transferencia');
-                } else {
-                    await createOrderInDatabase(from, userSession);
                 }
-                // NO enviar "Pedido recibido" aquí - esperar comprobante
+                // NO llamar a createOrderInDatabase aquí - se creará cuando se reciba el comprobante
+                logger.info('⏳ Pedido por transferencia - esperando comprobante antes de crear pedido');
             } catch (error) {
                 logger.error('❌ Error al manejar selección de pago:', error);
                 await sendMessage(from, '❌ Hubo un error al procesar tu pedido. Por favor, intentá nuevamente.');

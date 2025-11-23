@@ -1083,11 +1083,27 @@ app.get('/api/orders', systemRateLimit, async (req, res) => {
       // Solo mostrar pedidos que:
       // 1. Tienen customer_phone (confirmados en WhatsApp), O
       // 2. Tienen payment_status != 'pending' (pagos aprobados)
+      // Y NO tienen transferencias pendientes (pending_transfers con status = 'pending')
       // Esto evita que aparezcan pedidos de la web que aún no fueron confirmados en WhatsApp
+      // Y también evita que aparezcan pedidos por transferencia antes de aprobar la transferencia
       whereClause = {
-        OR: [
-          { customerPhone: { not: null } }, // Tiene teléfono (confirmado en WhatsApp)
-          { paymentStatus: { not: 'pending' } } // Pago aprobado (aunque no tenga teléfono aún)
+        AND: [
+          {
+            OR: [
+              { customerPhone: { not: null } }, // Tiene teléfono (confirmado en WhatsApp)
+              { paymentStatus: { not: 'pending' } } // Pago aprobado (aunque no tenga teléfono aún)
+            ]
+          },
+          {
+            // Excluir pedidos con transferencias pendientes
+            NOT: {
+              pendingTransfers: {
+                some: {
+                  status: 'pending'
+                }
+              }
+            }
+          }
         ]
       };
     }
@@ -1110,9 +1126,23 @@ app.get('/api/orders', systemRateLimit, async (req, res) => {
         let whereClause = {};
         if (!showAll) {
           whereClause = {
-            OR: [
-              { customerPhone: { not: null } },
-              { paymentStatus: { not: 'pending' } }
+            AND: [
+              {
+                OR: [
+                  { customerPhone: { not: null } },
+                  { paymentStatus: { not: 'pending' } }
+                ]
+              },
+              {
+                // Excluir pedidos con transferencias pendientes
+                NOT: {
+                  pendingTransfers: {
+                    some: {
+                      status: 'pending'
+                    }
+                  }
+                }
+              }
             ]
           };
         }
