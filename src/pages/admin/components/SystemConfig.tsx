@@ -32,6 +32,8 @@ export default function SystemConfig() {
   const whatsappLogsRef = useRef<HTMLDivElement>(null);
   const logsIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const statusIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isRefreshingRef = useRef<boolean>(false);
+  const lastRefreshTimeRef = useRef<number>(0);
 
   // Cargar logs usando systemApi
   const loadLogs = async (service: 'backend' | 'whatsapp-bot', lines: number = 100) => {
@@ -40,6 +42,10 @@ export default function SystemConfig() {
       return data.logs || '';
     } catch (error: any) {
       console.error(`Error cargando logs de ${service}:`, error);
+      // Manejar error 429 específicamente
+      if (error.status === 429 || (error instanceof Error && error.message.includes('429'))) {
+        return `⚠️ Demasiadas peticiones. Por favor espera unos segundos antes de actualizar nuevamente.`;
+      }
       return `❌ Error al cargar logs: ${error instanceof Error ? error.message : 'Error desconocido'}`;
     }
   };
@@ -102,19 +108,24 @@ export default function SystemConfig() {
     
     init();
 
-    // Polling solo para el QR (cada 5 segundos) si el bot no está conectado
+    // Polling solo para el QR (cada 10 segundos) - menos frecuente para evitar rate limiting
+    // Solo actualizar QR si no está disponible, no recargar logs
     const qrInterval = setInterval(() => {
-      if (systemStatus?.services['whatsapp-bot']?.status !== 'online') {
-        loadQRCode();
+      // Solo actualizar QR, no recargar logs automáticamente
+      if (!qrAvailable) {
+        loadQRCode().catch(() => {
+          // Silenciar errores del QR
+        });
       }
-    }, 5000);
+    }, 10000); // Aumentado a 10 segundos para reducir peticiones
 
     return () => {
       if (logsIntervalRef.current) clearInterval(logsIntervalRef.current);
       if (statusIntervalRef.current) clearInterval(statusIntervalRef.current);
       clearInterval(qrInterval);
     };
-  }, [systemStatus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Ejecutar solo una vez al montar, sin dependencias
 
   // Auto-scroll en logs
   useEffect(() => {
@@ -194,8 +205,31 @@ export default function SystemConfig() {
         <h1 className="text-2xl font-bold text-gray-900">⚙️ Configuraciones del Sistema</h1>
         <button
           onClick={async () => {
+            // Prevenir múltiples clics simultáneos
+            const now = Date.now();
+            const timeSinceLastRefresh = now - lastRefreshTimeRef.current;
+            
+            // Si ya hay una actualización en curso, ignorar el clic
+            if (isRefreshingRef.current) {
+              console.log('⚠️ Actualización ya en curso, ignorando clic');
+              return;
+            }
+            
+            // Si se hizo clic hace menos de 2 segundos, ignorar (debounce)
+            if (timeSinceLastRefresh < 2000) {
+              console.log(`⚠️ Espera ${Math.ceil((2000 - timeSinceLastRefresh) / 1000)} segundos antes de actualizar nuevamente`);
+              setError(`Por favor espera ${Math.ceil((2000 - timeSinceLastRefresh) / 1000)} segundo(s) antes de actualizar nuevamente`);
+              setTimeout(() => setError(null), 3000);
+              return;
+            }
+            
+            // Marcar que estamos actualizando
+            isRefreshingRef.current = true;
+            lastRefreshTimeRef.current = now;
             setLoading(true);
             setError(null);
+            setSuccess(null);
+            
             try {
               await loadSystemStatus();
               await loadQRCode();
@@ -205,13 +239,22 @@ export default function SystemConfig() {
               setWhatsappLogs(whatsapp);
               setSuccess('Datos actualizados correctamente');
               setTimeout(() => setSuccess(null), 3000);
-            } catch (error) {
-              setError('Error al actualizar datos');
+            } catch (error: any) {
+              // Manejar error 429 específicamente
+              if (error.status === 429 || (error instanceof Error && error.message.includes('429'))) {
+                setError('Demasiadas peticiones. Por favor espera unos segundos antes de actualizar nuevamente.');
+              } else {
+                setError('Error al actualizar datos');
+              }
             } finally {
               setLoading(false);
+              // Permitir nueva actualización después de 2 segundos
+              setTimeout(() => {
+                isRefreshingRef.current = false;
+              }, 2000);
             }
           }}
-          disabled={loading}
+          disabled={loading || isRefreshingRef.current}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
           🔄 {loading ? 'Actualizando...' : 'Actualizar'}

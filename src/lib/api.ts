@@ -82,6 +82,14 @@ async function request(endpoint: string, options: RequestInit = {}) {
       throw new Error('Token inválido o expirado. Por favor, inicia sesión nuevamente.');
     }
     
+    // Manejar errores 429 (Too Many Requests)
+    if (response.status === 429) {
+      const errorMessage = errorData.error || errorData.message || 'Demasiadas peticiones del sistema, intenta más tarde';
+      const error = new Error(errorMessage);
+      (error as any).status = 429;
+      throw error;
+    }
+    
     // Construir mensaje de error con detalles si están disponibles
     let errorMessage = errorData.error || `HTTP ${response.status}`;
     if (errorData.details) {
