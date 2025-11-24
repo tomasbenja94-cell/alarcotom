@@ -117,51 +117,58 @@ router.post('/create',
         return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
       }
 
-      // Verificar que el email no exista
+      // Verificar que el email no exista y que el store existe
       const { PrismaClient } = await import('@prisma/client');
       const prisma = new PrismaClient();
       
-      const existing = await prisma.admin.findUnique({
-        where: { email }
-      });
-
-      if (existing) {
-        await prisma.$disconnect();
-        return res.status(400).json({ error: 'Ya existe un administrador con este email' });
-      }
-
-      // Verificar que el store existe si se proporciona
-      if (storeId) {
-        const store = await prisma.store.findUnique({
-          where: { id: storeId }
+      try {
+        const existing = await prisma.admin.findUnique({
+          where: { email }
         });
-        if (!store) {
-          await prisma.$disconnect();
-          return res.status(400).json({ error: 'La tienda especificada no existe' });
+
+        if (existing) {
+          return res.status(400).json({ error: 'Ya existe un administrador con este email' });
         }
-      }
 
-      // Crear admin usando el servicio
-      const admin = await adminAuthService.createAdmin(email, password, role);
+        // Verificar que el store existe si se proporciona
+        if (storeId) {
+          const store = await prisma.store.findUnique({
+            where: { id: storeId }
+          });
+          if (!store) {
+            return res.status(400).json({ error: 'La tienda especificada no existe' });
+          }
+        }
 
-      // Si hay storeId, actualizarlo
-      if (storeId) {
-        await prisma.admin.update({
-          where: { id: admin.id },
-          data: { storeId }
+        // Crear admin usando el servicio
+        const admin = await adminAuthService.createAdmin(email, password, role);
+
+        // Si hay storeId, actualizarlo
+        if (storeId) {
+          await prisma.admin.update({
+            where: { id: admin.id },
+            data: { storeId }
+          });
+        }
+
+        res.json({
+          id: admin.id,
+          email: admin.email,
+          role: admin.role,
+          storeId: storeId || null
         });
+      } catch (error) {
+        console.error('❌ [CREATE ADMIN] Error:', error);
+        if (error.code === 'P2002') {
+          return res.status(400).json({ error: 'Ya existe un administrador con este email' });
+        }
+        throw error;
+      } finally {
+        await prisma.$disconnect();
       }
-
-      await prisma.$disconnect();
-
-      res.json({
-        id: admin.id,
-        email: admin.email,
-        role: admin.role,
-        storeId: storeId || null
-      });
     } catch (error) {
-      next(error);
+      console.error('❌ [CREATE ADMIN] Error no manejado:', error);
+      res.status(500).json({ error: error.message || 'Error al crear administrador' });
     }
   }
 );
