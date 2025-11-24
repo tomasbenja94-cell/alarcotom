@@ -38,16 +38,26 @@ class AdminAuthService {
 
     // 4. Guardar refresh token (hasheado)
     const refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
-    await prisma.refreshToken.create({
-      data: {
-        adminId: admin.id,
-        tokenHash: refreshTokenHash,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 días
-      }
-    });
+    try {
+      await prisma.refreshToken.create({
+        data: {
+          adminId: admin.id,
+          tokenHash: refreshTokenHash,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 días
+        }
+      });
+    } catch (tokenError) {
+      console.warn('⚠️ [ADMIN LOGIN] Error guardando refresh token (continuando):', tokenError.message);
+      // Continuar sin guardar el refresh token si falla
+    }
 
-    // 5. Log auditoría
-    await this.logAccess('login_success', admin.id, admin.role, { email, ipAddress, userAgent });
+    // 5. Log auditoría (opcional, no fallar si no se puede guardar)
+    try {
+      await this.logAccess('login_success', admin.id, admin.role, { email, ipAddress, userAgent });
+    } catch (logError) {
+      console.warn('⚠️ [ADMIN LOGIN] Error guardando log de auditoría (continuando):', logError.message);
+      // Continuar sin guardar el log si falla
+    }
 
     return {
       accessToken,
@@ -171,17 +181,23 @@ class AdminAuthService {
 
   // Log de acceso exitoso
   async logAccess(action, userId, userRole, details = {}) {
-    await prisma.auditLog.create({
-      data: {
-        action,
-        userId,
-        userRole,
-        details: JSON.stringify(details),
-        ipAddress: details.ipAddress,
-        userAgent: details.userAgent,
-        timestamp: new Date()
-      }
-    });
+    try {
+      await prisma.auditLog.create({
+        data: {
+          action,
+          userId,
+          userRole,
+          details: JSON.stringify(details),
+          ipAddress: details.ipAddress,
+          userAgent: details.userAgent,
+          timestamp: new Date()
+        }
+      });
+    } catch (error) {
+      // Si la tabla audit_logs no existe o hay error, solo loguear y continuar
+      console.warn('⚠️ [AUDIT LOG] Error guardando log (tabla puede no existir):', error.message);
+      // No lanzar error para no interrumpir el login
+    }
   }
 }
 

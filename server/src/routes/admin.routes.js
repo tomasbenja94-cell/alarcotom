@@ -35,11 +35,22 @@ router.post('/login',
         admin: result.admin
       });
     } catch (error) {
+      console.error('❌ [ADMIN LOGIN] Error:', error);
+      console.error('❌ [ADMIN LOGIN] Error message:', error.message);
+      console.error('❌ [ADMIN LOGIN] Error stack:', error.stack);
+      
       // Error genérico para no revelar si el email existe o no
       if (error.message.includes('Credenciales') || error.message.includes('desactivada')) {
         return res.status(401).json({ error: 'Credenciales inválidas' });
       }
-      next(error);
+      
+      // Si es un error de base de datos, dar mensaje más específico
+      if (error.code === 'P2002' || error.message.includes('Unique constraint')) {
+        return res.status(500).json({ error: 'Error de base de datos. Contacta al administrador.' });
+      }
+      
+      // Error genérico del servidor
+      res.status(500).json({ error: 'Error interno del servidor. Intenta más tarde.' });
     }
   }
 );
