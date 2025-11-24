@@ -1,4 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import pkg from '@prisma/client';
+const { PrismaClient } = pkg;
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -16,57 +17,64 @@ async function runMigration() {
     const sqlFile = path.join(__dirname, '..', 'create_stores_table.sql');
     const sql = fs.readFileSync(sqlFile, 'utf-8');
     
-    // Dividir el SQL en statements (separados por ;)
-    // Filtrar comentarios y líneas vacías
-    const statements = sql
+    // Primero extraer y ejecutar los bloques DO $$
+    const doBlocks = sql.match(/DO \$\$[\s\S]*?\$\$;/g) || [];
+    console.log(`📝 Encontrados ${doBlocks.length} bloques DO $$`);
+    
+    for (let i = 0; i < doBlocks.length; i++) {
+      try {
+        console.log(`🔄 Ejecutando bloque DO ${i + 1}/${doBlocks.length}...`);
+        await prisma.$executeRawUnsafe(doBlocks[i]);
+        console.log(`✅ Bloque DO ${i + 1}/${doBlocks.length} ejecutado`);
+      } catch (error) {
+        if (error.message.includes('already exists') || 
+            error.message.includes('does not exist') ||
+            error.message.includes('duplicate')) {
+          console.log(`⚠️  Bloque DO ${i + 1}/${doBlocks.length} ya aplicado o no necesario`);
+        } else {
+          console.error(`❌ Error en bloque DO ${i + 1}/${doBlocks.length}:`, error.message);
+          // Continuar con el siguiente
+        }
+      }
+    }
+    
+    // Luego ejecutar los statements simples (CREATE TABLE)
+    // Remover los bloques DO $$ del SQL antes de dividir
+    let sqlWithoutDo = sql;
+    doBlocks.forEach(block => {
+      sqlWithoutDo = sqlWithoutDo.replace(block, '');
+    });
+    
+    // Dividir el SQL restante en statements
+    const statements = sqlWithoutDo
       .split(';')
       .map(s => s.trim())
       .filter(s => s.length > 0 && !s.startsWith('--'))
-      .filter(s => !s.match(/^\s*$/));
+      .filter(s => !s.match(/^\s*$/))
+      .filter(s => s.length > 10); // Filtrar statements muy cortos (probablemente vacíos)
     
-    console.log(`📝 Encontrados ${statements.length} statements SQL`);
+    console.log(`📝 Encontrados ${statements.length} statements SQL simples`);
     
-    // Ejecutar cada statement
     for (let i = 0; i < statements.length; i++) {
       const statement = statements[i];
       
-      // Saltar los bloques DO $$ que ya tienen su propio manejo
-      if (statement.includes('DO $$')) {
-        console.log(`⏭️  Saltando bloque DO (${i + 1}/${statements.length})`);
-        continue;
-      }
-      
       try {
-        // Ejecutar statement directamente
         if (statement.trim().length > 0) {
-          await prisma.$executeRawUnsafe(statement);
+          console.log(`🔄 Ejecutando statement ${i + 1}/${statements.length}...`);
+          await prisma.$executeRawUnsafe(statement + ';');
           console.log(`✅ Statement ${i + 1}/${statements.length} ejecutado`);
         }
       } catch (error) {
         // Ignorar errores de "ya existe" o "no existe"
         if (error.message.includes('already exists') || 
             error.message.includes('does not exist') ||
-            error.message.includes('duplicate')) {
+            error.message.includes('duplicate') ||
+            error.message.includes('relation') && error.message.includes('already exists')) {
           console.log(`⚠️  Statement ${i + 1}/${statements.length} ya aplicado o no necesario`);
         } else {
           console.error(`❌ Error en statement ${i + 1}/${statements.length}:`, error.message);
+          console.error(`   Statement: ${statement.substring(0, 100)}...`);
           // Continuar con el siguiente
-        }
-      }
-    }
-    
-    // Ejecutar los bloques DO $$ por separado
-    const doBlocks = sql.match(/DO \$\$[\s\S]*?\$\$;/g) || [];
-    for (let i = 0; i < doBlocks.length; i++) {
-      try {
-        await prisma.$executeRawUnsafe(doBlocks[i]);
-        console.log(`✅ Bloque DO ${i + 1}/${doBlocks.length} ejecutado`);
-      } catch (error) {
-        if (error.message.includes('already exists') || 
-            error.message.includes('does not exist')) {
-          console.log(`⚠️  Bloque DO ${i + 1}/${doBlocks.length} ya aplicado`);
-        } else {
-          console.error(`❌ Error en bloque DO ${i + 1}/${doBlocks.length}:`, error.message);
         }
       }
     }
