@@ -1,5 +1,5 @@
-// Script para ejecutar la migración de username en admins
-// Ejecutar: node server/run-username-migration.js
+// Script simplificado para ejecutar la migración de username en admins
+// Ejecutar: node run-username-migration-simple.js
 
 import { PrismaClient } from '@prisma/client';
 import fs from 'fs';
@@ -12,21 +12,20 @@ const __dirname = path.dirname(__filename);
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🔄 Ejecutando migración de username en admins...\n');
+  console.log('🔄 Ejecutando migración simplificada de username en admins...\n');
 
   try {
     // Leer el archivo SQL completo
-    const sqlPath = path.join(__dirname, 'migrations', 'add_username_to_admins.sql');
+    const sqlPath = path.join(__dirname, 'migrations', 'add_username_to_admins_simple.sql');
     let sql = fs.readFileSync(sqlPath, 'utf-8');
 
-    // Remover comentarios de una línea que empiezan con --
+    // Remover comentarios de una línea
     sql = sql.replace(/^--.*$/gm, '');
 
     // Dividir en bloques completos (respetando DO $$ ... END $$)
     const blocks = [];
     let currentBlock = '';
     let inDoBlock = false;
-    let doBlockDepth = 0;
 
     const lines = sql.split('\n');
     
@@ -38,7 +37,6 @@ async function main() {
       // Detectar inicio de bloque DO
       if (line.startsWith('DO $$')) {
         inDoBlock = true;
-        doBlockDepth = 1;
         currentBlock = line;
         continue;
       }
@@ -47,15 +45,11 @@ async function main() {
       if (inDoBlock) {
         currentBlock += '\n' + line;
         
-        // Contar $$ para detectar el final
-        const dollarCount = (line.match(/\$\$/g) || []).length;
-        if (dollarCount > 0 && line.includes('END $$')) {
-          doBlockDepth--;
-          if (doBlockDepth === 0) {
-            blocks.push(currentBlock);
-            currentBlock = '';
-            inDoBlock = false;
-          }
+        // Detectar el final del bloque DO
+        if (line.includes('END $$;')) {
+          blocks.push(currentBlock);
+          currentBlock = '';
+          inDoBlock = false;
         }
         continue;
       }
@@ -87,7 +81,7 @@ async function main() {
       try {
         // Ejecutar bloque completo
         await prisma.$executeRawUnsafe(block);
-        console.log(`✅ Bloque ${i + 1} ejecutado correctamente`);
+        console.log(`✅ Bloque ${i + 1}/${blocks.length} ejecutado correctamente`);
       } catch (error) {
         // Algunos errores son esperados (como "ya existe")
         const errorMsg = error.message || '';
@@ -96,16 +90,17 @@ async function main() {
             errorMsg.includes('does not exist') ||
             errorMsg.includes('no existe') ||
             errorMsg.includes('duplicate key') ||
-            errorMsg.includes('constraint')) {
-          console.log(`⚠️  Bloque ${i + 1}: ${errorMsg.split('\n')[0].substring(0, 80)}...`);
+            errorMsg.includes('constraint') ||
+            errorMsg.includes('column') && errorMsg.includes('already')) {
+          console.log(`⚠️  Bloque ${i + 1}/${blocks.length}: ${errorMsg.split('\n')[0].substring(0, 80)}...`);
         } else {
-          console.error(`❌ Error en bloque ${i + 1}:`, errorMsg.split('\n')[0]);
+          console.error(`❌ Error en bloque ${i + 1}/${blocks.length}:`, errorMsg.split('\n')[0]);
           // Continuar con el siguiente bloque
         }
       }
     }
 
-    // Verificar resultado
+    // Verificar resultado usando Prisma (no raw query)
     console.log('\n📊 Verificando admins después de la migración:');
     
     try {
@@ -127,13 +122,18 @@ async function main() {
       console.log(`\n✅ Migración completada! Se encontraron ${admins.length} admin(s).`);
       console.log('💡 Ahora puedes usar username para login en lugar de email.');
     } catch (error) {
-      console.error('⚠️  No se pudo verificar los admins:', error.message);
-      console.log('💡 Ejecuta la migración SQL directamente en Supabase SQL Editor si el script falla.');
+      if (error.message.includes('column "username" does not exist')) {
+        console.error('❌ La columna username aún no existe en la base de datos.');
+        console.log('\n💡 Ejecuta el SQL directamente en Supabase SQL Editor:');
+        console.log('   server/migrations/add_username_to_admins_simple.sql');
+      } else {
+        console.error('⚠️  No se pudo verificar los admins:', error.message);
+      }
     }
 
   } catch (error) {
     console.error('❌ Error en la migración:', error.message);
-    console.log('\n💡 Alternativa: Ejecuta el contenido de server/migrations/add_username_to_admins.sql');
+    console.log('\n💡 Alternativa: Ejecuta el contenido de server/migrations/add_username_to_admins_simple.sql');
     console.log('   directamente en Supabase SQL Editor.');
     process.exit(1);
   } finally {
@@ -142,3 +142,4 @@ async function main() {
 }
 
 main();
+
