@@ -34,6 +34,7 @@ import monitoringRoutes from './src/routes/monitoring.routes.js';
 import statsRoutes from './src/routes/stats.routes.js';
 import storesRoutes from './src/routes/stores.routes.js';
 import storeSettingsRoutes from './src/routes/store-settings.routes.js';
+import storeCategoriesRoutes from './src/routes/store-categories.routes.js';
 import usersRoutes from './src/routes/users.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -309,6 +310,7 @@ app.use('/api/monitoring', monitoringRoutes); // Rutas de monitoring (solo admin
 app.use('/api', statsRoutes); // Rutas de estadísticas (montado en /api, rutas internas: /stats/sales)
 app.use('/api/stores', storesRoutes); // Rutas de stores (multi-tenant)
 app.use('/api/store-settings', storeSettingsRoutes); // Rutas de configuración de tienda
+app.use('/api/store-categories', storeCategoriesRoutes); // Rutas de categorías de tiendas
 app.use('/api/users', usersRoutes); // Rutas de usuarios (login social)
 
 // ========== HELPER: Convertir camelCase a snake_case ==========

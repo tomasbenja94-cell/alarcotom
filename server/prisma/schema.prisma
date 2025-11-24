@@ -701,10 +701,26 @@ model SpecialHours {
 }
 
 // Stores (Locales/Tiendas)
+model StoreCategory {
+  id          String   @id @default(uuid())
+  name        String   @unique // "Restaurantes", "Bebidas", "Kioscos", etc.
+  slug        String   @unique // "restaurantes", "bebidas", "kioscos"
+  icon        String?  // Emoji o icono
+  color       String?  // Color de acento (hex)
+  displayOrder Int     @default(0) @map("display_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  stores      Store[]
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("store_categories")
+}
+
 model Store {
   id          String   @id @default(uuid())
   name        String
-  category    String?  // "Rotisería", "Kiosco", "Tragos", etc.
+  categoryId  String?  @map("category_id") // Relación con StoreCategory
+  category    StoreCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   imageUrl    String?  @map("image_url")
   description String?
   hours       String?  // Horarios de atención
@@ -731,6 +747,7 @@ model Store {
   specialHours    SpecialHours[]
   settings        StoreSettings?
 
+  @@index([categoryId])
   @@map("stores")
 }
 
