@@ -39,7 +39,7 @@ router.post('/login',
       console.error('❌ [ADMIN LOGIN] Error message:', error.message);
       console.error('❌ [ADMIN LOGIN] Error stack:', error.stack);
       
-      // Error genérico para no revelar si el email existe o no
+      // Error genérico para no revelar si el usuario existe o no
       if (error.message.includes('Credenciales') || error.message.includes('desactivada')) {
         return res.status(401).json({ error: 'Credenciales inválidas' });
       }
@@ -155,7 +155,7 @@ router.post('/create',
         return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
       }
 
-      // Verificar que el email no exista y que el store existe
+      // Verificar que el username no exista y que el store existe
       const { PrismaClient } = await import('@prisma/client');
       const prisma = new PrismaClient();
       
@@ -198,7 +198,7 @@ router.post('/create',
       } catch (error) {
         console.error('❌ [CREATE ADMIN] Error:', error);
         if (error.code === 'P2002') {
-          return res.status(400).json({ error: 'Ya existe un administrador con este email' });
+          return res.status(400).json({ error: 'Ya existe un administrador con este usuario' });
         }
         throw error;
       } finally {
