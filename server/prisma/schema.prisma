@@ -172,6 +172,8 @@ model OrderItem {
 
 model BotMessage {
   id          String   @id @default(uuid())
+  storeId     String?  @map("store_id")
+  store       Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
   messageKey  String   @unique @map("message_key")
   messageText String   @map("message_text")
   messageType String   @default("text") @map("message_type")
@@ -179,6 +181,7 @@ model BotMessage {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  @@index([storeId])
   @@map("bot_messages")
 }
 
@@ -362,6 +365,8 @@ model Setting {
 // Estados del sistema (Modo Emergencia, Sin Stock)
 model SystemState {
   id              String   @id @default(uuid())
+  storeId         String?  @map("store_id")
+  store           Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
   emergencyMode   Boolean  @default(false) @map("emergency_mode") // Modo Emergencia activo
   noStockMode     Boolean  @default(false) @map("no_stock_mode") // Sin Stock activo
   activatedAt     DateTime? @map("activated_at")
@@ -371,12 +376,15 @@ model SystemState {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
+  @@index([storeId])
   @@map("system_states")
 }
 
 // Checklist diario de tareas internas
 model DailyChecklistTask {
   id          String   @id @default(uuid())
+  storeId     String?  @map("store_id")
+  store       Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
   taskDate    DateTime @map("task_date") // Fecha del día (solo fecha, sin hora)
   title       String   // Título de la tarea
   description String?  // Descripción opcional
@@ -388,6 +396,7 @@ model DailyChecklistTask {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  @@index([storeId])
   @@index([taskDate])
   @@map("daily_checklist_tasks")
 }
@@ -395,6 +404,8 @@ model DailyChecklistTask {
 // Notificaciones del sistema
 model SystemNotification {
   id          String   @id @default(uuid())
+  storeId     String?  @map("store_id")
+  store       Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
   type        String   // 'stock_low', 'expiring', 'no_sales', 'price_suggestion', 'combo_recommendation', 'promotion_time', 'system_alert'
   title       String   // Título de la notificación
   message     String   // Mensaje de la notificación
@@ -404,6 +415,7 @@ model SystemNotification {
   metadata    String?  // JSON con datos adicionales (productId, etc.)
   createdAt   DateTime @default(now()) @map("created_at")
 
+  @@index([storeId])
   @@index([isRead])
   @@index([type])
   @@index([createdAt])
@@ -413,6 +425,8 @@ model SystemNotification {
 // Recomendaciones de IA del menú
 model AIRecommendation {
   id              String   @id @default(uuid())
+  storeId         String?  @map("store_id")
+  store           Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
   type            String   // 'no_sales_product', 'suggested_combo', 'price_down', 'price_up', 'promotion_time'
   productId       String?  @map("product_id") // Si aplica a un producto específico
   productName     String?  @map("product_name")
@@ -424,6 +438,7 @@ model AIRecommendation {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
+  @@index([storeId])
   @@index([dayGenerated])
   @@index([type])
   @@index([isAcknowledged])
@@ -433,6 +448,8 @@ model AIRecommendation {
 // Historial de cierres automáticos del día
 model DailyClosure {
   id              String   @id @default(uuid())
+  storeId         String?  @map("store_id")
+  store           Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
   closureDate     DateTime @unique @map("closure_date") // Fecha del cierre (00:00 del día)
   totalSales      Float    @default(0) @map("total_sales")
   totalOrders     Int      @default(0) @map("total_orders")
@@ -440,6 +457,7 @@ model DailyClosure {
   summary         String?  // JSON con resumen completo del día
   createdAt       DateTime @default(now()) @map("created_at")
 
+  @@index([storeId])
   @@index([closureDate])
   @@map("daily_closures")
 }
@@ -447,6 +465,8 @@ model DailyClosure {
 // Modo Lluvia / Pico de Demanda
 model PeakDemandMode {
   id                    String   @id @default(uuid())
+  storeId               String?  @map("store_id")
+  store                 Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
   isActive              Boolean  @default(false) @map("is_active")
   estimatedTimeMinutes  Int      @default(20) @map("estimated_time_minutes") // Tiempo estimado adicional
   maxOrdersPerHour      Int?     @map("max_orders_per_hour") // Límite de pedidos por hora
@@ -458,6 +478,7 @@ model PeakDemandMode {
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
 
+  @@index([storeId])
   @@map("peak_demand_modes")
 }
 
@@ -589,11 +610,14 @@ model LoyaltyConfig {
 // Etiquetas inteligentes de productos
 model ProductLabel {
   id          String   @id @default(uuid())
+  storeId     String?  @map("store_id")
+  store       Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
   productId   String   @unique @map("product_id")
   labels      String   // JSON array: ["más_vendido", "recomendado", "pocas_ventas", "nuevo", "muy_pedido_hoy"]
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdAt   DateTime @default(now()) @map("created_at")
 
+  @@index([storeId])
   @@index([productId])
   @@map("product_labels")
 }
@@ -601,6 +625,8 @@ model ProductLabel {
 // Gastos reales del negocio
 model BusinessExpense {
   id          String   @id @default(uuid())
+  storeId     String?  @map("store_id")
+  store       Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
   date        DateTime // Fecha del gasto
   category    String   // 'proveedores', 'combustible', 'mantenimiento', 'herramientas', 'imprevistos', 'otros'
   description String   // Descripción del gasto
@@ -612,6 +638,7 @@ model BusinessExpense {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  @@index([storeId])
   @@index([date])
   @@index([category])
   @@map("business_expenses")
@@ -620,6 +647,8 @@ model BusinessExpense {
 // Análisis de costo real del día
 model DailyCostAnalysis {
   id                    String   @id @default(uuid())
+  storeId               String?  @map("store_id")
+  store                 Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
   analysisDate          DateTime @unique @map("analysis_date") // Fecha del análisis
   totalSales            Float    @default(0) @map("total_sales")
   totalExpenses         Float    @default(0) @map("total_expenses")
@@ -635,6 +664,7 @@ model DailyCostAnalysis {
   details               String?  // JSON con detalles completos
   createdAt             DateTime @default(now()) @map("created_at")
 
+  @@index([storeId])
   @@index([analysisDate])
   @@map("daily_cost_analyses")
 }
@@ -655,6 +685,8 @@ model PendingReferral {
 // Horarios especiales (temporales, solo 1 día)
 model SpecialHours {
   id          String   @id @default(uuid())
+  storeId     String?  @map("store_id")
+  store       Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
   isActive    Boolean  @default(true) @map("is_active")
   startTime   String   @map("start_time") // Formato HH:mm (ej: "14:00")
   endTime     String   @map("end_time") // Formato HH:mm (ej: "22:00")
@@ -662,6 +694,7 @@ model SpecialHours {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  @@index([storeId])
   @@map("special_hours")
 }
 
