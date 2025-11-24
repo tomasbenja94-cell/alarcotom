@@ -40,6 +40,7 @@ router.get('/:id', corsMiddleware, async (req, res) => {
 
 // POST /api/stores - Crear un nuevo store (solo superadmin)
 router.post('/', 
+  corsMiddleware,
   authenticateAdmin,
   authorize('super_admin'),
   async (req, res) => {
@@ -72,6 +73,7 @@ router.post('/',
 
 // PUT /api/stores/:id - Actualizar un store (solo superadmin o admin del store)
 router.put('/:id',
+  corsMiddleware,
   authenticateAdmin,
   async (req, res) => {
     try {
