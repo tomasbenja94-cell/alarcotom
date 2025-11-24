@@ -32,6 +32,7 @@ import adminRoutes from './src/routes/admin.routes.js';
 import deliveryRoutes from './src/routes/delivery.routes.js';
 import monitoringRoutes from './src/routes/monitoring.routes.js';
 import statsRoutes from './src/routes/stats.routes.js';
+import storesRoutes from './src/routes/stores.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

@@ -21,6 +21,30 @@ async function main() {
     const email = await question('📧 Email del administrador: ');
     const password = await question('🔑 Contraseña (mínimo 6 caracteres): ');
     const role = await question('👤 Rol (admin/super_admin) [admin]: ') || 'admin';
+    
+    let storeId = null;
+    if (role === 'admin') {
+      const storeIdInput = await question('🏪 Store ID (ID del local asignado, dejar vacío si no hay): ');
+      storeId = storeIdInput.trim() || null;
+      
+      // Si se proporcionó un storeId, verificar que existe
+      if (storeId) {
+        const store = await prisma.store.findUnique({
+          where: { id: storeId }
+        });
+        
+        if (!store) {
+          console.error(`❌ No existe un store con ID: ${storeId}`);
+          console.log('💡 Stores disponibles:');
+          const stores = await prisma.store.findMany({
+            where: { isActive: true },
+            select: { id: true, name: true }
+          });
+          stores.forEach(s => console.log(`   - ${s.id}: ${s.name}`));
+          process.exit(1);
+        }
+      }
+    }
 
     // Validaciones
     if (!email || !email.includes('@')) {
@@ -57,6 +81,7 @@ async function main() {
         email,
         passwordHash,
         role,
+        storeId: storeId || null, // null para super_admin, storeId para admin
         isActive: true
       }
     });
@@ -65,6 +90,15 @@ async function main() {
     console.log(`📧 Email: ${admin.email}`);
     console.log(`👤 Rol: ${admin.role}`);
     console.log(`🆔 ID: ${admin.id}`);
+    if (admin.storeId) {
+      const store = await prisma.store.findUnique({
+        where: { id: admin.storeId },
+        select: { name: true }
+      });
+      console.log(`🏪 Store asignado: ${store?.name || admin.storeId}`);
+    } else {
+      console.log(`🏪 Store asignado: Ninguno (Superadmin)`);
+    }
     console.log('\n💡 Ahora puedes iniciar sesión en el panel de administración con estas credenciales.');
 
   } catch (error) {

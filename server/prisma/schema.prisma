@@ -664,3 +664,36 @@ model SpecialHours {
 
   @@map("special_hours")
 }
+
+// Stores (Locales/Tiendas)
+model Store {
+  id          String   @id @default(uuid())
+  name        String
+  category    String?  // "Rotisería", "Kiosco", "Tragos", etc.
+  imageUrl    String?  @map("image_url")
+  description String?
+  hours       String?  // Horarios de atención
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relaciones
+  categories      Category[]
+  products        Product[]
+  orders          Order[]
+  pendingTransfers PendingTransfer[]
+  admins          Admin[]
+  botMessages     BotMessage[]
+  systemStates    SystemState[]
+  dailyChecklistTasks DailyChecklistTask[]
+  systemNotifications SystemNotification[]
+  aiRecommendations AIRecommendation[]
+  dailyClosures   DailyClosure[]
+  peakDemandModes PeakDemandMode[]
+  productLabels   ProductLabel[]
+  businessExpenses BusinessExpense[]
+  dailyCostAnalyses DailyCostAnalysis[]
+  specialHours    SpecialHours[]
+
+  @@map("stores")
+}

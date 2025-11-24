@@ -140,8 +140,14 @@ export const recipesApi = {
 
 // Productos
 export const productsApi = {
-  getAll: () => request('/products'),
-  create: (data: any) => request('/products', { method: 'POST', body: JSON.stringify(data) }),
+  getAll: (params?: { storeId?: string }) => {
+    const query = params?.storeId ? `?storeId=${params.storeId}` : '';
+    return request(`/products${query}`);
+  },
+  create: (data: any) => {
+    const body = data.storeId ? data : { ...data, storeId: data.storeId };
+    return request('/products', { method: 'POST', body: JSON.stringify(body) });
+  },
   update: (id: string, data: any) => request(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id: string) => request(`/products/${id}`, { method: 'DELETE' }),
 };
@@ -160,7 +166,10 @@ export const productOptionsApi = {
 
 // Pedidos
 export const ordersApi = {
-  getAll: () => request('/orders'),
+  getAll: (params?: { storeId?: string }) => {
+    const query = params?.storeId ? `?storeId=${params.storeId}` : '';
+    return request(`/orders${query}`);
+  },
   getById: (id: string) => request(`/orders/${id}`),
   create: (data: any) => request('/orders', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: any) => request(`/orders/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
@@ -186,7 +195,10 @@ export const whatsappMessagesApi = {
 
 // Transferencias Pendientes
 export const transfersApi = {
-  getPending: () => request('/pending-transfers'),
+  getPending: (params?: { storeId?: string }) => {
+    const query = params?.storeId ? `?storeId=${params.storeId}` : '';
+    return request(`/pending-transfers${query}`);
+  },
   update: (id: string, data: any) => request(`/pending-transfers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 };
 
@@ -223,6 +235,14 @@ export const customersApi = {
   getAll: () => request('/customers'),
   create: (data: any) => request('/customers', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: any) => request(`/customers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+};
+
+// Stores
+export const storesApi = {
+  getAll: () => request('/stores'),
+  getById: (id: string) => request(`/stores/${id}`),
+  create: (data: any) => request('/stores', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: any) => request(`/stores/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 };
 
 // Admin
