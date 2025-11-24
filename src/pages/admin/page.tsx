@@ -15,6 +15,7 @@ import PaymentConfig from './components/PaymentConfig';
 import BotMessagesManager from './components/BotMessagesManager';
 import StoreSettings from './components/StoreSettings';
 import StoreSetupWizard from './components/StoreSetupWizard';
+import StoreCategoriesManagement from './components/StoreCategoriesManagement';
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -185,9 +186,9 @@ export default function AdminPage() {
     try {
       // Intentar login con la API
       const API_URL = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
-      // Validar que username sea un email válido
-      if (!username || !username.includes('@')) {
-        setLoginError('Por favor, ingresa un email válido');
+      // Validar que username no esté vacío
+      if (!username || username.trim() === '') {
+        setLoginError('Por favor, ingresa tu usuario');
         return;
       }
 
@@ -199,7 +200,7 @@ export default function AdminPage() {
       const response = await fetch(`${API_URL}/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: username.trim(), password })
+        body: JSON.stringify({ username: username.trim(), password })
       });
 
       if (!response.ok) {
@@ -352,6 +353,7 @@ export default function AdminPage() {
         case 'payment': return <PaymentConfig />;
         case 'bot-messages': return <BotMessagesManager />;
         case 'settings': return <StoreSettings storeId={currentStoreId || localStorage.getItem('adminStoreId')} />;
+        case 'store-categories': return <StoreCategoriesManagement />;
         default: return null;
       }
     }
@@ -485,6 +487,13 @@ export default function AdminPage() {
                 >
                   <i className="ri-store-settings-line"></i>
                   <span>Configuración</span>
+                </button>
+                <button
+                  onClick={() => handleAdvancedMenuClick('store-categories')}
+                  className="px-3 py-2 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-all text-gray-700 flex items-center space-x-1"
+                >
+                  <i className="ri-folder-line"></i>
+                  <span>Categorías</span>
                 </button>
               </div>
             </div>

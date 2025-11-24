@@ -9,7 +9,7 @@ const router = express.Router();
 
 // Schemas de validación
 const loginAdminSchema = z.object({
-  email: z.string().email('Email inválido'),
+  username: z.string().min(1, 'El usuario es requerido'),
   password: z.string().min(1, 'La contraseña es requerida')
 });
 
@@ -23,11 +23,11 @@ router.post('/login',
   validate(loginAdminSchema),
   async (req, res, next) => {
     try {
-      const { email, password } = req.body;
+      const { username, password } = req.body;
       const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'Unknown';
       const userAgent = req.headers['user-agent'] || 'Unknown';
 
-      const result = await adminAuthService.loginAdmin(email, password, ipAddress, userAgent);
+      const result = await adminAuthService.loginAdmin(username, password, ipAddress, userAgent);
 
       res.json({
         accessToken: result.accessToken,
@@ -101,16 +101,54 @@ router.get('/me',
   }
 );
 
+// ========== OBTENER ADMINS DE UNA TIENDA (Solo superadmin) ==========
+router.get('/store/:storeId',
+  authenticateAdmin,
+  authorize('super_admin'),
+  async (req, res, next) => {
+    try {
+      const { PrismaClient } = await import('@prisma/client');
+      const prisma = new PrismaClient();
+      
+      try {
+        const admins = await prisma.admin.findMany({
+          where: { 
+            storeId: req.params.storeId,
+            role: 'admin',
+            isActive: true
+          },
+          select: {
+            id: true,
+            username: true,
+            role: true,
+            isActive: true
+          }
+        });
+
+        res.json(admins);
+      } catch (error) {
+        console.error('❌ [GET STORE ADMINS] Error:', error);
+        throw error;
+      } finally {
+        await prisma.$disconnect();
+      }
+    } catch (error) {
+      console.error('❌ [GET STORE ADMINS] Error no manejado:', error);
+      res.status(500).json({ error: error.message || 'Error al obtener administradores' });
+    }
+  }
+);
+
 // ========== CREAR ADMINISTRADOR (Solo superadmin) ==========
 router.post('/create',
   authenticateAdmin,
   authorize('super_admin'),
   async (req, res, next) => {
     try {
-      const { email, password, role = 'admin', storeId } = req.body;
+      const { username, password, role = 'admin', storeId } = req.body;
 
-      if (!email || !password) {
-        return res.status(400).json({ error: 'Email y contraseña son requeridos' });
+      if (!username || !password) {
+        return res.status(400).json({ error: 'Usuario y contraseña son requeridos' });
       }
 
       if (password.length < 6) {
@@ -123,11 +161,11 @@ router.post('/create',
       
       try {
         const existing = await prisma.admin.findUnique({
-          where: { email }
+          where: { username }
         });
 
         if (existing) {
-          return res.status(400).json({ error: 'Ya existe un administrador con este email' });
+          return res.status(400).json({ error: 'Ya existe un administrador con este usuario' });
         }
 
         // Verificar que el store existe si se proporciona
@@ -141,7 +179,7 @@ router.post('/create',
         }
 
         // Crear admin usando el servicio
-        const admin = await adminAuthService.createAdmin(email, password, role);
+        const admin = await adminAuthService.createAdmin(username, password, role);
 
         // Si hay storeId, actualizarlo
         if (storeId) {
@@ -151,12 +189,12 @@ router.post('/create',
           });
         }
 
-        res.json({
-          id: admin.id,
-          email: admin.email,
-          role: admin.role,
-          storeId: storeId || null
-        });
+      res.json({
+        id: admin.id,
+        username: admin.username,
+        role: admin.role,
+        storeId: storeId || null
+      });
       } catch (error) {
         console.error('❌ [CREATE ADMIN] Error:', error);
         if (error.code === 'P2002') {
