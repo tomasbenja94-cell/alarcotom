@@ -18,7 +18,7 @@ async function main() {
 
   try {
     // Solicitar datos
-    const email = await question('📧 Email del administrador: ');
+    const username = await question('👤 Usuario del administrador: ');
     const password = await question('🔑 Contraseña (mínimo 6 caracteres): ');
     const role = await question('👤 Rol (admin/super_admin) [admin]: ') || 'admin';
     
@@ -47,8 +47,8 @@ async function main() {
     }
 
     // Validaciones
-    if (!email || !email.includes('@')) {
-      console.error('❌ Email inválido');
+    if (!username || username.trim().length === 0) {
+      console.error('❌ Usuario inválido');
       process.exit(1);
     }
 
@@ -64,11 +64,11 @@ async function main() {
 
     // Verificar si ya existe
     const existing = await prisma.admin.findUnique({
-      where: { email }
+      where: { username: username.trim() }
     });
 
     if (existing) {
-      console.error(`❌ Ya existe un administrador con el email: ${email}`);
+      console.error(`❌ Ya existe un administrador con el usuario: ${username}`);
       process.exit(1);
     }
 
@@ -78,7 +78,7 @@ async function main() {
     // Crear administrador
     const admin = await prisma.admin.create({
       data: {
-        email,
+        username: username.trim(),
         passwordHash,
         role,
         storeId: storeId || null, // null para super_admin, storeId para admin
@@ -87,7 +87,7 @@ async function main() {
     });
 
     console.log('\n✅ Administrador creado exitosamente!');
-    console.log(`📧 Email: ${admin.email}`);
+    console.log(`👤 Usuario: ${admin.username}`);
     console.log(`👤 Rol: ${admin.role}`);
     console.log(`🆔 ID: ${admin.id}`);
     if (admin.storeId) {
