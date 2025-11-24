@@ -22,6 +22,7 @@ async function main() {
     const password = await question('🔑 Contraseña (mínimo 6 caracteres): ');
     const role = await question('👤 Rol (admin/super_admin) [admin]: ') || 'admin';
     
+    // IMPORTANTE: super_admin NUNCA tiene store asignado
     let storeId = null;
     if (role === 'admin') {
       const storeIdInput = await question('🏪 Store ID (ID del local asignado, dejar vacío si no hay): ');
@@ -44,6 +45,10 @@ async function main() {
           process.exit(1);
         }
       }
+    } else if (role === 'super_admin') {
+      // Super admin NO tiene store asignado - forzar null
+      storeId = null;
+      console.log('ℹ️  Super admin no tiene store asignado (acceso a todos los stores)');
     }
 
     // Validaciones
@@ -76,12 +81,15 @@ async function main() {
     const passwordHash = await bcrypt.hash(password, 10);
 
     // Crear administrador
+    // IMPORTANTE: Para super_admin, storeId SIEMPRE es null
+    const finalStoreId = role === 'super_admin' ? null : storeId;
+    
     const admin = await prisma.admin.create({
       data: {
         username: username.trim(),
         passwordHash,
         role,
-        storeId: storeId || null, // null para super_admin, storeId para admin
+        storeId: finalStoreId, // null para super_admin, storeId (o null) para admin
         isActive: true
       }
     });
