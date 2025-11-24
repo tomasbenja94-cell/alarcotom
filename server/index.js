@@ -764,20 +764,27 @@ app.post('/api/products', corsMiddleware, async (req, res) => {
   try {
     const productData = {
       categoryId: req.body.category_id || req.body.categoryId,
+      storeId: req.body.storeId || req.body.store_id || null,
       name: req.body.name,
-      description: req.body.description,
-      price: req.body.price,
-      imageUrl: req.body.image_url || req.body.imageUrl,
+      description: req.body.description || null,
+      price: parseFloat(req.body.price),
+      imageUrl: req.body.image_url || req.body.imageUrl || null,
       isAvailable: req.body.is_available !== undefined ? req.body.is_available : (req.body.isAvailable !== undefined ? req.body.isAvailable : true),
       displayOrder: req.body.display_order || req.body.displayOrder || 0
     };
+    
+    console.log('📦 Creando producto con datos:', productData);
+    
     const product = await prisma.product.create({
       data: productData
     });
+    
+    console.log('✅ Producto creado exitosamente:', product.id);
     res.json(objectToSnakeCase(product));
   } catch (error) {
-    console.error('Error creating product:', error);
-    res.status(500).json({ error: 'Error al crear producto' });
+    console.error('❌ Error creating product:', error);
+    console.error('❌ Error details:', error.message);
+    res.status(500).json({ error: 'Error al crear producto', details: error.message });
   }
 });
 
