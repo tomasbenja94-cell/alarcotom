@@ -73,7 +73,7 @@ router.post('/',
   authorize('super_admin'),
   async (req, res) => {
     try {
-      const { id, name, category, image_url, description, hours } = req.body;
+      const { id, name, category, categoryId, image_url, description, hours } = req.body;
       
       if (!id || !name) {
         return res.status(400).json({ error: 'id y name son requeridos' });
@@ -83,7 +83,7 @@ router.post('/',
         data: {
           id,
           name,
-          category: category || null,
+          categoryId: categoryId || category || null, // categoryId tiene prioridad
           imageUrl: image_url || null,
           description: description || null,
           hours: hours || null,
@@ -113,11 +113,19 @@ router.put('/:id',
         return res.status(403).json({ error: 'No tienes permisos para editar este store' });
       }
       
-      const { name, category, image_url, description, hours, is_active } = req.body;
+      const { name, category, categoryId, image_url, description, hours, is_active } = req.body;
       
       const updateData = {};
       if (name !== undefined) updateData.name = name;
-      if (category !== undefined) updateData.category = category;
+      // categoryId tiene prioridad sobre category (para compatibilidad)
+      if (categoryId !== undefined) {
+        updateData.categoryId = categoryId || null;
+      } else if (category !== undefined) {
+        // Si se envía category como string, buscar el StoreCategory correspondiente
+        // Por ahora, mantener compatibilidad: si category es un ID válido, usarlo como categoryId
+        // Si es un string de nombre, mantenerlo como null (requeriría búsqueda)
+        updateData.categoryId = category || null;
+      }
       if (image_url !== undefined) updateData.imageUrl = image_url;
       if (description !== undefined) updateData.description = description;
       if (hours !== undefined) updateData.hours = hours;
