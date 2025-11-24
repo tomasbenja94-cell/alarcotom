@@ -70,12 +70,38 @@ async function runMigration() {
     
     console.log('✅ Migración completada!');
     
-    // Verificar que la tabla existe
+    // Verificar que la tabla stores existe
     try {
       const result = await prisma.$queryRawUnsafe('SELECT COUNT(*) as count FROM stores');
       console.log('✅ Verificación: Tabla stores existe y es accesible');
     } catch (error) {
       console.error('❌ Error verificando tabla stores:', error.message);
+    }
+    
+    // Verificar que las columnas store_id se crearon
+    console.log('🔍 Verificando columnas store_id...');
+    const tablesToCheck = [
+      'categories', 'products', 'orders', 'pending_transfers', 'admins',
+      'bot_messages', 'system_states', 'daily_checklist_tasks', 'system_notifications',
+      'ai_recommendations', 'daily_closures', 'peak_demand_modes', 'product_labels',
+      'business_expenses', 'daily_cost_analyses', 'special_hours'
+    ];
+    
+    for (const table of tablesToCheck) {
+      try {
+        const result = await prisma.$queryRawUnsafe(`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = '${table}' AND column_name = 'store_id'
+        `);
+        if (Array.isArray(result) && result.length > 0) {
+          console.log(`✅ Columna store_id existe en ${table}`);
+        } else {
+          console.log(`⚠️  Columna store_id NO existe en ${table}`);
+        }
+      } catch (error) {
+        console.error(`❌ Error verificando ${table}:`, error.message);
+      }
     }
     
   } catch (error) {
