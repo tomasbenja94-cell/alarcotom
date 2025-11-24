@@ -90,5 +90,70 @@ router.get('/me',
   }
 );
 
+// ========== CREAR ADMINISTRADOR (Solo superadmin) ==========
+router.post('/create',
+  authenticateAdmin,
+  authorize('super_admin'),
+  async (req, res, next) => {
+    try {
+      const { email, password, role = 'admin', storeId } = req.body;
+
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email y contraseña son requeridos' });
+      }
+
+      if (password.length < 6) {
+        return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+      }
+
+      // Verificar que el email no exista
+      const { PrismaClient } = await import('@prisma/client');
+      const prisma = new PrismaClient();
+      
+      const existing = await prisma.admin.findUnique({
+        where: { email }
+      });
+
+      if (existing) {
+        await prisma.$disconnect();
+        return res.status(400).json({ error: 'Ya existe un administrador con este email' });
+      }
+
+      // Verificar que el store existe si se proporciona
+      if (storeId) {
+        const store = await prisma.store.findUnique({
+          where: { id: storeId }
+        });
+        if (!store) {
+          await prisma.$disconnect();
+          return res.status(400).json({ error: 'La tienda especificada no existe' });
+        }
+      }
+
+      // Crear admin usando el servicio
+      const admin = await adminAuthService.createAdmin(email, password, role);
+
+      // Si hay storeId, actualizarlo
+      if (storeId) {
+        await prisma.admin.update({
+          where: { id: admin.id },
+          data: { storeId }
+        });
+      }
+
+      await prisma.$disconnect();
+
+      res.json({
+        id: admin.id,
+        email: admin.email,
+        role: admin.role,
+        storeId: storeId || null
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 export default router;
 
