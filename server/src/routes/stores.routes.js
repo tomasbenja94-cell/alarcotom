@@ -6,9 +6,22 @@ import { corsMiddleware } from '../middlewares/security.middleware.js';
 const router = express.Router();
 const prisma = new PrismaClient();
 
+// Verificar que Prisma Client esté correctamente inicializado
+if (!prisma || !prisma.store) {
+  console.error('❌ ERROR: Prisma Client no está correctamente inicializado. Ejecuta: npx prisma generate');
+}
+
 // GET /api/stores - Obtener todos los stores activos
 router.get('/', corsMiddleware, async (req, res) => {
   try {
+    // Verificar que prisma.store existe
+    if (!prisma.store) {
+      console.error('❌ ERROR: Prisma Client no tiene el modelo Store. Ejecuta: cd server && npx prisma generate');
+      return res.status(500).json({ 
+        error: 'Error de configuración del servidor. Prisma Client no está actualizado.' 
+      });
+    }
+    
     const stores = await prisma.store.findMany({
       where: { isActive: true },
       orderBy: { name: 'asc' }
@@ -23,6 +36,14 @@ router.get('/', corsMiddleware, async (req, res) => {
 // GET /api/stores/:id - Obtener un store específico
 router.get('/:id', corsMiddleware, async (req, res) => {
   try {
+    // Verificar que prisma.store existe
+    if (!prisma.store) {
+      console.error('❌ ERROR: Prisma Client no tiene el modelo Store. Ejecuta: cd server && npx prisma generate');
+      return res.status(500).json({ 
+        error: 'Error de configuración del servidor. Prisma Client no está actualizado.' 
+      });
+    }
+    
     const store = await prisma.store.findUnique({
       where: { id: req.params.id }
     });
