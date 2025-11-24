@@ -197,9 +197,9 @@ class AdminAuthService {
   }
 
   // Log intentos fallidos
-  async logFailedLogin(email, reason, ipAddress) {
+  async logFailedLogin(username, reason, ipAddress) {
     // TODO: Implementar rate limiting aquí (5 intentos por IP)
-    console.warn(`Intento de login fallido: ${email} - ${reason} - IP: ${ipAddress}`);
+    console.warn(`Intento de login fallido: ${username} - ${reason} - IP: ${ipAddress}`);
   }
 
   // Log de acceso exitoso
