@@ -13,6 +13,8 @@ import StockManagement from './components/StockManagement';
 import DeliveryPersonsManagement from './components/DeliveryPersonsManagement';
 import PaymentConfig from './components/PaymentConfig';
 import BotMessagesManager from './components/BotMessagesManager';
+import StoreSettings from './components/StoreSettings';
+import StoreSetupWizard from './components/StoreSetupWizard';
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -26,6 +28,7 @@ export default function AdminPage() {
   const [showTutorial, setShowTutorial] = useState<boolean>(false);
   const [currentStoreId, setCurrentStoreId] = useState<string | null>(null);
   const [storeName, setStoreName] = useState<string>('');
+  const [showWizard, setShowWizard] = useState<boolean>(false);
 
   useEffect(() => {
     // Obtener storeId de la URL
@@ -38,26 +41,104 @@ export default function AdminPage() {
       loadStoreInfo(storeId);
     }
 
-    try {
-      const flag = localStorage.getItem('adminAuth');
-      if (flag === 'true') {
-        const savedStoreId = localStorage.getItem('adminStoreId');
-        // Si hay storeId en URL, verificar que coincida
-        if (storeId && savedStoreId && savedStoreId !== storeId) {
-          const role = localStorage.getItem('adminRole');
-          if (role !== 'super_admin') {
+    // Validar token con el backend
+    const validateToken = async () => {
+      try {
+        const flag = localStorage.getItem('adminAuth');
+        const token = localStorage.getItem('adminToken');
+        
+        if (flag === 'true' && token) {
+          // Verificar token con el backend
+          const API_URL = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
+          const response = await fetch(`${API_URL}/admin/me`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const admin = data.admin;
+            
+            // VERIFICAR QUE SEA ADMIN (NO SUPERADMIN)
+            if (admin.role === 'super_admin') {
+              setIsAuthenticated(false);
+              localStorage.removeItem('adminAuth');
+              localStorage.removeItem('adminToken');
+              localStorage.removeItem('adminStoreId');
+              localStorage.removeItem('adminRole');
+              return;
+            }
+            
+            // Verificar que el admin tenga un store asignado
+            if (!admin.storeId) {
+              setIsAuthenticated(false);
+              localStorage.removeItem('adminAuth');
+              localStorage.removeItem('adminToken');
+              localStorage.removeItem('adminStoreId');
+              localStorage.removeItem('adminRole');
+              return;
+            }
+            
+            // Si hay storeId en URL, verificar que coincida
+            if (storeId && admin.storeId !== storeId) {
+              setIsAuthenticated(false);
+              localStorage.removeItem('adminAuth');
+              localStorage.removeItem('adminToken');
+              localStorage.removeItem('adminStoreId');
+              localStorage.removeItem('adminRole');
+              return;
+            }
+            
+            // Usar el storeId del admin si no hay uno en la URL
+            const finalStoreId = storeId || admin.storeId;
+            setCurrentStoreId(finalStoreId);
+
+            // Actualizar datos del admin en localStorage
+            localStorage.setItem('adminStoreId', finalStoreId);
+            localStorage.setItem('adminRole', 'admin');
+            
+            setIsAuthenticated(true);
+            
+            // Si no hay storeId en la URL pero el admin tiene uno, actualizar la URL
+            if (!storeId && finalStoreId) {
+              window.history.replaceState({}, '', `/admin?store=${finalStoreId}`);
+            }
+            
+            // Cargar información de la tienda
+            if (finalStoreId) {
+              loadStoreInfo(finalStoreId);
+            }
+            
+            // Verificar si la tienda está vacía para mostrar wizard
+            if (finalStoreId) {
+              checkIfStoreIsEmpty(finalStoreId);
+            }
+            
+            const tutorialCompleted = localStorage.getItem('admin_tutorial_completed');
+            if (!tutorialCompleted) {
+              setShowTutorial(true);
+            }
+          } else {
+            // Token inválido, limpiar localStorage
             setIsAuthenticated(false);
             localStorage.removeItem('adminAuth');
-            return;
+            localStorage.removeItem('adminToken');
+            localStorage.removeItem('adminStoreId');
+            localStorage.removeItem('adminRole');
           }
         }
-        setIsAuthenticated(true);
-        const tutorialCompleted = localStorage.getItem('admin_tutorial_completed');
-        if (!tutorialCompleted) {
-          setShowTutorial(true);
-        }
+      } catch (error) {
+        console.error('Error validating token:', error);
+        setIsAuthenticated(false);
+        localStorage.removeItem('adminAuth');
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminStoreId');
+        localStorage.removeItem('adminRole');
       }
-    } catch {}
+    };
+
+    validateToken();
   }, []);
 
   const loadStoreInfo = async (storeId: string) => {
@@ -73,6 +154,26 @@ export default function AdminPage() {
     }
   };
 
+  const checkIfStoreIsEmpty = async (storeId: string) => {
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch(`${API_URL}/store-settings/${storeId}/is-empty`, {
+        headers: {
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.isEmpty) {
+          setShowWizard(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking if store is empty:', error);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
@@ -84,50 +185,80 @@ export default function AdminPage() {
     try {
       // Intentar login con la API
       const API_URL = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
-      const response = await fetch(`${API_URL}/auth/admin/login`, {
+      // Validar que username sea un email válido
+      if (!username || !username.includes('@')) {
+        setLoginError('Por favor, ingresa un email válido');
+        return;
+      }
+
+      if (!password) {
+        setLoginError('Por favor, ingresa tu contraseña');
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: username, password })
+        body: JSON.stringify({ email: username.trim(), password })
       });
 
-      if (response.ok) {
-        const data = await response.json();
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
+        setLoginError(errorData.error || errorData.details?.[0]?.message || 'Error al iniciar sesión');
+        return;
+      }
+
+      const data = await response.json();
         
-        // Verificar que el admin pertenezca al store correcto
-        if (storeId && data.admin.storeId !== storeId && data.admin.role !== 'super_admin') {
-          setLoginError('No tienes acceso a esta tienda');
+      // VERIFICAR QUE SEA ADMIN (NO SUPERADMIN)
+        if (data.admin.role === 'super_admin') {
+          setLoginError('Los superadministradores deben usar /superadmin para acceder.');
           return;
         }
-
+        
+        // Verificar que el admin tenga un store asignado
+        if (!data.admin.storeId) {
+          setLoginError('Este administrador no tiene una tienda asignada. Contacta al superadministrador.');
+          return;
+        }
+        
+        // Si hay storeId en la URL, verificar que coincida
+        if (storeId && data.admin.storeId !== storeId) {
+          setLoginError(`No tienes acceso a esta tienda. Tu tienda asignada es diferente.`);
+          return;
+        }
+        
+        // Si no hay storeId en URL pero el admin tiene uno, usar ese
+        const finalStoreId = storeId || data.admin.storeId;
+        setCurrentStoreId(finalStoreId);
+        
         localStorage.setItem('adminAuth', 'true');
         localStorage.setItem('adminToken', data.accessToken);
-        localStorage.setItem('adminStoreId', data.admin.storeId || '');
-        localStorage.setItem('adminRole', data.admin.role || 'admin');
+        localStorage.setItem('adminStoreId', finalStoreId);
+        localStorage.setItem('adminRole', 'admin');
         if (data.refreshToken) {
           localStorage.setItem('adminRefreshToken', data.refreshToken);
         }
         
+        // Si no hay storeId en la URL, actualizar la URL con el storeId del admin
+        if (!storeId && finalStoreId) {
+          window.history.replaceState({}, '', `/admin?store=${finalStoreId}`);
+        }
+        
+        // Cargar información de la tienda
+        if (finalStoreId) {
+          loadStoreInfo(finalStoreId);
+        }
+        
         setShowLoading(true);
         setLoginError('');
-        return;
-      }
+        setIsAuthenticated(true);
+        setUsername('');
+        setPassword('');
     } catch (error) {
       console.error('Login error:', error);
+      setLoginError('Error al conectar con el servidor');
     }
-
-    // Fallback: login simple para desarrollo (solo si no hay storeId)
-    if (!storeId && username === 'admin' && password === 'adminroti123') {
-      try {
-        localStorage.setItem('adminAuth', 'true');
-        localStorage.setItem('adminStoreId', '');
-        localStorage.setItem('adminRole', 'admin');
-      } catch {}
-      setShowLoading(true);
-      setLoginError('');
-      return;
-    }
-
-    setLoginError('Usuario o contraseña incorrectos');
   };
 
   const handleLoadingComplete = () => {
@@ -220,6 +351,7 @@ export default function AdminPage() {
         case 'delivery': return <DeliveryPersonsManagement />;
         case 'payment': return <PaymentConfig />;
         case 'bot-messages': return <BotMessagesManager />;
+        case 'settings': return <StoreSettings storeId={currentStoreId || localStorage.getItem('adminStoreId')} />;
         default: return null;
       }
     }
@@ -347,9 +479,24 @@ export default function AdminPage() {
                   <i className="ri-message-3-line"></i>
                   <span>Mensajes Bot</span>
                 </button>
+                <button
+                  onClick={() => handleAdvancedMenuClick('settings')}
+                  className="px-3 py-2 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-all text-gray-700 flex items-center space-x-1"
+                >
+                  <i className="ri-store-settings-line"></i>
+                  <span>Configuración</span>
+                </button>
               </div>
             </div>
           </div>
+        )}
+
+        {/* Wizard de Configuración Inicial */}
+        {isAuthenticated && currentStoreId && (
+          <StoreSetupWizard
+            storeId={currentStoreId}
+            onComplete={() => setShowWizard(false)}
+          />
         )}
 
         {/* Menú Principal - 4 Botones (Más Pequeños) */}
