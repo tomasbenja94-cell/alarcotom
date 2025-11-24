@@ -14,22 +14,45 @@ const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'CHANGE_THIS_REFRES
 class AdminAuthService {
   // Login admin
   async loginAdmin(email, password, ipAddress, userAgent) {
-    // 1. Buscar admin
-    const admin = await prisma.admin.findUnique({ where: { email } });
-    if (!admin) {
-      await this.logFailedLogin(email, 'Usuario no encontrado', ipAddress);
-      throw new Error('Credenciales inválidas');
-    }
+    let admin;
+    
+    try {
+      // Verificar que Prisma Client esté funcionando
+      if (!prisma || !prisma.admin) {
+        console.error('❌ [ADMIN LOGIN] Prisma Client no está inicializado correctamente');
+        throw new Error('Error de configuración del servidor');
+      }
 
-    // 2. Verificar contraseña
-    const valid = await bcrypt.compare(password, admin.passwordHash);
-    if (!valid) {
-      await this.logFailedLogin(email, 'Contraseña incorrecta', ipAddress);
-      throw new Error('Credenciales inválidas');
-    }
+      // 1. Buscar admin
+      admin = await prisma.admin.findUnique({ where: { email } });
+      if (!admin) {
+        await this.logFailedLogin(email, 'Usuario no encontrado', ipAddress);
+        throw new Error('Credenciales inválidas');
+      }
 
-    if (!admin.isActive) {
-      throw new Error('Cuenta desactivada');
+      // 2. Verificar contraseña
+      if (!admin.passwordHash) {
+        console.error('❌ [ADMIN LOGIN] Admin sin passwordHash:', email);
+        throw new Error('Credenciales inválidas');
+      }
+
+      const valid = await bcrypt.compare(password, admin.passwordHash);
+      if (!valid) {
+        await this.logFailedLogin(email, 'Contraseña incorrecta', ipAddress);
+        throw new Error('Credenciales inválidas');
+      }
+
+      if (!admin.isActive) {
+        throw new Error('Cuenta desactivada');
+      }
+    } catch (error) {
+      // Si es un error de Prisma (tabla no existe, etc.)
+      if (error.code === 'P2021' || error.code === 'P2003' || error.message.includes('does not exist')) {
+        console.error('❌ [ADMIN LOGIN] Error de base de datos:', error.message);
+        throw new Error('Error de configuración del servidor. La tabla de administradores no existe.');
+      }
+      // Re-lanzar otros errores
+      throw error;
     }
 
     // 3. Generar tokens
