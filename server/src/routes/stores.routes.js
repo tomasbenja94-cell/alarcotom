@@ -73,7 +73,7 @@ router.post('/',
   authorize('super_admin'),
   async (req, res) => {
     try {
-      const { id, name, category, categoryId, image_url, description, hours } = req.body;
+      const { id, name, category, categoryId, image_url, description, hours, panelType } = req.body;
       
       if (!id || !name) {
         return res.status(400).json({ error: 'id y name son requeridos' });
@@ -87,6 +87,7 @@ router.post('/',
           imageUrl: image_url || null,
           description: description || null,
           hours: hours || null,
+          panelType: panelType || 'normal',
           isActive: true
         }
       });
@@ -113,7 +114,7 @@ router.put('/:id',
         return res.status(403).json({ error: 'No tienes permisos para editar este store' });
       }
       
-      const { name, category, categoryId, image_url, description, hours, is_active } = req.body;
+      const { name, category, categoryId, image_url, description, hours, is_active, panelType } = req.body;
       
       const updateData = {};
       if (name !== undefined) updateData.name = name;
@@ -129,6 +130,7 @@ router.put('/:id',
       if (image_url !== undefined) updateData.imageUrl = image_url;
       if (description !== undefined) updateData.description = description;
       if (hours !== undefined) updateData.hours = hours;
+      if (panelType !== undefined) updateData.panelType = panelType || 'normal';
       if (is_active !== undefined) updateData.isActive = is_active;
       
       const store = await prisma.store.update({
