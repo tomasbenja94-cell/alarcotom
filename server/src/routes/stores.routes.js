@@ -7,8 +7,15 @@ const router = express.Router();
 const prisma = new PrismaClient();
 
 // Verificar que Prisma Client esté correctamente inicializado
+console.log('🔍 Verificando Prisma Client...');
+console.log('Prisma Client disponible:', !!prisma);
+console.log('Modelos disponibles:', Object.keys(prisma).filter(key => !key.startsWith('$') && !key.startsWith('_')));
+console.log('Store disponible:', !!prisma.store);
+
 if (!prisma || !prisma.store) {
-  console.error('❌ ERROR: Prisma Client no está correctamente inicializado. Ejecuta: npx prisma generate');
+  console.error('❌ ERROR: Prisma Client no está correctamente inicializado.');
+  console.error('Modelos encontrados:', Object.keys(prisma).filter(key => !key.startsWith('$') && !key.startsWith('_')));
+  console.error('Ejecuta: cd server && npx prisma generate && pm2 restart backend');
 }
 
 // GET /api/stores - Obtener todos los stores activos
