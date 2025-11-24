@@ -261,7 +261,7 @@ model DriverSession {
 // Admins del sistema
 model Admin {
   id          String   @id @default(uuid())
-  email       String   @unique
+  username    String   @unique // Usuario (sin email)
   passwordHash String  @map("password_hash") // Hash bcrypt
   role        String   @default("admin") // admin, super_admin, operator, viewer
   storeId     String?  @map("store_id") // ID del store asignado (null para super_admin)
