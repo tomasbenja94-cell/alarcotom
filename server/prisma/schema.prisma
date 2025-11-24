@@ -129,6 +129,8 @@ model Order {
   customerAddress     String?                    @map("customer_address")
   customerLat         Float?                     @map("customer_lat") // Latitud de la dirección del cliente
   customerLng         Float?                     @map("customer_lng") // Longitud de la dirección del cliente
+  userId              String?                    @map("user_id") // Usuario autenticado (login social)
+  user                User?                      @relation(fields: [userId], references: [id], onDelete: SetNull)
   storeId            String?                   @map("store_id")
   store              Store?                     @relation(fields: [storeId], references: [id], onDelete: SetNull)
   status              String                     @default("pending") // pending, confirmed, preparing, ready, assigned, in_transit, delivered, cancelled
@@ -727,6 +729,58 @@ model Store {
   businessExpenses BusinessExpense[]
   dailyCostAnalyses DailyCostAnalysis[]
   specialHours    SpecialHours[]
+  settings        StoreSettings?
 
   @@map("stores")
+}
+
+// Usuarios (clientes con login social)
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  name          String?
+  phone         String?
+  address       String?  // Dirección guardada
+  provider      String?  // 'google', 'apple'
+  providerId    String?  @map("provider_id") // ID del proveedor (Google/Apple)
+  imageUrl      String?  @map("image_url")
+  orders        Order[]
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([email])
+  @@index([provider, providerId])
+  @@map("users")
+}
+
+// Configuración de tienda
+model StoreSettings {
+  id                String   @id @default(uuid())
+  storeId           String   @unique
+  store             Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  
+  // Datos generales
+  address           String?  // Dirección del local
+  
+  // Horarios (JSON: { monday: {open: "10:00", close: "22:00"}, ... })
+  hours             String?  @db.Text
+  
+  // Métodos de entrega
+  deliveryEnabled   Boolean  @default(true) @map("delivery_enabled")
+  pickupEnabled     Boolean  @default(true) @map("pickup_enabled")
+  
+  // Métodos de pago
+  cashEnabled       Boolean  @default(true) @map("cash_enabled")
+  transferEnabled   Boolean  @default(true) @map("transfer_enabled")
+  transferAlias     String?  @map("transfer_alias")
+  transferCvu       String?  @map("transfer_cvu")
+  transferTitular   String?  @map("transfer_titular")
+  mercadoPagoEnabled Boolean @default(false) @map("mercado_pago_enabled")
+  mercadoPagoToken  String?  @map("mercado_pago_token")
+  mercadoPagoKey    String?  @map("mercado_pago_key")
+  
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("store_settings")
 }

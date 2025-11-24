@@ -33,6 +33,8 @@ import deliveryRoutes from './src/routes/delivery.routes.js';
 import monitoringRoutes from './src/routes/monitoring.routes.js';
 import statsRoutes from './src/routes/stats.routes.js';
 import storesRoutes from './src/routes/stores.routes.js';
+import storeSettingsRoutes from './src/routes/store-settings.routes.js';
+import usersRoutes from './src/routes/users.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -306,6 +308,8 @@ app.use('/api/delivery', deliveryRoutes); // Rutas adicionales de repartidores
 app.use('/api/monitoring', monitoringRoutes); // Rutas de monitoring (solo admin)
 app.use('/api', statsRoutes); // Rutas de estadísticas (montado en /api, rutas internas: /stats/sales)
 app.use('/api/stores', storesRoutes); // Rutas de stores (multi-tenant)
+app.use('/api/store-settings', storeSettingsRoutes); // Rutas de configuración de tienda
+app.use('/api/users', usersRoutes); // Rutas de usuarios (login social)
 
 // ========== HELPER: Convertir camelCase a snake_case ==========
 function toSnakeCase(str) {
@@ -1365,6 +1369,7 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
       notes: req.body.notes,
       orderNumber,
       storeId: req.body.store_id || req.body.storeId || null, // Agregar storeId si viene en el request
+      userId: req.body.user_id || req.body.userId || null, // Agregar userId si el usuario está autenticado
       items: {
         create: (req.body.items || []).map(item => {
           // Asegurar que selectedOptions se guarde como string JSON
