@@ -13,7 +13,7 @@ const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'CHANGE_THIS_REFRES
 // ========== ADMIN AUTH SERVICE ==========
 class AdminAuthService {
   // Login admin
-  async loginAdmin(email, password, ipAddress, userAgent) {
+  async loginAdmin(username, password, ipAddress, userAgent) {
     let admin;
     
     try {
@@ -23,22 +23,22 @@ class AdminAuthService {
         throw new Error('Error de configuración del servidor');
       }
 
-      // 1. Buscar admin
-      admin = await prisma.admin.findUnique({ where: { email } });
+      // 1. Buscar admin por username
+      admin = await prisma.admin.findUnique({ where: { username } });
       if (!admin) {
-        await this.logFailedLogin(email, 'Usuario no encontrado', ipAddress);
+        await this.logFailedLogin(username, 'Usuario no encontrado', ipAddress);
         throw new Error('Credenciales inválidas');
       }
 
       // 2. Verificar contraseña
       if (!admin.passwordHash) {
-        console.error('❌ [ADMIN LOGIN] Admin sin passwordHash:', email);
+        console.error('❌ [ADMIN LOGIN] Admin sin passwordHash:', username);
         throw new Error('Credenciales inválidas');
       }
 
       const valid = await bcrypt.compare(password, admin.passwordHash);
       if (!valid) {
-        await this.logFailedLogin(email, 'Contraseña incorrecta', ipAddress);
+        await this.logFailedLogin(username, 'Contraseña incorrecta', ipAddress);
         throw new Error('Credenciales inválidas');
       }
 
@@ -76,7 +76,7 @@ class AdminAuthService {
 
     // 5. Log auditoría (opcional, no fallar si no se puede guardar)
     try {
-      await this.logAccess('login_success', admin.id, admin.role, { email, ipAddress, userAgent });
+      await this.logAccess('login_success', admin.id, admin.role, { username, ipAddress, userAgent });
     } catch (logError) {
       console.warn('⚠️ [ADMIN LOGIN] Error guardando log de auditoría (continuando):', logError.message);
       // Continuar sin guardar el log si falla
@@ -185,11 +185,11 @@ class AdminAuthService {
   }
 
   // Crear admin (solo para inicialización)
-  async createAdmin(email, password, role = 'admin') {
+  async createAdmin(username, password, role = 'admin') {
     const passwordHash = await bcrypt.hash(password, 10);
     return await prisma.admin.create({
       data: {
-        email,
+        username,
         passwordHash,
         role
       }
