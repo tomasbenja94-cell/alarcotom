@@ -146,5 +146,35 @@ router.put('/:id',
   }
 );
 
+// DELETE /api/stores/:id - Eliminar un store (solo superadmin)
+router.delete('/:id',
+  corsMiddleware,
+  authenticateAdmin,
+  authorize('super_admin'),
+  async (req, res) => {
+    try {
+      const storeId = req.params.id;
+
+      // Verificar existencia
+      const store = await prisma.store.findUnique({
+        where: { id: storeId }
+      });
+
+      if (!store) {
+        return res.status(404).json({ error: 'Store no encontrado' });
+      }
+
+      await prisma.store.delete({
+        where: { id: storeId }
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting store:', error);
+      res.status(500).json({ error: 'Error al eliminar store' });
+    }
+  }
+);
+
 export default router;
 
