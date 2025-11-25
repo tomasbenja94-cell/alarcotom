@@ -383,6 +383,12 @@ app.post('/api/categories', async (req, res) => {
       displayOrder: req.body.display_order || req.body.displayOrder || 0,
       isActive: req.body.is_active !== undefined ? req.body.is_active : (req.body.isActive !== undefined ? req.body.isActive : true)
     };
+    
+    // Agregar storeId si está presente en el body
+    if (req.body.storeId || req.body.store_id) {
+      categoryData.storeId = req.body.storeId || req.body.store_id;
+    }
+    
     const category = await prisma.category.create({
       data: categoryData
     });
