@@ -38,7 +38,7 @@ import storeCategoriesRoutes from './src/routes/store-categories.routes.js';
 import usersRoutes from './src/routes/users.routes.js';
 import stockIssuesRoutes from './src/routes/stock-issues.routes.js';
 import whatsappRoutes from './src/routes/whatsapp.routes.js';
-import { sendOrderNotification } from './src/services/whatsapp-multi.service.js';
+// import { sendOrderNotification } from './src/services/whatsapp-multi.service.js';
 import reviewsRoutes from './src/routes/reviews.routes.js';
 import couponsRoutes from './src/routes/coupons.routes.js';
 
@@ -1642,14 +1642,9 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
       }
     }
     
-    // Enviar notificación por WhatsApp al local
-    if (order.storeId) {
-      sendOrderNotification(order.storeId, order).catch(err => {
-        console.error('[WhatsApp] Error enviando notificación automática:', err);
-      });
-    } else {
-      console.warn('⚠️ [WhatsApp] Pedido creado sin storeId, no se envía notificación automática');
-    }
+    // NOTA: No enviar notificación automática al crear pedido
+    // El cliente envía el mensaje por WhatsApp manualmente
+    // Las notificaciones del bot solo se envían cuando el admin confirma/actualiza el pedido
 
     // Verificar que el uniqueCode se haya guardado correctamente
     console.log('📦 [CREATE ORDER] Preparando respuesta...');
