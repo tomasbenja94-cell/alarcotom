@@ -16,7 +16,6 @@ router.get('/:storeId/status', authenticateAdmin, async (req, res) => {
   try {
     const { storeId } = req.params;
     
-    // Verificar que el admin tiene acceso a esta tienda
     if (req.user.role !== 'super_admin' && req.user.storeId !== storeId) {
       return res.status(403).json({ error: 'No tienes acceso a esta tienda' });
     }
@@ -42,7 +41,7 @@ router.post('/:storeId/connect', authenticateAdmin, async (req, res) => {
       return res.status(403).json({ error: 'No tienes acceso a esta tienda' });
     }
 
-    const result = await whatsappService.getOrCreateSession(storeId);
+    const result = await whatsappService.startWhatsAppSession(storeId);
     res.json(result);
 
   } catch (error) {
@@ -115,7 +114,7 @@ router.post('/:storeId/send', authenticateAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Se requiere destinatario y mensaje' });
     }
 
-    const result = await whatsappService.sendMessage(storeId, to, message);
+    const result = await whatsappService.sendMessageToClient(storeId, to, message);
     res.json(result);
 
   } catch (error) {
@@ -136,7 +135,6 @@ router.post('/:storeId/test', authenticateAdmin, async (req, res) => {
       return res.status(403).json({ error: 'No tienes acceso a esta tienda' });
     }
 
-    // Obtener número de la configuración
     const { PrismaClient } = await import('@prisma/client');
     const prisma = new PrismaClient();
     
@@ -148,8 +146,8 @@ router.post('/:storeId/test', authenticateAdmin, async (req, res) => {
       return res.status(400).json({ error: 'No hay número de WhatsApp configurado' });
     }
 
-    const testMessage = '✅ ¡Conexión exitosa! Este es un mensaje de prueba de ElBuenMenu.';
-    const result = await whatsappService.sendMessage(storeId, settings.whatsappBotNumber, testMessage);
+    const testMessage = '✅ ¡Conexión exitosa! Este es un mensaje de prueba de Negocios App.';
+    const result = await whatsappService.sendMessageToClient(storeId, settings.whatsappBotNumber, testMessage);
     
     res.json({ ...result, message: 'Mensaje de prueba enviado' });
 
@@ -179,7 +177,9 @@ router.post('/:storeId/restart', authenticateAdmin, async (req, res) => {
     if (req.user.role !== 'super_admin' && req.user.storeId !== storeId) {
       return res.status(403).json({ error: 'No tienes acceso a esta tienda' });
     }
-    const result = await whatsappService.restartStoreSession(storeId);
+    // Desconectar y reconectar
+    await whatsappService.disconnectSession(storeId);
+    const result = await whatsappService.startWhatsAppSession(storeId);
     res.json(result);
   } catch (error) {
     console.error('Error reiniciando bot:', error);
@@ -197,8 +197,14 @@ router.post('/:storeId/toggle', authenticateAdmin, async (req, res) => {
     if (req.user.role !== 'super_admin' && req.user.storeId !== storeId) {
       return res.status(403).json({ error: 'No tienes acceso a esta tienda' });
     }
-    const result = await whatsappService.toggleStoreBot(storeId, enabled);
-    res.json(result);
+    
+    if (enabled) {
+      const result = await whatsappService.startWhatsAppSession(storeId);
+      res.json(result);
+    } else {
+      const result = await whatsappService.disconnectSession(storeId);
+      res.json(result);
+    }
   } catch (error) {
     console.error('Error cambiando estado del bot:', error);
     res.status(500).json({ error: 'No se pudo cambiar el estado del bot' });
@@ -211,8 +217,14 @@ router.get('/:storeId/metrics', authenticateAdmin, async (req, res) => {
     if (req.user.role !== 'super_admin' && req.user.storeId !== storeId) {
       return res.status(403).json({ error: 'No tienes acceso a esta tienda' });
     }
-    const metrics = whatsappService.getStoreMetricsSnapshot(storeId);
-    res.json(metrics);
+    // Métricas básicas
+    const status = whatsappService.getSessionStatus(storeId);
+    res.json({
+      connected: status.status === 'connected',
+      messagesProcessed: 0,
+      errors: 0,
+      lastActivity: status.connectedAt || null
+    });
   } catch (error) {
     console.error('Error obteniendo métricas:', error);
     res.status(500).json({ error: 'No se pudieron obtener las métricas' });
@@ -222,12 +234,11 @@ router.get('/:storeId/metrics', authenticateAdmin, async (req, res) => {
 router.get('/:storeId/logs', authenticateAdmin, async (req, res) => {
   try {
     const { storeId } = req.params;
-    const limit = Number(req.query.limit || 100);
     if (req.user.role !== 'super_admin' && req.user.storeId !== storeId) {
       return res.status(403).json({ error: 'No tienes acceso a esta tienda' });
     }
-    const logs = whatsappService.getStoreLogs(storeId, limit);
-    res.json({ logs });
+    // Logs vacíos por ahora (el servicio simplificado no guarda logs)
+    res.json({ logs: [] });
   } catch (error) {
     console.error('Error obteniendo logs:', error);
     res.status(500).json({ error: 'No se pudieron obtener los logs' });
@@ -235,4 +246,3 @@ router.get('/:storeId/logs', authenticateAdmin, async (req, res) => {
 });
 
 export default router;
-
