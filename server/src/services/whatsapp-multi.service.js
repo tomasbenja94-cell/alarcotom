@@ -16,6 +16,51 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const prisma = new PrismaClient();
+const STORE_FRONT_URL = process.env.STORE_FRONT_URL || 'https://elbuenmenu.site';
+
+const WHATSAPP_TEMPLATES = {
+  rotiseria: {
+    welcome: '👋 ¡Hola! Somos {{storeName}}. Hacé tu pedido directo desde {{storeUrl}} y lo coordinamos por acá.',
+    orderConfirm: '✅ Pedido {{orderNumber}} confirmado en {{storeName}}. Código repartidor: {{deliveryCode}}. Seguimiento: {{trackingUrl}}',
+    orderOnWay: '🚗 Tu pedido {{orderNumber}} ya está en camino desde {{storeName}}. Código: {{deliveryCode}}. Tracking: {{trackingUrl}}'
+  },
+  kiosco: {
+    welcome: '🙌 Bienvenido a {{storeName}}. Pedí todo lo que necesitás en {{storeUrl}} y te respondemos enseguida.',
+    orderConfirm: '🛍️ Pedido {{orderNumber}} confirmado. Código de retiro/repartidor: {{deliveryCode}}.',
+    orderOnWay: '🚕 Tu pedido {{orderNumber}} salió de {{storeName}}. Mostrá el código {{deliveryCode}}. Tracking: {{trackingUrl}}'
+  },
+  tragos: {
+    welcome: '🍹 Estás en {{storeName}}. Elegí tus tragos en {{storeUrl}} y te confirmamos por WhatsApp.',
+    orderConfirm: '🍾 Pedido {{orderNumber}} confirmado. Código bartender/repartidor: {{deliveryCode}}.',
+    orderOnWay: '🛵 Tus tragos {{orderNumber}} van en camino. Código: {{deliveryCode}}. Tracking: {{trackingUrl}}'
+  }
+};
+
+function getTemplateByPanel(panelType = 'rotiseria') {
+  return WHATSAPP_TEMPLATES[panelType] || WHATSAPP_TEMPLATES.rotiseria;
+}
+
+function applyPlaceholders(message, context = {}) {
+  if (!message) return '';
+  let result = message;
+  Object.entries({
+    storeName: context.storeName || 'nuestro local',
+    storeUrl: context.storeUrl || STORE_FRONT_URL,
+    orderNumber: context.orderNumber || '',
+    deliveryCode: context.deliveryCode || '',
+    trackingUrl: context.trackingUrl || '',
+  }).forEach(([key, value]) => {
+    result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
+  });
+  return result;
+}
+
+async function getStoreContext(storeId) {
+  const store = await prisma.store.findUnique({ where: { id: storeId } });
+  const template = getTemplateByPanel(store?.panelType || 'rotiseria');
+  const storeUrl = `${STORE_FRONT_URL}/menu?store=${storeId}`;
+  return { store, template, storeUrl };
+}
 
 // Directorio para guardar las sesiones
 const SESSIONS_DIR = path.join(__dirname, '../../whatsapp-sessions');
@@ -164,9 +209,15 @@ async function handleIncomingMessage(storeId, socket, msg) {
       return;
     }
 
-    // Enviar mensaje de bienvenida si es el primer mensaje
-    const welcomeMessage = settings.welcomeMessage || 
-      '¡Hola! 👋 Gracias por contactarnos. En breve te atenderemos.';
+    const { store, template, storeUrl } = await getStoreContext(storeId);
+
+    const welcomeMessage = applyPlaceholders(
+      settings.welcomeMessage || template.welcome,
+      {
+        storeName: store?.name,
+        storeUrl
+      }
+    );
 
     await socket.sendMessage(from, { text: welcomeMessage });
 
@@ -347,10 +398,18 @@ export async function sendOrderConfirmation(storeId, order, customerPhone) {
       return;
     }
 
-    let message = settings.orderConfirmMessage || 
-      '✅ ¡Tu pedido #{orderNumber} fue confirmado! Te avisaremos cuando esté listo.';
-    
-    message = message.replace('{orderNumber}', order.orderNumber || order.id.slice(-6));
+    const { store, template, storeUrl } = await getStoreContext(storeId);
+    const trackingUrl = order.trackingToken ? `${STORE_FRONT_URL}/track/${order.trackingToken}` : '';
+    const message = applyPlaceholders(
+      settings.orderConfirmMessage || template.orderConfirm,
+      {
+        storeName: store?.name,
+        storeUrl,
+        orderNumber: order.orderNumber || order.id.slice(-6),
+        deliveryCode: order.deliveryCode || order.uniqueCode || '',
+        trackingUrl
+      }
+    );
 
     await sendMessage(storeId, customerPhone, message);
 
@@ -377,10 +436,18 @@ export async function sendOrderOnWay(storeId, order, customerPhone) {
       return;
     }
 
-    let message = settings.orderOnWayMessage || 
-      '🚗 ¡Tu pedido #{orderNumber} está en camino! Llegará pronto.';
-    
-    message = message.replace('{orderNumber}', order.orderNumber || order.id.slice(-6));
+    const { store, template, storeUrl } = await getStoreContext(storeId);
+    const trackingUrl = order.trackingToken ? `${STORE_FRONT_URL}/track/${order.trackingToken}` : '';
+    const message = applyPlaceholders(
+      settings.orderOnWayMessage || template.orderOnWay,
+      {
+        storeName: store?.name,
+        storeUrl,
+        orderNumber: order.orderNumber || order.id.slice(-6),
+        deliveryCode: order.deliveryCode || order.uniqueCode || '',
+        trackingUrl
+      }
+    );
 
     await sendMessage(storeId, customerPhone, message);
 
