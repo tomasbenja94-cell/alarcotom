@@ -823,25 +823,59 @@ model StoreSettings {
   storeId           String   @unique
   store             Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   
-  // Datos generales
-  address           String?  // Dirección del local
+  // ========== DATOS BÁSICOS ==========
+  commercialName    String?  @map("commercial_name") // Nombre comercial
+  logoUrl           String?  @map("logo_url") // Logo/foto principal
+  shortDescription  String?  @map("short_description") // Descripción corta
+  longDescription   String?  @db.Text @map("long_description") // Descripción larga
+  storeType         String?  @map("store_type") // kiosco, tragos, rotiseria, etc.
+  address           String?  // Dirección física del local
+  phone             String?  // Teléfono de contacto
+  whatsappNumber    String?  @map("whatsapp_number") // WhatsApp visible para clientes
   
-  // Horarios (JSON: { monday: {open: "10:00", close: "22:00"}, ... })
+  // ========== HORARIOS Y ESTADO ==========
+  // Horarios por día (JSON: { monday: {open: "10:00", close: "22:00", enabled: true}, ... })
   hours             String?  @db.Text
+  // Horarios de envío (pueden ser distintos) (JSON igual formato)
+  deliveryHours     String?  @db.Text @map("delivery_hours")
+  // Estado manual del local
+  isOpen            Boolean  @default(true) @map("is_open") // Abierto/cerrado manual
+  closedMessage     String?  @map("closed_message") // Mensaje cuando está cerrado
   
-  // Métodos de entrega
+  // ========== CONFIGURACIÓN DE ENVÍOS ==========
   deliveryEnabled   Boolean  @default(true) @map("delivery_enabled")
   pickupEnabled     Boolean  @default(true) @map("pickup_enabled")
+  deliveryPrice     Float?   @default(0) @map("delivery_price") // Precio base del envío
+  deliveryTimeMin   Int?     @default(30) @map("delivery_time_min") // Tiempo mínimo estimado
+  deliveryTimeMax   Int?     @default(45) @map("delivery_time_max") // Tiempo máximo estimado
+  deliveryZoneInfo  String?  @map("delivery_zone_info") // Info de zona (ej: "Solo Zárate centro")
+  deliveryTempDisabled Boolean @default(false) @map("delivery_temp_disabled") // Deshabilitado temporalmente
   
-  // Métodos de pago
+  // ========== MÉTODOS DE PAGO ==========
   cashEnabled       Boolean  @default(true) @map("cash_enabled")
   transferEnabled   Boolean  @default(true) @map("transfer_enabled")
   transferAlias     String?  @map("transfer_alias")
   transferCvu       String?  @map("transfer_cvu")
   transferTitular   String?  @map("transfer_titular")
+  transferNotes     String?  @map("transfer_notes") // Notas de transferencia
   mercadoPagoEnabled Boolean @default(false) @map("mercado_pago_enabled")
   mercadoPagoToken  String?  @map("mercado_pago_token")
   mercadoPagoKey    String?  @map("mercado_pago_key")
+  mercadoPagoLink   String?  @map("mercado_pago_link") // Link de pago MP
+  paymentNotes      String?  @db.Text @map("payment_notes") // Notas generales de pago
+  
+  // ========== BOT DE WHATSAPP ==========
+  whatsappBotEnabled Boolean @default(false) @map("whatsapp_bot_enabled")
+  whatsappBotNumber String?  @map("whatsapp_bot_number") // Número que recibe mensajes
+  welcomeMessage    String?  @db.Text @map("welcome_message") // Mensaje de bienvenida
+  orderConfirmMessage String? @db.Text @map("order_confirm_message") // Confirmación de pedido
+  orderOnWayMessage String?  @db.Text @map("order_on_way_message") // Pedido en camino
+  
+  // ========== OTROS AJUSTES ==========
+  acceptScheduledOrders Boolean @default(false) @map("accept_scheduled_orders") // Pedidos programados
+  promotionsEnabled Boolean @default(true) @map("promotions_enabled") // Promociones activas
+  minOrderAmount    Float?   @map("min_order_amount") // Monto mínimo de pedido
+  maxOrdersPerHour  Int?     @map("max_orders_per_hour") // Límite de pedidos por hora
   
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")

@@ -55,53 +55,68 @@ router.put('/:storeId', corsMiddleware, authenticateAdmin, async (req, res) => {
       return res.status(403).json({ error: 'No tienes acceso a esta tienda' });
     }
 
-    const {
-      address,
-      hours,
-      deliveryEnabled,
-      pickupEnabled,
-      cashEnabled,
-      transferEnabled,
-      transferAlias,
-      transferCvu,
-      transferTitular,
-      mercadoPagoEnabled,
-      mercadoPagoToken,
-      mercadoPagoKey
-    } = req.body;
+    // Extraer todos los campos del body
+    const data = req.body;
+    
+    // Campos que no deben ser undefined para el upsert
+    const settingsData = {
+      // Datos básicos
+      commercialName: data.commercialName || null,
+      logoUrl: data.logoUrl || null,
+      shortDescription: data.shortDescription || null,
+      longDescription: data.longDescription || null,
+      storeType: data.storeType || null,
+      address: data.address || null,
+      phone: data.phone || null,
+      whatsappNumber: data.whatsappNumber || null,
+      
+      // Horarios y estado
+      hours: data.hours || null,
+      deliveryHours: data.deliveryHours || null,
+      isOpen: data.isOpen !== undefined ? data.isOpen : true,
+      closedMessage: data.closedMessage || null,
+      
+      // Envíos
+      deliveryEnabled: data.deliveryEnabled !== undefined ? data.deliveryEnabled : true,
+      pickupEnabled: data.pickupEnabled !== undefined ? data.pickupEnabled : true,
+      deliveryPrice: data.deliveryPrice !== undefined ? data.deliveryPrice : 0,
+      deliveryTimeMin: data.deliveryTimeMin !== undefined ? data.deliveryTimeMin : 30,
+      deliveryTimeMax: data.deliveryTimeMax !== undefined ? data.deliveryTimeMax : 45,
+      deliveryZoneInfo: data.deliveryZoneInfo || null,
+      deliveryTempDisabled: data.deliveryTempDisabled !== undefined ? data.deliveryTempDisabled : false,
+      
+      // Pagos
+      cashEnabled: data.cashEnabled !== undefined ? data.cashEnabled : true,
+      transferEnabled: data.transferEnabled !== undefined ? data.transferEnabled : false,
+      transferAlias: data.transferAlias || null,
+      transferCvu: data.transferCvu || null,
+      transferTitular: data.transferTitular || null,
+      transferNotes: data.transferNotes || null,
+      mercadoPagoEnabled: data.mercadoPagoEnabled !== undefined ? data.mercadoPagoEnabled : false,
+      mercadoPagoToken: data.mercadoPagoToken || null,
+      mercadoPagoKey: data.mercadoPagoKey || null,
+      mercadoPagoLink: data.mercadoPagoLink || null,
+      paymentNotes: data.paymentNotes || null,
+      
+      // Bot WhatsApp
+      whatsappBotEnabled: data.whatsappBotEnabled !== undefined ? data.whatsappBotEnabled : false,
+      whatsappBotNumber: data.whatsappBotNumber || null,
+      welcomeMessage: data.welcomeMessage || null,
+      orderConfirmMessage: data.orderConfirmMessage || null,
+      orderOnWayMessage: data.orderOnWayMessage || null,
+      
+      // Otros
+      acceptScheduledOrders: data.acceptScheduledOrders !== undefined ? data.acceptScheduledOrders : false,
+      promotionsEnabled: data.promotionsEnabled !== undefined ? data.promotionsEnabled : true,
+      minOrderAmount: data.minOrderAmount !== undefined ? data.minOrderAmount : null,
+      maxOrdersPerHour: data.maxOrdersPerHour !== undefined ? data.maxOrdersPerHour : null,
+    };
 
     // Upsert: actualizar si existe, crear si no existe
     const settings = await prisma.storeSettings.upsert({
       where: { storeId },
-      update: {
-        address,
-        hours,
-        deliveryEnabled: deliveryEnabled !== undefined ? deliveryEnabled : true,
-        pickupEnabled: pickupEnabled !== undefined ? pickupEnabled : true,
-        cashEnabled: cashEnabled !== undefined ? cashEnabled : true,
-        transferEnabled: transferEnabled !== undefined ? transferEnabled : true,
-        transferAlias,
-        transferCvu,
-        transferTitular,
-        mercadoPagoEnabled: mercadoPagoEnabled !== undefined ? mercadoPagoEnabled : false,
-        mercadoPagoToken,
-        mercadoPagoKey
-      },
-      create: {
-        storeId,
-        address,
-        hours,
-        deliveryEnabled: deliveryEnabled !== undefined ? deliveryEnabled : true,
-        pickupEnabled: pickupEnabled !== undefined ? pickupEnabled : true,
-        cashEnabled: cashEnabled !== undefined ? cashEnabled : true,
-        transferEnabled: transferEnabled !== undefined ? transferEnabled : true,
-        transferAlias,
-        transferCvu,
-        transferTitular,
-        mercadoPagoEnabled: mercadoPagoEnabled !== undefined ? mercadoPagoEnabled : false,
-        mercadoPagoToken,
-        mercadoPagoKey
-      }
+      update: settingsData,
+      create: { storeId, ...settingsData }
     });
 
     res.json(settings);

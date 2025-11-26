@@ -14,6 +14,7 @@ import DeliveryPersonsManagement from './components/DeliveryPersonsManagement';
 import PaymentConfig from './components/PaymentConfig';
 import BotMessagesManager from './components/BotMessagesManager';
 import StoreSettings from './components/StoreSettings';
+import StoreConfigPanel from './components/StoreConfigPanel';
 import StoreSetupWizard from './components/StoreSetupWizard';
 import StoreCategoriesManagement from './components/StoreCategoriesManagement';
 import KioscoPanel from './components/KioscoPanel';
@@ -363,7 +364,7 @@ export default function AdminPage() {
         case 'delivery': return <DeliveryPersonsManagement />;
         case 'payment': return <PaymentConfig />;
         case 'bot-messages': return <BotMessagesManager />;
-        case 'settings': return <StoreSettings storeId={currentStoreId || localStorage.getItem('adminStoreId')} />;
+        case 'settings': return <StoreConfigPanel storeId={currentStoreId || localStorage.getItem('adminStoreId') || ''} />;
         case 'store-categories': return <StoreCategoriesManagement />;
         default: return null;
       }
