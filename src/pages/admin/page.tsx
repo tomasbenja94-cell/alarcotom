@@ -15,10 +15,9 @@ import PaymentConfig from './components/PaymentConfig';
 import BotMessagesManager from './components/BotMessagesManager';
 import StoreSettings from './components/StoreSettings';
 import StoreConfigPanel from './components/StoreConfigPanel';
+import WhatsAppControlPanel from './components/WhatsAppControlPanel';
 import StoreSetupWizard from './components/StoreSetupWizard';
 import StoreCategoriesManagement from './components/StoreCategoriesManagement';
-import KioscoPanel from './components/KioscoPanel';
-import TragosPanel from './components/TragosPanel';
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -34,8 +33,6 @@ export default function AdminPage() {
   const [storeName, setStoreName] = useState<string>('');
   const [showWizard, setShowWizard] = useState<boolean>(false);
   const [storeCategory, setStoreCategory] = useState<string | null>(null);
-  const [isKiosco, setIsKiosco] = useState<boolean>(false);
-  const [isTragos, setIsTragos] = useState<boolean>(false);
 
   useEffect(() => {
     // Obtener storeId de la URL
@@ -155,11 +152,6 @@ export default function AdminPage() {
       if (response.ok) {
         const store = await response.json();
         setStoreName(store.name || '');
-        // Detectar tipo de panel basado en panelType
-        const isKioscoStore = store.panelType === 'kiosco';
-        const isTragosStore = store.panelType === 'tragos';
-        setIsKiosco(isKioscoStore);
-        setIsTragos(isTragosStore);
         setStoreCategory(store.category?.name?.toLowerCase() || '');
       }
     } catch (error) {
@@ -364,6 +356,7 @@ export default function AdminPage() {
         case 'delivery': return <DeliveryPersonsManagement />;
         case 'payment': return <PaymentConfig />;
         case 'bot-messages': return <BotMessagesManager />;
+        case 'whatsapp': return <WhatsAppControlPanel storeId={currentStoreId || localStorage.getItem('adminStoreId') || ''} />;
         case 'settings': return <StoreConfigPanel storeId={currentStoreId || localStorage.getItem('adminStoreId') || ''} />;
         case 'store-categories': return <StoreCategoriesManagement />;
         default: return null;
@@ -381,25 +374,6 @@ export default function AdminPage() {
     setShowAdvancedMenu(false);
     setActiveTab('pedidos'); // Reset main tab
   };
-
-  // Si es kiosco, mostrar panel simplificado
-  if (isAuthenticated && isKiosco && currentStoreId) {
-    return (
-      <>
-        <KioscoPanel storeId={currentStoreId} />
-        {showTutorial && <AdminTutorial onComplete={handleTutorialComplete} onSkip={handleTutorialSkip} />}
-      </>
-    );
-  }
-
-  if (isAuthenticated && isTragos && currentStoreId) {
-    return (
-      <>
-        <TragosPanel storeId={currentStoreId} />
-        {showTutorial && <AdminTutorial onComplete={handleTutorialComplete} onSkip={handleTutorialSkip} />}
-      </>
-    );
-  }
 
   return (
     <>
@@ -525,6 +499,13 @@ export default function AdminPage() {
                 >
                   <i className="ri-message-3-line"></i>
                   <span>Mensajes Bot</span>
+                </button>
+                <button
+                  onClick={() => handleAdvancedMenuClick('whatsapp')}
+                  className="px-3 py-2 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-all text-gray-700 flex items-center space-x-1"
+                >
+                  <i className="ri-whatsapp-line"></i>
+                  <span>Bot WhatsApp</span>
                 </button>
                 <button
                   onClick={() => handleAdvancedMenuClick('settings')}
