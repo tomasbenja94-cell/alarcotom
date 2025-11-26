@@ -355,19 +355,75 @@ async function handleIncomingMessage(storeId, socket, msg) {
       const orderCode = orderMatch[2];
       console.log(`[WhatsApp] [${storeId}] 📦 PEDIDO DETECTADO: #${orderNum} - ${orderCode}`);
       
-      // Confirmar recepción del pedido
-      const confirmMsg = `✅ *PEDIDO RECIBIDO*
+      // Buscar el pedido en la base de datos
+      try {
+        const order = await prisma.order.findFirst({
+          where: {
+            storeId: storeId,
+            OR: [
+              { orderNumber: orderNum },
+              { uniqueCode: orderCode }
+            ]
+          },
+          include: {
+            items: true
+          }
+        });
 
-📋 Pedido: #${orderNum}
-🔐 Código: ${orderCode}
+        if (order) {
+          // Guardar info del pedido en la sesión
+          userSession.currentOrder = {
+            id: order.id,
+            orderNumber: order.orderNumber,
+            uniqueCode: order.uniqueCode || orderCode,
+            total: order.total,
+            subtotal: order.subtotal,
+            deliveryFee: order.deliveryFee,
+            items: order.items,
+            customerName: order.customerName,
+            customerAddress: order.customerAddress,
+            deliveryType: order.deliveryFee > 0 ? 'delivery' : 'pickup'
+          };
+          
+          // Mostrar resumen del pedido y opciones de pago
+          let itemsList = order.items.map(item => 
+            `• ${item.quantity}x ${item.productName} - $${item.subtotal.toLocaleString('es-AR')}`
+          ).join('\n');
 
-⏳ Estamos preparando tu pedido.
-Te avisamos cuando esté listo.
+          const orderSummary = `✅ *PEDIDO #${order.orderNumber}*
 
-¡Gracias por elegirnos! ❤️`;
-      await socket.sendMessage(from, { text: confirmMsg });
-      userSession.step = 'order_received';
-      recordStoreLog(storeId, 'info', 'Pedido detectado y confirmado', { from, orderNum, orderCode });
+📋 *Detalle:*
+${itemsList}
+
+${order.deliveryFee > 0 ? `🚚 Envío: $${order.deliveryFee.toLocaleString('es-AR')}` : '🏪 Retiro en local'}
+💰 *Total: $${order.total.toLocaleString('es-AR')}*
+
+🔐 Código: ${orderCode}`;
+
+          await socket.sendMessage(from, { text: orderSummary });
+          
+          // Mostrar opciones de pago
+          userSession.waitingForPayment = true;
+          userSession.step = 'checkout_payment';
+          await showPaymentOptions(storeId, socket, from, userSession, tenantContext, false);
+          
+          recordStoreLog(storeId, 'info', 'Pedido detectado - iniciando checkout', { from, orderNum, orderCode, total: order.total });
+        } else {
+          // Pedido no encontrado, confirmar de todas formas
+          await socket.sendMessage(from, { 
+            text: `✅ *PEDIDO RECIBIDO*\n\n📋 Pedido: #${orderNum}\n🔐 Código: ${orderCode}\n\n⏳ Estamos procesando tu pedido.\n\n¡Gracias por elegirnos! ❤️` 
+          });
+          userSession.step = 'order_received';
+          recordStoreLog(storeId, 'warn', 'Pedido detectado pero no encontrado en BD', { from, orderNum, orderCode });
+        }
+      } catch (err) {
+        console.error(`[WhatsApp] [${storeId}] Error buscando pedido:`, err);
+        await socket.sendMessage(from, { 
+          text: `✅ *PEDIDO RECIBIDO*\n\n📋 Pedido: #${orderNum}\n🔐 Código: ${orderCode}\n\n⏳ Estamos procesando tu pedido.\n\n¡Gracias por elegirnos! ❤️` 
+        });
+        userSession.step = 'order_received';
+      }
+      
       markProcessed();
       return;
     }
