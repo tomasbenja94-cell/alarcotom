@@ -18,6 +18,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { PrismaClient } from '@prisma/client';
+import { loadTenantContext } from './whatsapp/tenant-context.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -52,8 +53,9 @@ const activeSessions = new Map();      // storeId -> { socket, storeId, createdA
 const pendingQRs = new Map();          // storeId -> { qr, timestamp, expires }
 const userSessionsPerStore = new Map(); // storeId -> Map(userId -> session)
 const rateLimitMaps = new Map();       // storeId -> Map(userId -> stats)
-const messageQueues = new Map();       // storeId -> array de mensajes
-const processingFlags = new Map();     // storeId -> boolean
+const storeMetrics = new Map();        // storeId -> metrics object
+const storeLogs = new Map();           // storeId -> [{timestamp, level, message, meta}]
+const MAX_LOGS_PER_STORE = 200;
 
 // Logger silencioso para Baileys
 const logger = pino({ level: 'silent' });
@@ -108,7 +110,7 @@ function isSpamMessage(text) {
 // ---------------------------------------------------------------------------
 // RATE LIMITING PER STORE
 // ---------------------------------------------------------------------------
-function checkRateLimit(storeId, userId) {
+function checkRateLimit(storeId, userId, config = CONFIG) {
   if (!rateLimitMaps.has(storeId)) {
     rateLimitMaps.set(storeId, new Map());
   }
@@ -132,12 +134,14 @@ function checkRateLimit(storeId, userId) {
     stats.messages = [];
   }
   
-  stats.messages = stats.messages.filter(time => now - time < CONFIG.rateLimitWindow);
+  stats.messages = stats.messages.filter(time => now - time < (config.rateLimitWindow || CONFIG.rateLimitWindow));
   
-  if (stats.messages.length >= CONFIG.maxMessagesPerWindow) {
+  const maxMessages = config.maxMessagesPerWindow || CONFIG.maxMessagesPerWindow;
+  if (stats.messages.length >= maxMessages) {
     stats.blocked = true;
-    stats.blockUntil = now + CONFIG.rateLimitWindow;
-    return { allowed: false, reason: 'rate_limit', waitSeconds: Math.ceil(CONFIG.rateLimitWindow / 1000) };
+    const windowMs = config.rateLimitWindow || CONFIG.rateLimitWindow;
+    stats.blockUntil = now + windowMs;
+    return { allowed: false, reason: 'rate_limit', waitSeconds: Math.ceil(windowMs / 1000) };
   }
   
   if (now - stats.lastMessage < 2000) {
@@ -189,13 +193,6 @@ function matchesPattern(text, patterns) {
 // ---------------------------------------------------------------------------
 // HELPER: Get store context
 // ---------------------------------------------------------------------------
-async function getStoreContext(storeId) {
-  const store = await prisma.store.findUnique({ where: { id: storeId } });
-  const settings = await prisma.storeSettings.findUnique({ where: { storeId } });
-  const storeUrl = `${STORE_FRONT_URL}/menu?store=${storeId}`;
-  return { store, settings, storeUrl };
-}
-
 // ---------------------------------------------------------------------------
 // HELPER: Format price
 // ---------------------------------------------------------------------------
@@ -205,6 +202,52 @@ function formatPrice(amount) {
     currency: 'ARS',
     minimumFractionDigits: 0
   }).format(amount || 0);
+}
+
+function getStoreMetrics(storeId) {
+  if (!storeMetrics.has(storeId)) {
+    storeMetrics.set(storeId, {
+      messagesProcessed: 0,
+      messagesBlocked: 0,
+      errors: 0,
+      lastMessageAt: null,
+      lastErrorAt: null
+    });
+  }
+  return storeMetrics.get(storeId);
+}
+
+function recordStoreLog(storeId, level, message, meta = {}) {
+  if (!storeLogs.has(storeId)) {
+    storeLogs.set(storeId, []);
+  }
+  const logs = storeLogs.get(storeId);
+  logs.push({
+    timestamp: new Date().toISOString(),
+    level,
+    message,
+    meta
+  });
+  if (logs.length > MAX_LOGS_PER_STORE) {
+    logs.shift();
+  }
+}
+
+function trackMessageProcessed(storeId) {
+  const metrics = getStoreMetrics(storeId);
+  metrics.messagesProcessed += 1;
+  metrics.lastMessageAt = Date.now();
+}
+
+function trackMessageBlocked(storeId) {
+  const metrics = getStoreMetrics(storeId);
+  metrics.messagesBlocked += 1;
+}
+
+function trackStoreError(storeId) {
+  const metrics = getStoreMetrics(storeId);
+  metrics.errors += 1;
+  metrics.lastErrorAt = Date.now();
 }
 
 // ---------------------------------------------------------------------------
@@ -242,6 +285,9 @@ async function handleIncomingMessage(storeId, socket, msg) {
                         '';
     const body = messageText.trim().toLowerCase();
     const pushName = msg.pushName || '';
+    let processed = false;
+    const markProcessed = () => { processed = true; };
+    const markBlocked = () => trackMessageBlocked(storeId);
 
     // Ignorar grupos y broadcasts
     if (from.includes('@g.us') || from.includes('@broadcast')) {
@@ -249,35 +295,56 @@ async function handleIncomingMessage(storeId, socket, msg) {
     }
 
     console.log(`[WhatsApp] [${storeId}] Mensaje de ${from}: ${messageText.substring(0, 100)}`);
+    recordStoreLog(storeId, 'info', 'Mensaje entrante', { from, preview: messageText.substring(0, 80) });
 
-    // Obtener configuración de la tienda
-    const { store, settings, storeUrl } = await getStoreContext(storeId);
+    // Obtener contexto multi-tenant
+    const tenantContext = await loadTenantContext(storeId);
+    const { settings, storeUrl, storeName, isActive, whatsappLimits } = tenantContext;
 
-    if (!settings?.whatsappBotEnabled) {
-      console.log(`[WhatsApp] [${storeId}] Bot deshabilitado`);
+    if (!isActive || !settings?.whatsappBotEnabled) {
+      console.log(`[WhatsApp] [${storeId}] Bot deshabilitado o tienda inactiva`);
+      recordStoreLog(storeId, 'warn', 'Bot deshabilitado/inactivo, mensaje ignorado', { from });
+      markBlocked();
       return;
     }
 
     // RATE LIMITING
-    const rateCheck = checkRateLimit(storeId, from);
+    const rateConfig = whatsappLimits?.rateLimit || { windowMs: 60000, max: 20 };
+    const rateCheck = checkRateLimit(storeId, from, rateConfig);
     if (!rateCheck.allowed) {
       if (rateCheck.reason === 'rate_limit') {
         await socket.sendMessage(from, { 
           text: `⚠️ Estás enviando mensajes muy rápido. Por favor esperá ${Math.ceil(rateCheck.waitSeconds / 60)} minutos.` 
         });
       }
+      recordStoreLog(storeId, 'warn', 'Mensaje bloqueado por rate limit', { from });
+      markBlocked();
       return;
     }
 
     // SPAM DETECTION
+    const userLimitConfig = whatsappLimits?.userRateLimit;
+    if (userLimitConfig) {
+      const userRateCheck = checkRateLimit(`${storeId}:user`, from, userLimitConfig);
+      if (!userRateCheck.allowed) {
+        await socket.sendMessage(from, {
+          text: '⚠️ Estás enviando mensajes demasiado rápido. Probá nuevamente en unos minutos.'
+        });
+        recordStoreLog(storeId, 'warn', 'Usuario bloqueado por rate limit específico', { from });
+        markBlocked();
+        return;
+      }
+    }
+
     if (isSpamMessage(messageText)) {
       console.log(`[WhatsApp] [${storeId}] SPAM detectado de ${from}`);
+      recordStoreLog(storeId, 'warn', 'Mensaje identificado como SPAM', { from });
+      markBlocked();
       return;
     }
 
     // Obtener sesión del usuario
     const userSession = getUserSession(storeId, from);
-    const storeName = store?.name || settings?.commercialName || 'Nuestro local';
 
     // =========================================================================
     // 0. DETECTAR PEDIDO ENTRANTE (desde checkout web) - PRIORIDAD MÁXIMA
@@ -300,6 +367,8 @@ Te avisamos cuando esté listo.
 ¡Gracias por elegirnos! ❤️`;
       await socket.sendMessage(from, { text: confirmMsg });
       userSession.step = 'order_received';
+      recordStoreLog(storeId, 'info', 'Pedido detectado y confirmado', { from, orderNum, orderCode });
+      markProcessed();
       return;
     }
 
@@ -307,35 +376,39 @@ Te avisamos cuando esté listo.
     // 1. SI ESTÁ EN FLUJO DE PAGO - Manejar primero
     // =========================================================================
     if (userSession.waitingForPayment) {
-      await handlePaymentSelection(storeId, socket, from, body, userSession, settings, store);
+      await handlePaymentSelection(storeId, socket, from, body, userSession, tenantContext);
+      markProcessed();
       return;
     }
 
     if (userSession.waitingForTransferProof) {
       // Verificar si es imagen
       if (msg.message?.imageMessage) {
-        await handleTransferProof(storeId, socket, from, msg, userSession, store);
+        await handleTransferProof(storeId, socket, from, msg, userSession, tenantContext);
       } else if (body === '09') {
         // Cambiar método de pago
         userSession.paymentMethod = null;
         userSession.waitingForTransferProof = false;
         userSession.waitingForPayment = true;
-        await showPaymentOptions(storeId, socket, from, userSession, true);
+        await showPaymentOptions(storeId, socket, from, userSession, tenantContext, true);
       } else {
         await socket.sendMessage(from, { 
           text: `📸 Por favor, enviá una FOTO del comprobante de pago.\n\n🔄 Escribí "09" si querés cambiar el método de pago.` 
         });
       }
+      markProcessed();
       return;
     }
 
     if (userSession.waitingForConfirmation) {
-      await handleOrderConfirmation(storeId, socket, from, body, userSession);
+      await handleOrderConfirmation(storeId, socket, from, body, userSession, tenantContext);
+      markProcessed();
       return;
     }
 
     if (userSession.waitingForAddress) {
-      await handleAddressInput(storeId, socket, from, messageText, userSession);
+      await handleAddressInput(storeId, socket, from, messageText, userSession, tenantContext);
+      markProcessed();
       return;
     }
 
@@ -343,8 +416,9 @@ Te avisamos cuando esté listo.
     // 2. SALUDOS -> Menú principal
     // =========================================================================
     if (matchesPattern(body, GREETING_PATTERNS) || body === 'hola' || isGreetingMessage(body)) {
-      await showMainMenu(storeId, socket, from, storeName, storeUrl, settings);
+      await showMainMenu(storeId, socket, from, tenantContext);
       userSession.step = 'main_menu';
+      markProcessed();
       return;
     }
 
@@ -359,6 +433,7 @@ Mirá toda nuestra carta acá:
 
 ¡Elegí tus productos favoritos y hacé tu pedido! 🛒`;
       await socket.sendMessage(from, { text: menuMsg });
+      markProcessed();
       return;
     }
 
@@ -374,6 +449,7 @@ Para consultar el estado de tu pedido, necesito el código de 4 dígitos que te 
 📝 Escribí el código (ej: 1234)` 
       });
       userSession.step = 'waiting_order_code';
+      markProcessed();
       return;
     }
 
@@ -389,6 +465,7 @@ Para ver tus pedidos anteriores, ingresá a:
 
 Ahí podés ver el historial completo.` 
       });
+      markProcessed();
       return;
     }
 
@@ -420,6 +497,7 @@ Ahí podés ver el historial completo.`
       
       hoursText += `\n🔗 ${storeUrl}`;
       await socket.sendMessage(from, { text: hoursText });
+      markProcessed();
       return;
     }
 
@@ -442,6 +520,7 @@ Ahí podés ver el historial completo.`
 
 🔗 Carta: ${storeUrl}`;
       await socket.sendMessage(from, { text: helpMsg });
+      markProcessed();
       return;
     }
 
@@ -500,24 +579,34 @@ ${statusText}
       }
       
       userSession.step = 'welcome';
+      markProcessed();
       return;
     }
 
     // =========================================================================
     // 9. MENSAJE NO ENTENDIDO -> Mostrar menú
     // =========================================================================
-    await showMainMenu(storeId, socket, from, storeName, storeUrl, settings);
+    await showMainMenu(storeId, socket, from, tenantContext);
+    markProcessed();
 
   } catch (error) {
     console.error(`[WhatsApp] [${storeId}] Error manejando mensaje:`, error);
+    recordStoreLog(storeId, 'error', 'Error procesando mensaje', { error: error.message });
+    trackStoreError(storeId);
+  } finally {
+    if (processed) {
+      trackMessageProcessed(storeId);
+    }
   }
 }
 
 // ---------------------------------------------------------------------------
 // SHOW MAIN MENU
 // ---------------------------------------------------------------------------
-async function showMainMenu(storeId, socket, from, storeName, storeUrl, settings) {
-  const welcomeMsg = settings?.welcomeMessage || `👋 *¡Bienvenido a ${storeName}!*
+async function showMainMenu(storeId, socket, from, tenantContext) {
+  const { storeName, storeUrl, settings, textOverrides = {} } = tenantContext;
+  const customMessage = textOverrides.mainMenu;
+  const welcomeMsg = customMessage || `👋 *¡Bienvenido a ${storeName}!*
 
 📌 *¿Qué necesitás hacer?*
 
@@ -536,14 +625,14 @@ async function showMainMenu(storeId, socket, from, storeName, storeUrl, settings
 // ---------------------------------------------------------------------------
 // HANDLE ORDER CONFIRMATION
 // ---------------------------------------------------------------------------
-async function handleOrderConfirmation(storeId, socket, from, body, userSession) {
+async function handleOrderConfirmation(storeId, socket, from, body, userSession, tenantContext) {
   if (body === 'si' || body === 'sí' || body === 'yes' || body === 'ok') {
     userSession.waitingForConfirmation = false;
     
     if (userSession.pendingOrder?.orderId) {
       // Pedido web, ir directo a pago
       userSession.waitingForPayment = true;
-      await showPaymentOptions(storeId, socket, from, userSession, false);
+      await showPaymentOptions(storeId, socket, from, userSession, tenantContext, false);
     } else {
       // Pedido WhatsApp, pedir dirección
       userSession.waitingForAddress = true;
@@ -574,7 +663,7 @@ Por favor, enviá tu dirección completa:
 // ---------------------------------------------------------------------------
 // HANDLE ADDRESS INPUT
 // ---------------------------------------------------------------------------
-async function handleAddressInput(storeId, socket, from, messageText, userSession) {
+async function handleAddressInput(storeId, socket, from, messageText, userSession, tenantContext) {
   if (!messageText || messageText.trim().length < 10) {
     await socket.sendMessage(from, { 
       text: `📍 La dirección parece muy corta.\n\nPor favor, enviá una dirección más completa.` 
@@ -587,19 +676,19 @@ async function handleAddressInput(storeId, socket, from, messageText, userSessio
   userSession.waitingForPayment = true;
   
   await socket.sendMessage(from, { text: `📍 Dirección guardada: ${messageText}\n` });
-  await showPaymentOptions(storeId, socket, from, userSession, false);
+  await showPaymentOptions(storeId, socket, from, userSession, tenantContext, false);
 }
 
 // ---------------------------------------------------------------------------
 // SHOW PAYMENT OPTIONS
 // ---------------------------------------------------------------------------
-async function showPaymentOptions(storeId, socket, from, userSession, isChange = false) {
-  const { settings } = await getStoreContext(storeId);
+async function showPaymentOptions(storeId, socket, from, userSession, tenantContext, isChange = false) {
+  const paymentConfig = tenantContext?.paymentConfig || {};
   
   let options = [];
-  if (settings?.mercadoPagoEnabled) options.push('1️⃣ Mercado Pago');
-  if (settings?.transferEnabled !== false) options.push('2️⃣ Transferencia');
-  if (settings?.cashEnabled !== false) options.push('3️⃣ Efectivo');
+  if (paymentConfig?.mercadoPagoEnabled) options.push('1️⃣ Mercado Pago');
+  if (paymentConfig?.transferEnabled !== false) options.push('2️⃣ Transferencia');
+  if (paymentConfig?.cashEnabled !== false) options.push('3️⃣ Efectivo');
   options.push('4️⃣ Cancelar');
   
   const title = isChange ? '🔄 *CAMBIAR MÉTODO DE PAGO*' : '💳 *MÉTODO DE PAGO*';
@@ -618,15 +707,17 @@ Escribí el número de tu opción.`
 // ---------------------------------------------------------------------------
 // HANDLE PAYMENT SELECTION
 // ---------------------------------------------------------------------------
-async function handlePaymentSelection(storeId, socket, from, body, userSession, settings, store) {
-  const storeName = store?.name || 'Nuestro local';
+async function handlePaymentSelection(storeId, socket, from, body, userSession, tenantContext) {
+  const storeName = tenantContext?.storeName || 'Nuestro local';
+  const settings = tenantContext?.settings || {};
+  const paymentConfig = tenantContext?.paymentConfig || {};
   
   // Cambiar método (09)
   if (body === '09') {
     userSession.paymentMethod = null;
     userSession.waitingForTransferProof = false;
     userSession.waitingForPayment = true;
-    await showPaymentOptions(storeId, socket, from, userSession, true);
+    await showPaymentOptions(storeId, socket, from, userSession, tenantContext, true);
     return;
   }
   
@@ -646,7 +737,7 @@ async function handlePaymentSelection(storeId, socket, from, body, userSession, 
     userSession.waitingForPayment = false;
     userSession.waitingForTransferProof = true;
     
-    const mpLink = settings?.mercadoPagoLink || 'Contactanos para el link de pago';
+    const mpLink = paymentConfig?.mercadoPagoLink || settings?.mercadoPagoLink || 'Contactanos para el link de pago';
     
     await socket.sendMessage(from, { 
       text: `💳 *MERCADO PAGO*
@@ -668,9 +759,9 @@ ${mpLink}
     userSession.waitingForTransferProof = true;
     
     let transferInfo = '💵 *DATOS PARA TRANSFERENCIA*\n\n';
-    if (settings?.transferAlias) transferInfo += `🏦 Alias: ${settings.transferAlias}\n`;
-    if (settings?.transferCvu) transferInfo += `💳 CVU: ${settings.transferCvu}\n`;
-    if (settings?.transferTitular) transferInfo += `👤 Titular: ${settings.transferTitular}\n`;
+    if (paymentConfig?.transferAlias) transferInfo += `🏦 Alias: ${paymentConfig.transferAlias}\n`;
+    if (paymentConfig?.transferCvu) transferInfo += `💳 CVU: ${paymentConfig.transferCvu}\n`;
+    if (paymentConfig?.transferTitular) transferInfo += `👤 Titular: ${paymentConfig.transferTitular}\n`;
     transferInfo += `\n📸 Enviá el comprobante acá.\n\n🔄 Escribí "09" para cambiar método.`;
     
     await socket.sendMessage(from, { text: transferInfo });
@@ -714,7 +805,7 @@ ${mpLink}
 // ---------------------------------------------------------------------------
 // HANDLE TRANSFER PROOF
 // ---------------------------------------------------------------------------
-async function handleTransferProof(storeId, socket, from, msg, userSession, store) {
+async function handleTransferProof(storeId, socket, from, msg, userSession, tenantContext) {
   console.log(`[WhatsApp] [${storeId}] 📸 Comprobante recibido de ${from}`);
   
   // Marcar como recibido
@@ -946,15 +1037,61 @@ export async function sendMessage(storeId, to, message) {
   return await sendMessageToUser(storeId, to, message);
 }
 
+export function getStoreMetricsSnapshot(storeId) {
+  const metrics = getStoreMetrics(storeId);
+  return {
+    ...metrics,
+    lastMessageAt: metrics.lastMessageAt ? new Date(metrics.lastMessageAt).toISOString() : null,
+    lastErrorAt: metrics.lastErrorAt ? new Date(metrics.lastErrorAt).toISOString() : null
+  };
+}
+
+export function getStoreLogs(storeId, limit = 100) {
+  const logs = storeLogs.get(storeId) || [];
+  return logs.slice(-limit);
+}
+
+export async function reloadStoreConfig(storeId) {
+  const context = await loadTenantContext(storeId, { forceRefresh: true });
+  recordStoreLog(storeId, 'info', 'Configuración recargada manualmente');
+  return { success: true, context };
+}
+
+export async function restartStoreSession(storeId) {
+  await disconnectSession(storeId);
+  const result = await getOrCreateSession(storeId);
+  recordStoreLog(storeId, 'info', 'Sesión reiniciada manualmente');
+  return result;
+}
+
+export async function toggleStoreBot(storeId, enabled) {
+  await prisma.storeSettings.upsert({
+    where: { storeId },
+    update: { whatsappBotEnabled: enabled },
+    create: { storeId, whatsappBotEnabled: enabled }
+  });
+
+  if (!enabled) {
+    await disconnectSession(storeId);
+    recordStoreLog(storeId, 'warn', 'Bot desactivado manualmente');
+  } else {
+    await getOrCreateSession(storeId);
+    recordStoreLog(storeId, 'info', 'Bot activado manualmente');
+  }
+
+  return { success: true, enabled };
+}
+
 export async function sendOrderNotification(storeId, order) {
   try {
-    const settings = await prisma.storeSettings.findUnique({ where: { storeId } });
+    const tenantContext = await loadTenantContext(storeId);
+    const settings = tenantContext.settings || {};
+
     if (!settings?.whatsappBotEnabled || !settings?.whatsappBotNumber) {
       return;
     }
 
-    const { store } = await getStoreContext(storeId);
-    const storeName = store?.name || settings.commercialName || 'Negocios App';
+    const storeName = tenantContext.storeName || settings.commercialName || 'Negocios App';
     const orderCode = order.deliveryCode || order.uniqueCode || order.orderNumber || '0000';
 
     const message = `🔔 *NUEVO PEDIDO*
@@ -977,11 +1114,12 @@ export async function sendOrderNotification(storeId, order) {
 
 export async function sendOrderConfirmation(storeId, order, customerPhone) {
   try {
-    const settings = await prisma.storeSettings.findUnique({ where: { storeId } });
+    const tenantContext = await loadTenantContext(storeId);
+    const settings = tenantContext.settings || {};
     if (!settings?.whatsappBotEnabled) return;
 
-    const { store, storeUrl } = await getStoreContext(storeId);
-    const storeName = store?.name || 'Nuestro local';
+    const storeName = tenantContext.storeName || 'Nuestro local';
+    const storeUrl = tenantContext.storeUrl;
     const orderCode = order.deliveryCode || order.uniqueCode || order.orderNumber || '0000';
     
     const message = settings?.orderConfirmMessage || `✅ *PEDIDO CONFIRMADO*
@@ -1003,11 +1141,11 @@ Te avisamos cuando esté listo.
 
 export async function sendOrderOnWay(storeId, order, customerPhone) {
   try {
-    const settings = await prisma.storeSettings.findUnique({ where: { storeId } });
+    const tenantContext = await loadTenantContext(storeId);
+    const settings = tenantContext.settings || {};
     if (!settings?.whatsappBotEnabled) return;
 
-    const { store } = await getStoreContext(storeId);
-    const storeName = store?.name || 'Nuestro local';
+    const storeName = tenantContext.storeName || 'Nuestro local';
     const orderCode = order.deliveryCode || order.uniqueCode || '0000';
     
     const message = settings?.orderOnWayMessage || `🚗 *PEDIDO EN CAMINO*
@@ -1058,5 +1196,10 @@ export default {
   sendOrderNotification,
   sendOrderConfirmation,
   sendOrderOnWay,
-  initializeAllSessions
+  initializeAllSessions,
+  getStoreMetricsSnapshot,
+  getStoreLogs,
+  reloadStoreConfig,
+  restartStoreSession,
+  toggleStoreBot
 };

@@ -3,7 +3,7 @@
  */
 
 import express from 'express';
-import { authenticateAdmin, authorize } from '../middlewares/auth.middleware.js';
+import { authenticateAdmin } from '../middlewares/auth.middleware.js';
 import whatsappService from '../services/whatsapp-multi.service.js';
 
 const router = express.Router();
@@ -156,6 +156,81 @@ router.post('/:storeId/test', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error('Error enviando mensaje de prueba:', error);
     res.status(500).json({ error: error.message || 'Error enviando mensaje de prueba' });
+  }
+});
+
+router.post('/:storeId/reload-config', authenticateAdmin, async (req, res) => {
+  try {
+    const { storeId } = req.params;
+    if (req.user.role !== 'super_admin' && req.user.storeId !== storeId) {
+      return res.status(403).json({ error: 'No tienes acceso a esta tienda' });
+    }
+    const result = await whatsappService.reloadStoreConfig(storeId);
+    res.json(result);
+  } catch (error) {
+    console.error('Error recargando configuración:', error);
+    res.status(500).json({ error: 'No se pudo recargar la configuración' });
+  }
+});
+
+router.post('/:storeId/restart', authenticateAdmin, async (req, res) => {
+  try {
+    const { storeId } = req.params;
+    if (req.user.role !== 'super_admin' && req.user.storeId !== storeId) {
+      return res.status(403).json({ error: 'No tienes acceso a esta tienda' });
+    }
+    const result = await whatsappService.restartStoreSession(storeId);
+    res.json(result);
+  } catch (error) {
+    console.error('Error reiniciando bot:', error);
+    res.status(500).json({ error: 'No se pudo reiniciar el bot' });
+  }
+});
+
+router.post('/:storeId/toggle', authenticateAdmin, async (req, res) => {
+  try {
+    const { storeId } = req.params;
+    const { enabled } = req.body;
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled debe ser booleano' });
+    }
+    if (req.user.role !== 'super_admin' && req.user.storeId !== storeId) {
+      return res.status(403).json({ error: 'No tienes acceso a esta tienda' });
+    }
+    const result = await whatsappService.toggleStoreBot(storeId, enabled);
+    res.json(result);
+  } catch (error) {
+    console.error('Error cambiando estado del bot:', error);
+    res.status(500).json({ error: 'No se pudo cambiar el estado del bot' });
+  }
+});
+
+router.get('/:storeId/metrics', authenticateAdmin, async (req, res) => {
+  try {
+    const { storeId } = req.params;
+    if (req.user.role !== 'super_admin' && req.user.storeId !== storeId) {
+      return res.status(403).json({ error: 'No tienes acceso a esta tienda' });
+    }
+    const metrics = whatsappService.getStoreMetricsSnapshot(storeId);
+    res.json(metrics);
+  } catch (error) {
+    console.error('Error obteniendo métricas:', error);
+    res.status(500).json({ error: 'No se pudieron obtener las métricas' });
+  }
+});
+
+router.get('/:storeId/logs', authenticateAdmin, async (req, res) => {
+  try {
+    const { storeId } = req.params;
+    const limit = Number(req.query.limit || 100);
+    if (req.user.role !== 'super_admin' && req.user.storeId !== storeId) {
+      return res.status(403).json({ error: 'No tienes acceso a esta tienda' });
+    }
+    const logs = whatsappService.getStoreLogs(storeId, limit);
+    res.json({ logs });
+  } catch (error) {
+    console.error('Error obteniendo logs:', error);
+    res.status(500).json({ error: 'No se pudieron obtener los logs' });
   }
 });
 

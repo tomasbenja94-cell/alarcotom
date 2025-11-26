@@ -988,6 +988,11 @@ model StoreSettings {
   whatsappSessionStatus String? @map("whatsapp_session_status") // disconnected, pending_qr, connected
   whatsappConnectedNumber String? @map("whatsapp_connected_number") // Número conectado
   whatsappLastConnected DateTime? @map("whatsapp_last_connected") // Última conexión
+  whatsappSecurityConfig Json? @map("whatsapp_security_config")
+  whatsappLimitsConfig   Json? @map("whatsapp_limits_config")
+  whatsappTextsConfig    Json? @map("whatsapp_texts_config")
+  whatsappFeaturesConfig Json? @map("whatsapp_features_config")
+  whatsappRulesConfig    Json? @map("whatsapp_rules_config")
   
   // ========== OTROS AJUSTES ==========
   acceptScheduledOrders Boolean @default(false) @map("accept_scheduled_orders") // Pedidos programados
