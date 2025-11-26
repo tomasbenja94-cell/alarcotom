@@ -41,6 +41,7 @@ import whatsappRoutes from './src/routes/whatsapp.routes.js';
 // import { sendOrderNotification } from './src/services/whatsapp-multi.service.js';
 import reviewsRoutes from './src/routes/reviews.routes.js';
 import couponsRoutes from './src/routes/coupons.routes.js';
+import referralsRoutes from './src/routes/referrals.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -319,6 +320,7 @@ app.use('/api/store-categories', storeCategoriesRoutes); // Rutas de categorías
 app.use('/api/users', usersRoutes); // Rutas de usuarios (login social)
 app.use('/api/stock-issues', stockIssuesRoutes); // Rutas de manejo de stock
 app.use('/api/whatsapp', whatsappRoutes); // Rutas de WhatsApp multi-sesión
+app.use('/api/referrals', referralsRoutes); // Rutas de referidos
 app.use('/api/users', usersRoutes); // Rutas de usuarios (auth, puntos, niveles)
 app.use('/api/reviews', reviewsRoutes); // Rutas de reseñas
 app.use('/api/coupons', couponsRoutes); // Rutas de cupones

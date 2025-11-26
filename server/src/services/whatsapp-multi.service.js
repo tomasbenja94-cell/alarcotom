@@ -369,9 +369,26 @@ ${order.deliveryFee > 0 ? `🚚 Envío: $${order.deliveryFee.toLocaleString('es-
   // MI LINK DE INVITACIÓN (3)
   // =========================================================================
   if (lowerText === '3' || lowerText === 'invitacion' || lowerText === 'link') {
-    await socket.sendMessage(from, { 
-      text: `🔗 *TU LINK DE INVITACIÓN*\n\nCompartí este link con tus amigos:\n${storeUrl}\n\n¡Gracias por recomendarnos! ❤️` 
-    });
+    // Generar código de referido único para este usuario
+    const phone = from.split('@')[0];
+    try {
+      const response = await fetch(`${API_URL}/referrals/${storeId}/my-code?phone=${phone}`);
+      if (response.ok) {
+        const data = await response.json();
+        await socket.sendMessage(from, { 
+          text: `🔗 *TU LINK DE INVITACIÓN*\n\n📱 Tu código: *${data.code}*\n\n🎁 Compartí este link con tus amigos y ganá puntos cuando hagan su primer pedido:\n\n${data.link}\n\n¡Gracias por recomendarnos! ❤️` 
+        });
+      } else {
+        await socket.sendMessage(from, { 
+          text: `🔗 *TU LINK DE INVITACIÓN*\n\nCompartí este link con tus amigos:\n${storeUrl}\n\n¡Gracias por recomendarnos! ❤️` 
+        });
+      }
+    } catch (error) {
+      console.error(`[WhatsApp] [${storeId}] Error generando link de referido:`, error);
+      await socket.sendMessage(from, { 
+        text: `🔗 *TU LINK DE INVITACIÓN*\n\nCompartí este link con tus amigos:\n${storeUrl}\n\n¡Gracias por recomendarnos! ❤️` 
+      });
+    }
     return;
   }
 

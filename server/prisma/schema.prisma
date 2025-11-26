@@ -584,9 +584,13 @@ model PointsHistory {
 // Sistema de referidos
 model Referral {
   id                String   @id @default(uuid())
-  referrerId        String   @map("referrer_id") // ID @lid del invitador
+  storeId           String?  @map("store_id") // Tienda donde se hizo el referido
+  store             Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  referrerId        String   @map("referrer_id") // ID del invitador (teléfono o oderId)
   referrerLoyalty   CustomerLoyalty? @relation("ReferrerReferrals", fields: [referrerId], references: [customerId])
-  referredId        String   @unique @map("referred_id") // ID @lid del invitado
+  referrerCode      String?  @map("referrer_code") // Código único del invitador
+  referredId        String   @map("referred_id") // ID del invitado
+  referredPhone     String?  @map("referred_phone") // Teléfono del invitado
   status            String   @default("pending") // 'pending', 'validated', 'cancelled'
   validatedAt       DateTime? @map("validated_at")
   validationOrderId String?  @unique @map("validation_order_id") // Pedido que validó el referido
@@ -596,8 +600,10 @@ model Referral {
 
   pointsHistory     PointsHistory[]
 
+  @@index([storeId])
   @@index([referrerId])
   @@index([referredId])
+  @@index([referrerCode])
   @@index([status])
   @@map("referrals")
 }
@@ -798,6 +804,7 @@ model Store {
   reviews         Review[]
   coupons         Coupon[]
   favorites       UserFavorite[]
+  referrals       Referral[]
 
   @@index([categoryId])
   @@map("stores")
