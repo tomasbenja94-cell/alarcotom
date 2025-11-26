@@ -517,17 +517,16 @@ ${statusText}
 // SHOW MAIN MENU
 // ---------------------------------------------------------------------------
 async function showMainMenu(storeId, socket, from, storeName, storeUrl, settings) {
-  const welcomeMsg = settings?.welcomeMessage || `👋 *¡Hola! Bienvenido a ${storeName}*
+  const welcomeMsg = settings?.welcomeMessage || `👋 *¡Bienvenido a ${storeName}!*
 
 📌 *¿Qué necesitás hacer?*
 
-1️⃣ Ver Menú 📋
-2️⃣ Consultar Pedido 🔍
-3️⃣ Mis Pedidos 📦
+1️⃣ Hacer pedido / Ver menú 📋
+2️⃣ Consultar un Pedido 🔍
+3️⃣ Mi Link de Invitación 🔗
 8️⃣ Ver Horarios 🕒
-9️⃣ Ayuda ❓
 
-💡 Respondé con el *número* o la *palabra clave*.
+💡 Podés responder con el *número* o la *palabra clave*.
 
 🔗 Carta: ${storeUrl}`;
 
