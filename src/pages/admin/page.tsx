@@ -16,6 +16,8 @@ import BotMessagesManager from './components/BotMessagesManager';
 import StoreSettings from './components/StoreSettings';
 import StoreSetupWizard from './components/StoreSetupWizard';
 import StoreCategoriesManagement from './components/StoreCategoriesManagement';
+import KioscoPanel from './components/KioscoPanel';
+import TragosPanel from './components/TragosPanel';
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -30,6 +32,9 @@ export default function AdminPage() {
   const [currentStoreId, setCurrentStoreId] = useState<string | null>(null);
   const [storeName, setStoreName] = useState<string>('');
   const [showWizard, setShowWizard] = useState<boolean>(false);
+  const [storeCategory, setStoreCategory] = useState<string | null>(null);
+  const [isKiosco, setIsKiosco] = useState<boolean>(false);
+  const [isTragos, setIsTragos] = useState<boolean>(false);
 
   useEffect(() => {
     // Obtener storeId de la URL
@@ -149,6 +154,12 @@ export default function AdminPage() {
       if (response.ok) {
         const store = await response.json();
         setStoreName(store.name || '');
+        // Detectar tipo de panel basado en panelType
+        const isKioscoStore = store.panelType === 'kiosco';
+        const isTragosStore = store.panelType === 'tragos';
+        setIsKiosco(isKioscoStore);
+        setIsTragos(isTragosStore);
+        setStoreCategory(store.category?.name?.toLowerCase() || '');
       }
     } catch (error) {
       console.error('Error loading store info:', error);
@@ -370,6 +381,25 @@ export default function AdminPage() {
     setActiveTab('pedidos'); // Reset main tab
   };
 
+  // Si es kiosco, mostrar panel simplificado
+  if (isAuthenticated && isKiosco && currentStoreId) {
+    return (
+      <>
+        <KioscoPanel storeId={currentStoreId} />
+        {showTutorial && <AdminTutorial onComplete={handleTutorialComplete} onSkip={handleTutorialSkip} />}
+      </>
+    );
+  }
+
+  if (isAuthenticated && isTragos && currentStoreId) {
+    return (
+      <>
+        <TragosPanel storeId={currentStoreId} />
+        {showTutorial && <AdminTutorial onComplete={handleTutorialComplete} onSkip={handleTutorialSkip} />}
+      </>
+    );
+  }
+
   return (
     <>
       {showTutorial && isAuthenticated && (
@@ -379,10 +409,23 @@ export default function AdminPage() {
       <div className="min-h-screen bg-gradient-to-br from-orange-50 to-yellow-50">
         {/* Header Súper Simple */}
         <header className="bg-white border-b-4 border-orange-400 sticky top-0 z-40 shadow-lg">
-          <div className="max-w-7xl mx-auto px-4">
-            <div className="flex items-center justify-between h-16">
+          <div className="max-w-7xl mx-auto px-2 sm:px-4">
+            <div className="flex items-center justify-between h-14 sm:h-16">
+              {/* Botón Volver (solo en ciertas vistas) */}
+              {advancedTab && (
+                <button
+                  onClick={() => {
+                    setAdvancedTab(null);
+                    setShowAdvancedMenu(false);
+                  }}
+                  className="mr-2 sm:mr-3 w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+                  title="Volver"
+                >
+                  <i className="ri-arrow-left-line text-gray-600 text-lg sm:text-xl"></i>
+                </button>
+              )}
               {/* Logo y Menú */}
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
                 {/* Botón Menú Hamburger */}
                 <button
                   onClick={() => {
@@ -391,30 +434,31 @@ export default function AdminPage() {
                       setAdvancedTab(null);
                     }
                   }}
-                  className="p-2 text-gray-700 hover:bg-gray-100 rounded-xl transition-all"
+                  className="p-1.5 sm:p-2 text-gray-700 hover:bg-gray-100 rounded-xl transition-all flex-shrink-0"
                   title="Menú avanzado"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                   </svg>
                 </button>
                 
-                <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center shadow-md">
-                  <i className="ri-restaurant-line text-white text-2xl"></i>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center shadow-md flex-shrink-0">
+                  <i className="ri-restaurant-line text-white text-xl sm:text-2xl"></i>
                 </div>
-                <div>
-                  <h1 className="text-xl font-bold text-gray-800">El Buen Menú</h1>
-                  <p className="text-xs text-gray-600">Panel de Administración</p>
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-base sm:text-xl font-bold text-gray-800 truncate">El Buen Menú</h1>
+                  <p className="text-xs text-gray-600 hidden sm:block">Panel de Administración</p>
                 </div>
               </div>
 
               {/* Botón Salir */}
               <button
                 onClick={handleLogout}
-                className="px-5 py-2 text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-xl transition-all shadow-md hover:shadow-lg transform hover:scale-105"
+                className="px-3 py-1.5 sm:px-5 sm:py-2 text-xs sm:text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-lg sm:rounded-xl transition-all shadow-md hover:shadow-lg transform hover:scale-105 flex-shrink-0 ml-2"
               >
-                <i className="ri-logout-box-line mr-1"></i>
-                SALIR
+                <i className="ri-logout-box-line sm:mr-1"></i>
+                <span className="hidden sm:inline">SALIR</span>
+                <span className="sm:hidden">SALIR</span>
               </button>
             </div>
           </div>
@@ -423,8 +467,8 @@ export default function AdminPage() {
         {/* Menú Avanzado Desplegable */}
         {showAdvancedMenu && (
           <div className="bg-white border-b-4 border-gray-300 shadow-lg z-30">
-            <div className="max-w-7xl mx-auto px-4 py-3">
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
+            <div className="max-w-7xl mx-auto px-2 sm:px-4 py-2 sm:py-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-1.5 sm:gap-2">
                 <button
                   onClick={() => handleAdvancedMenuClick('system')}
                   className="px-3 py-2 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-all text-gray-700 flex items-center space-x-1"
@@ -510,26 +554,26 @@ export default function AdminPage() {
 
         {/* Menú Principal - 4 Botones (Más Pequeños) */}
         {!advancedTab && (
-          <div className="max-w-7xl mx-auto px-4 py-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <div className="max-w-7xl mx-auto px-2 sm:px-4 py-3 sm:py-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 mb-4">
               <button
                 onClick={() => {
                   setActiveTab('pedidos');
                   setAdvancedTab(null);
                 }}
-                className={`p-4 rounded-2xl shadow-lg transition-all transform hover:scale-105 ${
+                className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-lg transition-all transform hover:scale-105 ${
                   activeTab === 'pedidos'
                     ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white border-2 border-orange-700'
                     : 'bg-white text-gray-800 border-2 border-gray-300 hover:border-orange-400'
                 }`}
               >
-                <div className="flex justify-center mb-2">
-                  <div className="w-16 h-16 bg-orange-500 rounded-full flex items-center justify-center">
-                    <i className="ri-shopping-bag-line text-white text-3xl"></i>
+                <div className="flex justify-center mb-1 sm:mb-2">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-orange-500 rounded-full flex items-center justify-center">
+                    <i className="ri-shopping-bag-line text-white text-2xl sm:text-3xl"></i>
                   </div>
                 </div>
-                <div className="text-lg font-bold">PEDIDOS</div>
-                <div className="text-xs mt-1 opacity-80">Ver y gestionar pedidos</div>
+                <div className="text-sm sm:text-lg font-bold">PEDIDOS</div>
+                <div className="text-xs mt-1 opacity-80 hidden sm:block">Ver y gestionar pedidos</div>
               </button>
 
               <button
@@ -537,19 +581,19 @@ export default function AdminPage() {
                   setActiveTab('transferencias');
                   setAdvancedTab(null);
                 }}
-                className={`p-4 rounded-2xl shadow-lg transition-all transform hover:scale-105 ${
+                className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-lg transition-all transform hover:scale-105 ${
                   activeTab === 'transferencias'
                     ? 'bg-gradient-to-br from-green-500 to-green-600 text-white border-2 border-green-700'
                     : 'bg-white text-gray-800 border-2 border-gray-300 hover:border-green-400'
                 }`}
               >
-                <div className="flex justify-center mb-2">
-                  <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center">
-                    <i className="ri-bank-card-line text-white text-3xl"></i>
+                <div className="flex justify-center mb-1 sm:mb-2">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-green-500 rounded-full flex items-center justify-center">
+                    <i className="ri-bank-card-line text-white text-2xl sm:text-3xl"></i>
                   </div>
                 </div>
-                <div className="text-lg font-bold">TRANSFERENCIAS</div>
-                <div className="text-xs mt-1 opacity-80">Aprobar pagos</div>
+                <div className="text-sm sm:text-lg font-bold">TRANSFERENCIAS</div>
+                <div className="text-xs mt-1 opacity-80 hidden sm:block">Aprobar pagos</div>
               </button>
 
               <button
@@ -557,19 +601,19 @@ export default function AdminPage() {
                   setActiveTab('clientes');
                   setAdvancedTab(null);
                 }}
-                className={`p-4 rounded-2xl shadow-lg transition-all transform hover:scale-105 ${
+                className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-lg transition-all transform hover:scale-105 ${
                   activeTab === 'clientes'
                     ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white border-2 border-blue-700'
                     : 'bg-white text-gray-800 border-2 border-gray-300 hover:border-blue-400'
                 }`}
               >
-                <div className="flex justify-center mb-2">
-                  <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center">
-                    <i className="ri-user-group-line text-white text-3xl"></i>
+                <div className="flex justify-center mb-1 sm:mb-2">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-500 rounded-full flex items-center justify-center">
+                    <i className="ri-user-group-line text-white text-2xl sm:text-3xl"></i>
                   </div>
                 </div>
-                <div className="text-lg font-bold">CLIENTES</div>
-                <div className="text-xs mt-1 opacity-80">Ver clientes</div>
+                <div className="text-sm sm:text-lg font-bold">CLIENTES</div>
+                <div className="text-xs mt-1 opacity-80 hidden sm:block">Ver clientes</div>
               </button>
 
               <button
@@ -577,27 +621,27 @@ export default function AdminPage() {
                   setActiveTab('menu');
                   setAdvancedTab(null);
                 }}
-                className={`p-4 rounded-2xl shadow-lg transition-all transform hover:scale-105 ${
+                className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-lg transition-all transform hover:scale-105 ${
                   activeTab === 'menu'
                     ? 'bg-gradient-to-br from-purple-500 to-purple-600 text-white border-2 border-purple-700'
                     : 'bg-white text-gray-800 border-2 border-gray-300 hover:border-purple-400'
                 }`}
               >
-                <div className="flex justify-center mb-2">
-                  <div className="w-16 h-16 bg-purple-500 rounded-full flex items-center justify-center">
-                    <i className="ri-restaurant-line text-white text-3xl"></i>
+                <div className="flex justify-center mb-1 sm:mb-2">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-purple-500 rounded-full flex items-center justify-center">
+                    <i className="ri-restaurant-line text-white text-2xl sm:text-3xl"></i>
                   </div>
                 </div>
-                <div className="text-lg font-bold">MENÚ</div>
-                <div className="text-xs mt-1 opacity-80">Editar productos</div>
+                <div className="text-sm sm:text-lg font-bold">MENÚ</div>
+                <div className="text-xs mt-1 opacity-80 hidden sm:block">Editar productos</div>
               </button>
             </div>
           </div>
         )}
 
         {/* Contenido */}
-        <div className="max-w-7xl mx-auto px-4 pb-4">
-          <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-4">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 pb-4">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl border-2 border-gray-200 p-3 sm:p-4">
             {getActiveComponent()}
           </div>
         </div>

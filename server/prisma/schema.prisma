@@ -133,7 +133,7 @@ model Order {
   user                User?                      @relation(fields: [userId], references: [id], onDelete: SetNull)
   storeId            String?                   @map("store_id")
   store              Store?                     @relation(fields: [storeId], references: [id], onDelete: SetNull)
-  status              String                     @default("pending") // pending, confirmed, preparing, ready, assigned, in_transit, delivered, cancelled
+  status              String                     @default("pending") // pending, confirmed, preparing, ready, assigned, in_transit, delivered, cancelled, stock_issue, stock_timeout
   paymentMethod       String?                    @map("payment_method")
   paymentStatus       String                     @default("pending") @map("payment_status")
   subtotal            Float
@@ -149,6 +149,7 @@ model Order {
   whatsappMessages    WhatsAppMessage[]
   pendingTransfers    PendingTransfer[]
   balanceTransactions DriverBalanceTransaction[]
+  stockIssues         StockIssue[]
   createdAt           DateTime                   @default(now()) @map("created_at")
   updatedAt           DateTime                   @updatedAt @map("updated_at")
 
@@ -167,9 +168,54 @@ model OrderItem {
   unitPrice        Float    @map("unit_price")
   subtotal        Float
   selectedOptions String?  @map("selected_options")
+  // Campos para manejo de stock
+  stockStatus     String?  @map("stock_status") // 'available', 'out_of_stock', 'replaced', 'removed'
+  replacedWithId  String?  @map("replaced_with_id") // ID del producto reemplazo
+  replacedWithName String? @map("replaced_with_name")
+  replacedWithPrice Float? @map("replaced_with_price")
   createdAt       DateTime @default(now()) @map("created_at")
 
   @@map("order_items")
+}
+
+// Solicitudes de faltante de stock en pedidos
+model StockIssue {
+  id              String   @id @default(uuid())
+  orderId         String   @map("order_id")
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  token           String   @unique // Token único para el link del cliente
+  status          String   @default("pending") // 'pending', 'resolved', 'timeout', 'cancelled'
+  missingItems    String   @db.Text // JSON array de items faltantes [{itemId, productId, productName, quantity}]
+  customerChoices String?  @db.Text @map("customer_choices") // JSON de decisiones del cliente
+  expiresAt       DateTime @map("expires_at") // 5 minutos desde creación
+  resolvedAt      DateTime? @map("resolved_at")
+  refundRequired  Boolean  @default(false) @map("refund_required")
+  refundAmount    Float?   @map("refund_amount")
+  refundStatus    String?  @map("refund_status") // 'pending', 'completed'
+  notificationSent Boolean @default(false) @map("notification_sent")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([orderId])
+  @@index([token])
+  @@index([status])
+  @@map("stock_issues")
+}
+
+// Historial de productos marcados sin stock (para ocultar automáticamente)
+model ProductStockHistory {
+  id              String   @id @default(uuid())
+  productId       String   @map("product_id")
+  storeId         String?  @map("store_id")
+  outOfStockCount Int      @default(1) @map("out_of_stock_count") // Veces marcado sin stock
+  lastMarkedAt    DateTime @default(now()) @map("last_marked_at")
+  autoHidden      Boolean  @default(false) @map("auto_hidden") // Si se ocultó automáticamente
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([productId])
+  @@index([storeId])
+  @@map("product_stock_history")
 }
 
 model BotMessage {

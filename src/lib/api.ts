@@ -115,7 +115,10 @@ async function request(endpoint: string, options: RequestInit = {}) {
 
 // Categorías
 export const categoriesApi = {
-  getAll: () => request('/categories'),
+  getAll: (params?: { storeId?: string }) => {
+    const query = params?.storeId ? `?storeId=${params.storeId}` : '';
+    return request(`/categories${query}`);
+  },
   create: (data: any) => request('/categories', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: any) => request(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id: string) => request(`/categories/${id}`, { method: 'DELETE' }),
@@ -145,7 +148,11 @@ export const productsApi = {
     return request(`/products${query}`);
   },
   create: (data: any) => {
-    const body = data.storeId ? data : { ...data, storeId: data.storeId };
+    // Asegurar que storeId se incluya en el body
+    const body = { ...data };
+    if (data.storeId) {
+      body.storeId = data.storeId;
+    }
     return request('/products', { method: 'POST', body: JSON.stringify(body) });
   },
   update: (id: string, data: any) => request(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
@@ -243,6 +250,16 @@ export const storesApi = {
   getById: (id: string) => request(`/stores/${id}`),
   create: (data: any) => request('/stores', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: any) => request(`/stores/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request(`/stores/${id}`, { method: 'DELETE' }),
+};
+
+// Store Categories
+export const storeCategoriesApi = {
+  getAll: () => request('/store-categories'),
+  getById: (id: string) => request(`/store-categories/${id}`),
+  create: (data: any) => request('/store-categories', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: any) => request(`/store-categories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request(`/store-categories/${id}`, { method: 'DELETE' }),
 };
 
 // Admin
