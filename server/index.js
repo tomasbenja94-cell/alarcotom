@@ -38,7 +38,6 @@ import storeCategoriesRoutes from './src/routes/store-categories.routes.js';
 import usersRoutes from './src/routes/users.routes.js';
 import stockIssuesRoutes from './src/routes/stock-issues.routes.js';
 import whatsappRoutes from './src/routes/whatsapp.routes.js';
-import usersRoutes from './src/routes/users.routes.js';
 import reviewsRoutes from './src/routes/reviews.routes.js';
 import couponsRoutes from './src/routes/coupons.routes.js';
 
