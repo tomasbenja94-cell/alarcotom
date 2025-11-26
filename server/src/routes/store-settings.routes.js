@@ -6,6 +6,50 @@ import { corsMiddleware } from '../middlewares/security.middleware.js';
 const router = express.Router();
 const prisma = new PrismaClient();
 
+// GET /api/store-settings/:storeId/public - Obtener configuración pública (sin auth)
+router.get('/:storeId/public', corsMiddleware, async (req, res) => {
+  try {
+    const { storeId } = req.params;
+
+    const settings = await prisma.storeSettings.findUnique({
+      where: { storeId }
+    });
+
+    if (!settings) {
+      return res.json({ isOpen: true }); // Default: abierto
+    }
+
+    // Solo devolver campos públicos (no tokens ni claves)
+    res.json({
+      commercialName: settings.commercialName,
+      shortDescription: settings.shortDescription,
+      address: settings.address,
+      phone: settings.phone,
+      whatsappNumber: settings.whatsappNumber,
+      hours: settings.hours,
+      deliveryHours: settings.deliveryHours,
+      isOpen: settings.isOpen,
+      closedMessage: settings.closedMessage,
+      deliveryEnabled: settings.deliveryEnabled,
+      pickupEnabled: settings.pickupEnabled,
+      deliveryPrice: settings.deliveryPrice,
+      deliveryTimeMin: settings.deliveryTimeMin,
+      deliveryTimeMax: settings.deliveryTimeMax,
+      deliveryZoneInfo: settings.deliveryZoneInfo,
+      deliveryTempDisabled: settings.deliveryTempDisabled,
+      cashEnabled: settings.cashEnabled,
+      transferEnabled: settings.transferEnabled,
+      transferAlias: settings.transferAlias,
+      mercadoPagoEnabled: settings.mercadoPagoEnabled,
+      minOrderAmount: settings.minOrderAmount,
+      promotionsEnabled: settings.promotionsEnabled
+    });
+  } catch (error) {
+    console.error('Error fetching public store settings:', error);
+    res.status(500).json({ error: 'Error al obtener configuración' });
+  }
+});
+
 // GET /api/store-settings/:storeId - Obtener configuración de tienda
 router.get('/:storeId', corsMiddleware, authenticateAdmin, async (req, res) => {
   try {
