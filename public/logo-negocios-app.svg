@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF4D4D"/>
+      <stop offset="100%" style="stop-color:#E63939"/>
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="100" fill="url(#bgGrad)"/>
+  <!-- Darker circle behind scooter -->
+  <circle cx="115" cy="75" r="45" fill="#CC3333" opacity="0.5"/>
+  <!-- Scooter body -->
+  <g fill="white">
+    <!-- Back wheel -->
+    <circle cx="55" cy="115" r="18" fill="none" stroke="white" stroke-width="4"/>
+    <circle cx="55" cy="115" r="5"/>
+    <!-- Front wheel -->
+    <circle cx="145" cy="115" r="18" fill="none" stroke="white" stroke-width="4"/>
+    <circle cx="145" cy="115" r="5"/>
+    <!-- Scooter frame -->
+    <path d="M55 115 Q70 95 90 95 L110 95 Q130 95 145 115" fill="none" stroke="white" stroke-width="5" stroke-linecap="round"/>
+    <!-- Seat -->
+    <ellipse cx="75" cy="85" rx="15" ry="6"/>
+    <!-- Handlebar -->
+    <path d="M130 75 L145 85" stroke="white" stroke-width="4" stroke-linecap="round"/>
+    <!-- Driver body -->
+    <circle cx="95" cy="55" r="12"/> <!-- Head -->
+    <path d="M95 67 L95 90" stroke="white" stroke-width="6" stroke-linecap="round"/> <!-- Body -->
+    <path d="M95 75 L115 85" stroke="white" stroke-width="4" stroke-linecap="round"/> <!-- Arm -->
+    <!-- Helmet visor -->
+    <path d="M83 52 Q95 48 107 52" stroke="white" stroke-width="2" fill="none"/>
+  </g>
+  <!-- Delivery box -->
+  <g>
+    <rect x="35" y="45" width="35" height="30" rx="4" fill="#FFD523"/>
+    <text x="52" y="67" font-family="Arial Black, sans-serif" font-size="18" font-weight="bold" fill="#E63939" text-anchor="middle">N</text>
+    <!-- Speed lines -->
+    <line x1="25" y1="50" x2="15" y2="50" stroke="#FFD523" stroke-width="3" stroke-linecap="round"/>
+    <line x1="28" y1="60" x2="12" y2="60" stroke="#FFD523" stroke-width="3" stroke-linecap="round"/>
+    <line x1="25" y1="70" x2="18" y2="70" stroke="#FFD523" stroke-width="3" stroke-linecap="round"/>
+  </g>
+</svg>
+

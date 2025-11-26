@@ -65,7 +65,7 @@ async function createSession(storeId) {
       auth: state,
       printQRInTerminal: false,
       logger,
-      browser: ['ElBuenMenu', 'Chrome', '120.0.0'],
+      browser: ['NegociosApp', 'Chrome', '120.0.0'],
       connectTimeoutMs: 60000,
       defaultQueryTimeoutMs: 60000,
       keepAliveIntervalMs: 30000,
