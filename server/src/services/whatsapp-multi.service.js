@@ -356,21 +356,14 @@ export async function sendOrderNotification(storeId, order) {
       return;
     }
 
-    // Construir mensaje de pedido
-    const items = order.items?.map(i => `• ${i.quantity}x ${i.name}`).join('\n') || '';
-    const message = `🔔 *NUEVO PEDIDO #${order.orderNumber || order.id.slice(-6)}*
+    const { store } = await getStoreContext(storeId);
+    const storeName = store?.name || settings.commercialName || 'Negocios App';
+    const confirmationCode = order.deliveryCode || order.uniqueCode || order.orderNumber || (order.id ? order.id.slice(-6) : '0000');
+    const orderNumberLine = order.orderNumber || confirmationCode;
 
-📦 *Productos:*
-${items}
+    const message = `PEDIDO CONFIRMADO - ${confirmationCode} - ${storeName}
 
-💰 *Total:* $${order.total?.toLocaleString('es-AR') || 0}
-📍 *Tipo:* ${order.deliveryType === 'delivery' ? 'Envío a domicilio' : 'Retiro en local'}
-${order.deliveryType === 'delivery' ? `🏠 *Dirección:* ${order.address || 'No especificada'}` : ''}
-
-👤 *Cliente:* ${order.customerName || 'No especificado'}
-📱 *Teléfono:* ${order.customerPhone || 'No especificado'}
-
-⏰ ${new Date().toLocaleString('es-AR')}`;
+Código de pedido: ${orderNumberLine}`;
 
     await sendMessage(storeId, settings.whatsappBotNumber, message);
     console.log(`[WhatsApp] ✅ Notificación de pedido enviada para ${storeId}`);

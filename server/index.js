@@ -38,6 +38,7 @@ import storeCategoriesRoutes from './src/routes/store-categories.routes.js';
 import usersRoutes from './src/routes/users.routes.js';
 import stockIssuesRoutes from './src/routes/stock-issues.routes.js';
 import whatsappRoutes from './src/routes/whatsapp.routes.js';
+import { sendOrderNotification } from './src/services/whatsapp-multi.service.js';
 import reviewsRoutes from './src/routes/reviews.routes.js';
 import couponsRoutes from './src/routes/coupons.routes.js';
 
@@ -1502,13 +1503,14 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
           
           const orderResult = await prisma.$queryRawUnsafe(`
             INSERT INTO orders (
-              id, order_number, customer_name, customer_phone, customer_address,
+              id, order_number, customer_name, customer_phone, customer_address, store_id,
               status, payment_method, payment_status, subtotal, delivery_fee, total, notes,
               created_at, updated_at
             ) VALUES (
               '${orderId}', '${orderData.orderNumber}', '${(orderData.customerName || '').replace(/'/g, "''")}', 
               ${orderData.customerPhone ? `'${orderData.customerPhone.replace(/'/g, "''")}'` : 'NULL'}, 
               ${orderData.customerAddress ? `'${orderData.customerAddress.replace(/'/g, "''")}'` : 'NULL'}, 
+              ${orderData.storeId ? `'${orderData.storeId}'` : 'NULL'},
               '${orderData.status || 'pending'}', 
               ${orderData.paymentMethod ? `'${orderData.paymentMethod.replace(/'/g, "''")}'` : 'NULL'}, 
               '${orderData.paymentStatus || 'pending'}', 
@@ -1557,6 +1559,7 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
             customerName: createdOrder.customer_name,
             customerPhone: createdOrder.customer_phone,
             customerAddress: createdOrder.customer_address,
+            storeId: createdOrder.store_id,
             status: createdOrder.status,
             paymentMethod: createdOrder.payment_method,
             paymentStatus: createdOrder.payment_status,
@@ -1639,6 +1642,15 @@ app.post('/api/orders', corsMiddleware, async (req, res) => {
       }
     }
     
+    // Enviar notificación por WhatsApp al local
+    if (order.storeId) {
+      sendOrderNotification(order.storeId, order).catch(err => {
+        console.error('[WhatsApp] Error enviando notificación automática:', err);
+      });
+    } else {
+      console.warn('⚠️ [WhatsApp] Pedido creado sin storeId, no se envía notificación automática');
+    }
+
     // Verificar que el uniqueCode se haya guardado correctamente
     console.log('📦 [CREATE ORDER] Preparando respuesta...');
     const responseOrder = objectToSnakeCase(order);
