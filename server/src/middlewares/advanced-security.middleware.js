@@ -265,12 +265,18 @@ export const requestTimeout = (timeoutMs = 30000) => {
 // ========== DETECCIÓN DE PATRONES DDoS ==========
 const suspiciousIPs = new Map(); // IP -> { count, firstSeen, blocked }
 
+// Función para limpiar todas las IPs bloqueadas (útil para desarrollo)
+export const clearBlockedIPs = () => {
+  suspiciousIPs.clear();
+  console.log('✅ Todas las IPs bloqueadas han sido limpiadas');
+};
+
 export const ddosDetection = (req, res, next) => {
   const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
   const now = Date.now();
   const windowMs = 60000; // 1 minuto
-  const maxRequests = 100; // 100 requests por minuto
-  const blockDuration = 15 * 60 * 1000; // Bloquear por 15 minutos
+  const maxRequests = 1000; // Aumentado a 1000 requests por minuto para soportar apps SPA
+  const blockDuration = 5 * 60 * 1000; // Reducido a 5 minutos
 
   // Obtener registro de IP
   let record = suspiciousIPs.get(ip);
@@ -288,7 +294,10 @@ export const ddosDetection = (req, res, next) => {
   // Verificar si está bloqueada
   if (record.blocked && now < record.blockedUntil) {
     const remaining = Math.ceil((record.blockedUntil - now) / 1000 / 60);
-    logSecurityEvent(req, 'DDOS_BLOCKED', `IP bloqueada por ${remaining} minutos más`);
+    // Solo loguear 1 de cada 100 para no saturar logs
+    if (record.count % 100 === 0) {
+      logSecurityEvent(req, 'DDOS_BLOCKED', `IP bloqueada por ${remaining} minutos más`);
+    }
     
     return res.status(429).json({
       error: 'IP bloqueada temporalmente',
@@ -307,9 +316,7 @@ export const ddosDetection = (req, res, next) => {
   record.count++;
 
   // Detectar patrón DDoS - solo bloquear si es realmente excesivo
-  // Aumentar límite para evitar falsos positivos
-  const actualMaxRequests = 200; // Aumentado de 100 a 200
-  if (record.count > actualMaxRequests) {
+  if (record.count > maxRequests) {
     record.blocked = true;
     record.blockedUntil = now + blockDuration;
     
@@ -324,12 +331,9 @@ export const ddosDetection = (req, res, next) => {
     
     return res.status(429).json({
       error: 'IP bloqueada por actividad sospechosa',
-      message: 'Has excedido el límite de peticiones. Intenta en 15 minutos.'
+      message: 'Has excedido el límite de peticiones. Intenta en 5 minutos.'
     });
   }
-
-  // No penalizar por user agent sospechoso - puede ser legítimo
-  // Solo detectar pero no bloquear automáticamente
 
   next();
 };
