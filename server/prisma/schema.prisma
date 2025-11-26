@@ -870,6 +870,10 @@ model StoreSettings {
   welcomeMessage    String?  @db.Text @map("welcome_message") // Mensaje de bienvenida
   orderConfirmMessage String? @db.Text @map("order_confirm_message") // Confirmación de pedido
   orderOnWayMessage String?  @db.Text @map("order_on_way_message") // Pedido en camino
+  // Estado de la sesión de WhatsApp
+  whatsappSessionStatus String? @map("whatsapp_session_status") // disconnected, pending_qr, connected
+  whatsappConnectedNumber String? @map("whatsapp_connected_number") // Número conectado
+  whatsappLastConnected DateTime? @map("whatsapp_last_connected") // Última conexión
   
   // ========== OTROS AJUSTES ==========
   acceptScheduledOrders Boolean @default(false) @map("accept_scheduled_orders") // Pedidos programados
