@@ -272,11 +272,11 @@ async function createSession(storeId) {
         try {
           await prisma.storeSettings.upsert({
             where: { storeId },
-            update: { whatsappQrCode: qrBase64, whatsappSessionStatus: 'pending_qr' },
-            create: { storeId, whatsappQrCode: qrBase64, whatsappSessionStatus: 'pending_qr' }
+            update: { whatsappSessionStatus: 'pending_qr' },
+            create: { storeId, whatsappSessionStatus: 'pending_qr' }
           });
         } catch (e) {
-          console.error('[WhatsApp] Error guardando QR en BD:', e);
+          console.error('[WhatsApp] Error guardando estado en BD:', e);
         }
       }
 
@@ -304,12 +304,7 @@ async function createSession(storeId) {
         await updateSessionStatus(storeId, 'connected', phoneNumber);
         
         // Limpiar QR de la BD
-        try {
-          await prisma.storeSettings.update({
-            where: { storeId },
-            data: { whatsappQrCode: null }
-          });
-        } catch (e) {}
+        // QR ya no se guarda en BD, solo en memoria (pendingQRs)
       }
     });
 
@@ -383,7 +378,7 @@ async function handleIncomingMessage(storeId, socket, msg) {
     // DETECTAR TIPO DE MENSAJE Y RESPONDER
     
     // 0. DETECTAR PEDIDO ENTRANTE (prioridad máxima)
-    const orderPattern = /(?:pedido|orden|order).*(?:es|is|:)\s*#?(\d+)\s*[-–]\s*(\d+)/i;
+    const orderPattern = /(?:pedido|orden|order).*(?:es|is|:)\s*#*(\d+)\s*[-–]\s*(\d+)/i;
     const orderMatch = messageText.match(orderPattern);
     if (orderMatch) {
       const orderNum = orderMatch[1];
