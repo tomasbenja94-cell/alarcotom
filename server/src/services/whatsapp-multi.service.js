@@ -14,7 +14,7 @@ import makeWASocket, {
 import { Boom } from '@hapi/boom';
 import QRCode from 'qrcode';
 import pino from 'pino';
-import fs from 'fs-extra';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { PrismaClient } from '@prisma/client';
