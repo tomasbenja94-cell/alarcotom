@@ -382,7 +382,21 @@ async function handleIncomingMessage(storeId, socket, msg) {
 
     // DETECTAR TIPO DE MENSAJE Y RESPONDER
     
-    // 1. SALUDOS -> Mensaje de bienvenida
+    // 0. DETECTAR PEDIDO ENTRANTE (prioridad máxima)
+    const orderPattern = /(?:pedido|orden|order).*(?:es|is|:)\s*#?(\d+)\s*[-–]\s*(\d+)/i;
+    const orderMatch = messageText.match(orderPattern);
+    if (orderMatch) {
+      const orderNum = orderMatch[1];
+      const orderCode = orderMatch[2];
+      console.log(`[WhatsApp] [${storeId}] 📦 PEDIDO DETECTADO: #${orderNum} - ${orderCode}`);
+      
+      // Confirmar recepción del pedido
+      const confirmMsg = `✅ *PEDIDO RECIBIDO*\n\n📋 Pedido: #${orderNum}\n🔐 Código: ${orderCode}\n\n⏳ Estamos preparando tu pedido.\nTe avisamos cuando esté listo. ¡Gracias!`;
+      await socket.sendMessage(from, { text: confirmMsg });
+      return;
+    }
+    
+    // 1. SALUDOS -> Mensaje de bienvenida (solo si NO es un pedido)
     if (matchesPattern(body, GREETING_PATTERNS)) {
       const welcomeMsg = applyPlaceholders(
         settings.welcomeMessage || template.welcome,
