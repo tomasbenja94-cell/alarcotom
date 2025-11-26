@@ -6,12 +6,18 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
 import { PrismaClient } from '@prisma/client';
+import dotenv from 'dotenv';
+
+// Cargar variables de entorno
+dotenv.config();
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'elbuenmenu-secret-key-2024';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+
+console.log('[Users] GOOGLE_CLIENT_ID configurado:', !!GOOGLE_CLIENT_ID);
 
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
