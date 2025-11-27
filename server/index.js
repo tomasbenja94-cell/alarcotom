@@ -42,6 +42,7 @@ import whatsappRoutes from './src/routes/whatsapp.routes.js';
 import reviewsRoutes from './src/routes/reviews.routes.js';
 import couponsRoutes from './src/routes/coupons.routes.js';
 import referralsRoutes from './src/routes/referrals.routes.js';
+import deliveryTasksRoutes from './src/routes/delivery-tasks.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -312,6 +313,7 @@ app.use(idempotencyMiddleware); // Idempotencia global
 // ========== RUTAS DE AUTENTICACIÓN ==========
 app.use('/api/admin', adminRoutes); // Rutas de admin
 app.use('/api/delivery', deliveryRoutes); // Rutas adicionales de repartidores
+app.use('/api/delivery-tasks', deliveryTasksRoutes); // Rutas de tareas globales de delivery
 app.use('/api/monitoring', monitoringRoutes); // Rutas de monitoring (solo admin)
 app.use('/api', statsRoutes); // Rutas de estadísticas (montado en /api, rutas internas: /stats/sales)
 app.use('/api/stores', storesRoutes); // Rutas de stores (multi-tenant)
@@ -3502,12 +3504,30 @@ app.get('/api/track/:token', async (req, res) => {
       where: { trackingToken: token },
       include: {
         deliveryPerson: true,
-        items: true
+        items: true,
+        store: {
+          select: { name: true }
+        }
       }
     });
     
     if (!order) {
       return res.status(404).json({ error: 'Pedido no encontrado' });
+    }
+    
+    // Obtener info de ruta múltiple si aplica
+    let multiRouteInfo = null;
+    if (order.multiRouteId) {
+      const route = await prisma.multiDeliveryRoute.findUnique({
+        where: { id: order.multiRouteId }
+      });
+      if (route) {
+        multiRouteInfo = {
+          totalOrders: route.totalOrders,
+          completedOrders: route.completedOrders,
+          currentOrderIndex: route.currentOrderIndex
+        };
+      }
     }
     
     // Preparar datos para tracking
@@ -3516,12 +3536,18 @@ app.get('/api/track/:token', async (req, res) => {
         id: order.id,
         order_number: order.orderNumber,
         status: order.status,
+        delivery_status: order.deliveryStatus,
         customer_name: order.customerName,
         customer_address: order.customerAddress,
         customer_lat: order.customerLat,
         customer_lng: order.customerLng,
         delivery_code: order.deliveryCode,
-        created_at: order.createdAt
+        accepted_at: order.acceptedAt,
+        picked_up_at: order.pickedUpAt,
+        multi_route_order: order.multiRouteOrder,
+        multi_route_total_orders: multiRouteInfo?.totalOrders,
+        created_at: order.createdAt,
+        store_name: order.store?.name
       },
       driver: order.deliveryPerson ? {
         id: order.deliveryPerson.id,
@@ -3529,7 +3555,8 @@ app.get('/api/track/:token', async (req, res) => {
         last_lat: order.deliveryPerson.lastLat,
         last_lng: order.deliveryPerson.lastLng,
         last_seen_at: order.deliveryPerson.lastSeenAt
-      } : null
+      } : null,
+      multi_route: multiRouteInfo
     };
     
     res.json(objectToSnakeCase(trackingData));

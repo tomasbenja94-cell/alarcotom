@@ -134,7 +134,7 @@ model Order {
   user                User?                      @relation(fields: [userId], references: [id], onDelete: SetNull)
   storeId            String?                   @map("store_id")
   store              Store?                     @relation(fields: [storeId], references: [id], onDelete: SetNull)
-  status              String                     @default("pending") // pending, confirmed, preparing, ready, assigned, in_transit, delivered, cancelled, stock_issue, stock_timeout
+  status              String                     @default("pending") // pending, confirmed, preparing, ready, assigned, picked_up, in_transit, delivered, cancelled, stock_issue, stock_timeout
   paymentMethod       String?                    @map("payment_method")
   paymentStatus       String                     @default("pending") @map("payment_status")
   subtotal            Float
@@ -144,8 +144,14 @@ model Order {
   deliveryCode        String?                    @map("delivery_code") // Código de entrega
   trackingToken       String?                    @unique @map("tracking_token") // Token único para tracking público
   uniqueCode          String?                    @unique @map("unique_code") // Código único de 4 dígitos para el mensaje de confirmación
-  deliveryPersonId    String?                    @unique @map("delivery_person_id")
+  deliveryPersonId    String?                    @map("delivery_person_id")
   deliveryPerson      DeliveryPerson?            @relation(fields: [deliveryPersonId], references: [id], onDelete: SetNull)
+  // Nuevos campos para flujo de tareas
+  deliveryStatus      String?                    @map("delivery_status") // available, accepted, picked_up, in_multi_route, delivering, delivered
+  acceptedAt          DateTime?                  @map("accepted_at") // Cuando el repartidor aceptó la tarea
+  pickedUpAt          DateTime?                  @map("picked_up_at") // Cuando retiró del local
+  multiRouteId        String?                    @map("multi_route_id") // ID de ruta múltiple si aplica
+  multiRouteOrder     Int?                       @map("multi_route_order") // Orden en la ruta múltiple
   items               OrderItem[]
   whatsappMessages    WhatsAppMessage[]
   pendingTransfers    PendingTransfer[]
@@ -156,6 +162,9 @@ model Order {
   updatedAt           DateTime                   @updatedAt @map("updated_at")
 
   @@index([storeId])
+  @@index([deliveryPersonId])
+  @@index([deliveryStatus])
+  @@index([multiRouteId])
   @@map("orders")
 }
 
@@ -274,19 +283,42 @@ model DeliveryPerson {
   password            String? // DEPRECATED: Mantener para migración, usar passwordHash
   passwordHash        String?                    @map("password_hash") // Hash bcrypt de la contraseña
   isActive            Boolean                    @default(true) @map("is_active")
-  currentOrderId      String?                    @unique @map("current_order_id")
+  currentOrderId      String?                    @map("current_order_id") // Orden actual (legacy)
   totalDeliveries     Int                        @default(0) @map("total_deliveries")
   lastLat             Float?                     @map("last_lat")
   lastLng             Float?                     @map("last_lng")
   lastSeenAt          DateTime?                  @map("last_seen_at")
   balance             Float                      @default(0)
+  // Nuevos campos para multi-delivery
+  activeRouteId       String?                    @map("active_route_id") // Ruta activa actual
   orders              Order[] // Relación con pedidos asignados
+  multiRoutes         MultiDeliveryRoute[] // Rutas múltiples
   balanceTransactions DriverBalanceTransaction[]
   sessions            DriverSession[] // Sesiones activas del repartidor
   createdAt           DateTime                   @default(now()) @map("created_at")
   updatedAt           DateTime                   @updatedAt @map("updated_at")
 
   @@map("delivery_persons")
+}
+
+// Ruta de entrega múltiple
+model MultiDeliveryRoute {
+  id              String         @id @default(uuid())
+  deliveryPersonId String        @map("delivery_person_id")
+  deliveryPerson  DeliveryPerson @relation(fields: [deliveryPersonId], references: [id], onDelete: Cascade)
+  status          String         @default("active") // active, completed, cancelled
+  orderIds        String         @db.Text // JSON array de order IDs en orden de entrega
+  totalOrders     Int            @default(0) @map("total_orders")
+  completedOrders Int            @default(0) @map("completed_orders")
+  currentOrderIndex Int          @default(0) @map("current_order_index") // Índice del pedido actual
+  startedAt       DateTime       @default(now()) @map("started_at")
+  completedAt     DateTime?      @map("completed_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  @@index([deliveryPersonId])
+  @@index([status])
+  @@map("multi_delivery_routes")
 }
 
 // Sesiones de repartidores para control de tokens
