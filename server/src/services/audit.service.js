@@ -1,6 +1,5 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma.js';
+import logger from '../utils/logger.js';
 
 // ========== SERVICIO DE AUDITORÍA ==========
 class AuditService {
@@ -205,6 +204,11 @@ class AuditService {
       where.action = filters.action;
     }
 
+    if (filters.storeId) {
+      // Buscar en details que contenga el storeId
+      where.details = { contains: filters.storeId };
+    }
+
     if (filters.startDate || filters.endDate) {
       where.timestamp = {};
       if (filters.startDate) {
@@ -221,6 +225,119 @@ class AuditService {
       take: limit,
       skip: offset
     });
+  }
+
+  // Obtener resumen de actividad por usuario
+  async getUserActivitySummary(userId, days = 30) {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    const logs = await prisma.auditLog.findMany({
+      where: {
+        userId,
+        timestamp: { gte: startDate },
+      },
+    });
+
+    const summary = {
+      totalActions: logs.length,
+      byAction: {},
+      lastActivity: logs[0]?.timestamp || null,
+      suspiciousCount: logs.filter(l => l.action.includes('suspicious') || l.action.includes('unauthorized')).length,
+    };
+
+    logs.forEach(log => {
+      summary.byAction[log.action] = (summary.byAction[log.action] || 0) + 1;
+    });
+
+    return summary;
+  }
+
+  // Logs específicos para productos
+  async logProductChange(productId, action, changes, userId, userRole, storeId) {
+    await this.logAction(
+      `product_${action}`,
+      userId,
+      userRole,
+      {
+        productId,
+        storeId,
+        action,
+        changes: this.sanitizeForLog(changes),
+        timestamp: new Date().toISOString()
+      }
+    );
+  }
+
+  // Logs específicos para tienda
+  async logStoreChange(storeId, action, changes, userId, userRole) {
+    await this.logAction(
+      `store_${action}`,
+      userId,
+      userRole,
+      {
+        storeId,
+        action,
+        changes: this.sanitizeForLog(changes),
+        timestamp: new Date().toISOString()
+      }
+    );
+  }
+
+  // Logs específicos para cupones
+  async logCouponChange(couponId, action, details, userId, userRole) {
+    await this.logAction(
+      `coupon_${action}`,
+      userId,
+      userRole,
+      {
+        couponId,
+        action,
+        details: this.sanitizeForLog(details),
+        timestamp: new Date().toISOString()
+      }
+    );
+  }
+
+  // Exportar logs a CSV
+  async exportLogs(filters = {}) {
+    const logs = await this.getAuditLogs(filters, 10000, 0);
+    
+    const headers = ['timestamp', 'action', 'userId', 'userRole', 'ipAddress', 'details'];
+    const rows = logs.map(log => [
+      log.timestamp.toISOString(),
+      log.action,
+      log.userId || '',
+      log.userRole,
+      log.ipAddress || '',
+      log.details?.replace(/"/g, '""') || '',
+    ]);
+
+    const csv = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    return csv;
+  }
+
+  // Limpiar logs antiguos (más de X días)
+  async cleanupOldLogs(daysToKeep = 90) {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+
+    const result = await prisma.auditLog.deleteMany({
+      where: {
+        timestamp: { lt: cutoffDate },
+        // No borrar logs críticos
+        action: {
+          notIn: ['suspicious_activity', 'unauthorized_access', 'data_modification']
+        }
+      }
+    });
+
+    logger.info({ deleted: result.count, daysToKeep }, 'Old audit logs cleaned up');
+    return result.count;
   }
 }
 

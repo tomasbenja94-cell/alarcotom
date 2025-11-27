@@ -1,0 +1,23 @@
+{
+  "name": "Negocios App - Delivery",
+  "short_name": "Negocios",
+  "description": "Pedí comida, bebidas y más desde tu celular",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#14B8A6",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/logo-negocios-app.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["food", "shopping", "lifestyle"],
+  "lang": "es-AR",
+  "scope": "/",
+  "prefer_related_applications": false
+}
+
