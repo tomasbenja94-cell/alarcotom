@@ -90,6 +90,8 @@ nginx.conf.example
 # Temporary directories
 asdasd/
 kk.zip
+asd.zip
+asd/
 
 # Auto-generated files
 auto-imports.d.ts
