@@ -421,7 +421,7 @@ export default function AdminPage() {
                   <i className="ri-restaurant-line text-white text-xl sm:text-2xl"></i>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h1 className="text-base sm:text-xl font-bold text-gray-800 truncate">El Buen Menú</h1>
+                  <h1 className="text-base sm:text-xl font-bold text-gray-800 truncate">{storeName || 'Panel Admin'}</h1>
                   <p className="text-xs text-gray-600 hidden sm:block">Panel de Administración</p>
                 </div>
               </div>

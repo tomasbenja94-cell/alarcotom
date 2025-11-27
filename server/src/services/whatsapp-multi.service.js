@@ -645,7 +645,8 @@ async function handleTransferProof(storeId, socket, from, message, userSession, 
       );
       
       if (stream) {
-        const proofDir = path.join(__dirname, '../../proofs', storeId);
+        // Guardar en la carpeta correcta del whatsapp-bot
+        const proofDir = path.join(__dirname, '../../../whatsapp-bot/proofs');
         if (!fs.existsSync(proofDir)) {
           fs.mkdirSync(proofDir, { recursive: true });
         }
@@ -653,7 +654,8 @@ async function handleTransferProof(storeId, socket, from, message, userSession, 
         const fileName = `proof_${Date.now()}_${message.key.id}.jpg`;
         const filePath = path.join(proofDir, fileName);
         fs.writeFileSync(filePath, stream);
-        proofImageUrl = `/proofs/${storeId}/${fileName}`;
+        proofImageUrl = `/api/proofs/${fileName}`;
+        console.log(`[WhatsApp] [${storeId}] 📂 Ruta de guardado: ${filePath}`);
         console.log(`[WhatsApp] [${storeId}] ✅ Comprobante guardado: ${proofImageUrl}`);
       }
     }

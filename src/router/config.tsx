@@ -52,10 +52,6 @@ const routes: RouteObject[] = [
     element: <MisPedidosPage />
   },
   {
-    path: '/pedidos',
-    element: <MisPedidosPage />
-  },
-  {
     path: '/mi-direccion',
     element: <MiDireccionPage />
   },
