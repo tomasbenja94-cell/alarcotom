@@ -1,0 +1,95 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Environment variables
+.env
+.env.local
+.env.production
+*.env
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# WhatsApp Bot Auth (NO SUBIR)
+whatsapp-bot/auth/
+whatsapp-bot/.auth/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+server/dev.db
+server/prisma/dev.db*
+
+# Frontend (solo desarrollo local, no subir a GitHub)
+# Solo ignorar src/ en la raíz, NO server/src/ ni whatsapp-bot/src/
+/src/
+/out/
+/dist/
+/build/
+/.next/
+
+# Frontend config files
+vite.config.ts
+tsconfig*.json
+tailwind.config.ts
+postcss.config.ts
+index.html
+package.json
+package-lock.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Proofs (evitar subir imágenes de comprobantes)
+whatsapp-bot/proofs/
+server/proofs/
+
+# Session files
+*.session
+session/
+
+# Supabase
+.branches
+.temp
+
+# Prisma
+server/prisma/migrations/
+
+# Documentation files (no necesarios en producción)
+*.md
+!README.md
+!whatsapp-bot/README.md
+!server/README.md
+
+# Deployment configs (solo ejemplos, no subir)
+netlify.toml
+vercel.json
+nginx.conf.example
+
+# Temporary directories
+asdasd/
+kk.zip
+
+# Auto-generated files
+auto-imports.d.ts

@@ -1,0 +1,21 @@
+
+{
+  "alias": "ELBUENMENU.CVU",
+  "cvu": "0000007900001234567890",
+  "mercadoPagoLink": "https://mpago.la/elbuenmenu",
+  "horarios": "Lunes a Domingo de 11:00 a 23:00",
+  "menuUrl": "https://elbuenmenu.site/menu",
+  "mensajes": {
+    "bienvenida": "¡Hola! 👋 Bienvenido a El Buen Menú 🍔\n\n¿En qué te puedo ayudar?\n\n1️⃣ Ver menú completo\n2️⃣ Consultar mi pedido\n3️⃣ Horarios de atención\n4️⃣ Hacer un pedido\n\nEscribí el número de la opción que te interesa 😊",
+    "menu": "🛒 **NUESTRO MENÚ COMPLETO:**\n\nPodés ver todos nuestros productos aquí: https://elbuenmenu.site/menu\n\n🍔 Hamburguesas desde $1800\n🍕 Pizzas desde $2500\n🥟 Empanadas (docena) $2000\n🍗 Milanesas desde $2200\n🥤 Bebidas desde $600\n\n¿Te interesa algo en particular?",
+    "consultar_pedido": "📦 **CONSULTAR PEDIDO:**\n\nPor favor enviame:\n• Tu número de pedido (4 dígitos)\n• O tu nombre completo\n\nY te digo el estado actual de tu pedido 😊",
+    "horarios": "🕕 **NUESTROS HORARIOS:**\n\nLunes a Domingo\n11:00 a 23:00 hs\n\n¡Estamos abiertos ahora! 😊\n\nPodés hacer tu pedido cuando quieras 🍔",
+    "pago_opciones": "💰 **MÉTODOS DE PAGO:**\n\nRecibimos tu pedido 🧾\nPor favor elegí cómo querés pagar:\n\n💳 Transferencia bancaria\n💚 Mercado Pago\n💵 Efectivo (al recibir)\n\nEnviame el comprobante si pagás por transferencia 📸",
+    "pago_confirmado": "✅ **PAGO CONFIRMADO**\n\n💰 Transferencia recibida correctamente\n🍳 Tu pedido está en preparación\n⏱️ Tiempo estimado: 30-45 minutos\n\n¡Te avisamos cuando esté listo! 🚚",
+    "pedido_preparacion": "🍳 **TU PEDIDO ESTÁ EN PREPARACIÓN**\n\n👨‍🍳 Nuestros cocineros están trabajando en tu pedido\n⏱️ Tiempo estimado: 20-30 minutos más\n\n¡Pronto estará listo! 😊",
+    "pedido_en_camino": "🚴‍♂️ **¡TU PEDIDO ESTÁ EN CAMINO!**\n\n📍 El repartidor ya salió hacia tu dirección\n⏱️ Llegará en aproximadamente 15-20 minutos\n📱 Mantené el teléfono cerca por si necesita contactarte\n\n¡Ya casi llega! 🏠",
+    "pedido_entregado": "🏁 **PEDIDO ENTREGADO**\n\n✅ Tu pedido fue entregado correctamente\n❤️ ¡Gracias por elegirnos!\n⭐ ¿Cómo estuvo todo? Tu opinión nos ayuda a mejorar\n\n¡Esperamos verte pronto! 🍔😊",
+    "error_general": "❌ Ups, algo salió mal\n\nPor favor intentá de nuevo o contactanos:\n📞 +54 9 3487 30 2858\n\n¡Estamos para ayudarte! 😊",
+    "pedido_no_encontrado": "❌ **PEDIDO NO ENCONTRADO**\n\nNo pude encontrar un pedido con esos datos.\n\nVerificá:\n• El número de pedido (4 dígitos)\n• Que esté bien escrito tu nombre\n\n¿Necesitás ayuda? Escribí 'soporte' 💬"
+  }
+}

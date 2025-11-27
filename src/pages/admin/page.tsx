@@ -10,7 +10,7 @@ import SalesDashboard from './components/SalesDashboard';
 import DailyCash from './components/DailyCash';
 import ReportsManagement from './components/ReportsManagement';
 import StockManagement from './components/StockManagement';
-import DeliveryPersonsManagement from './components/DeliveryPersonsManagement';
+// DeliveryPersonsManagement removido - solo disponible para superadmin
 import PaymentConfig from './components/PaymentConfig';
 import BotMessagesManager from './components/BotMessagesManager';
 import StoreSettings from './components/StoreSettings';
@@ -296,47 +296,47 @@ export default function AdminPage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-yellow-50 px-4">
-        <div className="w-full max-w-md bg-white border-4 border-orange-400 rounded-3xl p-10 shadow-2xl">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-50 to-slate-100 px-4">
+        <div className="w-full max-w-md bg-white rounded-2xl p-8 shadow-xl border border-slate-200">
           <div className="mb-8 text-center">
-            <div className="w-24 h-24 bg-gradient-to-br from-orange-400 to-orange-600 rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-lg">
-              <span className="text-white text-4xl font-bold">🍔</span>
+            <div className="w-20 h-20 bg-gradient-to-br from-slate-700 to-slate-900 rounded-2xl mx-auto flex items-center justify-center mb-5 shadow-lg">
+              <i className="ri-store-3-line text-white text-3xl"></i>
             </div>
-            <h2 className="text-4xl font-bold text-gray-800 mb-3">El Buen Menú</h2>
-            <p className="text-lg text-gray-600">Panel de Administración</p>
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">Bienvenido a Negocios App</h2>
+            <p className="text-sm text-slate-500">Ingresá para administrar tu comercio</p>
           </div>
-          <form onSubmit={handleLogin} className="space-y-6">
+          <form onSubmit={handleLogin} className="space-y-5">
             <div>
-              <label className="block text-xl font-bold text-gray-800 mb-3">👤 Usuario</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Usuario</label>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-6 py-4 border-4 border-gray-300 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-400 focus:border-orange-500 text-xl text-gray-800 font-semibold"
+                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-base text-slate-800"
                 placeholder="Escribe tu usuario"
                 autoFocus
               />
             </div>
             <div>
-              <label className="block text-xl font-bold text-gray-800 mb-3">🔒 Contraseña</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Contraseña</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-6 py-4 border-4 border-gray-300 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-400 focus:border-orange-500 text-xl text-gray-800 font-semibold"
+                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-base text-slate-800"
                 placeholder="Escribe tu contraseña"
               />
             </div>
             {loginError && (
-              <div className="bg-red-100 border-4 border-red-400 rounded-2xl p-4 text-lg text-red-700 font-bold text-center">
-                ❌ {loginError}
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-600 font-medium text-center">
+                {loginError}
               </div>
             )}
             <button
               type="submit"
-              className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold py-5 rounded-2xl transition-all shadow-xl hover:shadow-2xl transform hover:scale-105 text-2xl"
+              className="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-3.5 rounded-xl transition-all shadow-md hover:shadow-lg text-base"
             >
-              🚀 ENTRAR
+              Ingresar
             </button>
           </form>
         </div>
@@ -353,7 +353,7 @@ export default function AdminPage() {
         case 'cash': return <DailyCash />;
         case 'reports': return <ReportsManagement />;
         case 'stock': return <StockManagement />;
-        case 'delivery': return <DeliveryPersonsManagement />;
+        // Repartidores eliminado - solo disponible para superadmin
         case 'payment': return <PaymentConfig />;
         case 'bot-messages': return <BotMessagesManager />;
         case 'whatsapp': return <WhatsAppControlPanel storeId={currentStoreId || localStorage.getItem('adminStoreId') || ''} />;
@@ -381,27 +381,26 @@ export default function AdminPage() {
         <AdminTutorial onComplete={handleTutorialComplete} onSkip={handleTutorialSkip} />
       )}
 
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 to-yellow-50">
-        {/* Header Súper Simple */}
-        <header className="bg-white border-b-4 border-orange-400 sticky top-0 z-40 shadow-lg">
-          <div className="max-w-7xl mx-auto px-2 sm:px-4">
-            <div className="flex items-center justify-between h-14 sm:h-16">
-              {/* Botón Volver (solo en ciertas vistas) */}
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100/50">
+        {/* Header Profesional */}
+        <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+          <div className="max-w-7xl mx-auto px-3 sm:px-6">
+            <div className="flex items-center justify-between h-16 sm:h-18">
+              {/* Botón Volver */}
               {advancedTab && (
                 <button
                   onClick={() => {
                     setAdvancedTab(null);
                     setShowAdvancedMenu(false);
                   }}
-                  className="mr-2 sm:mr-3 w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+                  className="mr-3 w-9 h-9 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors"
                   title="Volver"
                 >
-                  <i className="ri-arrow-left-line text-gray-600 text-lg sm:text-xl"></i>
+                  <i className="ri-arrow-left-line text-slate-600 text-lg"></i>
                 </button>
               )}
-              {/* Logo y Menú */}
-              <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
-                {/* Botón Menú Hamburger */}
+              {/* Logo y Título */}
+              <div className="flex items-center space-x-3 flex-1 min-w-0">
                 <button
                   onClick={() => {
                     setShowAdvancedMenu(!showAdvancedMenu);
@@ -409,31 +408,30 @@ export default function AdminPage() {
                       setAdvancedTab(null);
                     }
                   }}
-                  className="p-1.5 sm:p-2 text-gray-700 hover:bg-gray-100 rounded-xl transition-all flex-shrink-0"
-                  title="Menú avanzado"
+                  className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-all flex-shrink-0"
+                  title="Menú"
                 >
-                  <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
+                  <i className="ri-menu-line text-xl"></i>
                 </button>
                 
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center shadow-md flex-shrink-0">
-                  <i className="ri-restaurant-line text-white text-xl sm:text-2xl"></i>
+                <div className="w-10 h-10 bg-gradient-to-br from-slate-700 to-slate-900 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0">
+                  <i className="ri-store-3-line text-white text-lg"></i>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h1 className="text-base sm:text-xl font-bold text-gray-800 truncate">{storeName || 'Panel Admin'}</h1>
-                  <p className="text-xs text-gray-600 hidden sm:block">Panel de Administración</p>
+                  <h1 className="text-sm sm:text-base font-bold text-slate-800 truncate">
+                    Panel de Administración
+                  </h1>
+                  <p className="text-xs text-slate-500 truncate">{storeName || 'Mi Negocio'}</p>
                 </div>
               </div>
 
               {/* Botón Salir */}
               <button
                 onClick={handleLogout}
-                className="px-3 py-1.5 sm:px-5 sm:py-2 text-xs sm:text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-lg sm:rounded-xl transition-all shadow-md hover:shadow-lg transform hover:scale-105 flex-shrink-0 ml-2"
+                className="px-3 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-all flex items-center space-x-1"
               >
-                <i className="ri-logout-box-line sm:mr-1"></i>
-                <span className="hidden sm:inline">SALIR</span>
-                <span className="sm:hidden">SALIR</span>
+                <i className="ri-logout-box-line"></i>
+                <span className="hidden sm:inline">Salir</span>
               </button>
             </div>
           </div>
@@ -441,86 +439,30 @@ export default function AdminPage() {
 
         {/* Menú Avanzado Desplegable */}
         {showAdvancedMenu && (
-          <div className="bg-white border-b-4 border-gray-300 shadow-lg z-30">
-            <div className="max-w-7xl mx-auto px-2 sm:px-4 py-2 sm:py-3">
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-1.5 sm:gap-2">
-                <button
-                  onClick={() => handleAdvancedMenuClick('system')}
-                  className="px-3 py-2 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-all text-gray-700 flex items-center space-x-1"
-                >
-                  <i className="ri-settings-3-line"></i>
-                  <span>Sistema</span>
-                </button>
-                <button
-                  onClick={() => handleAdvancedMenuClick('sales')}
-                  className="px-3 py-2 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-all text-gray-700 flex items-center space-x-1"
-                >
-                  <i className="ri-bar-chart-line"></i>
-                  <span>Ventas</span>
-                </button>
-                <button
-                  onClick={() => handleAdvancedMenuClick('cash')}
-                  className="px-3 py-2 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-all text-gray-700 flex items-center space-x-1"
-                >
-                  <i className="ri-money-dollar-circle-line"></i>
-                  <span>Caja Diaria</span>
-                </button>
-                <button
-                  onClick={() => handleAdvancedMenuClick('reports')}
-                  className="px-3 py-2 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-all text-gray-700 flex items-center space-x-1"
-                >
-                  <i className="ri-file-chart-line"></i>
-                  <span>Reportes</span>
-                </button>
-                <button
-                  onClick={() => handleAdvancedMenuClick('stock')}
-                  className="px-3 py-2 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-all text-gray-700 flex items-center space-x-1"
-                >
-                  <i className="ri-box-3-line"></i>
-                  <span>Stock</span>
-                </button>
-                <button
-                  onClick={() => handleAdvancedMenuClick('delivery')}
-                  className="px-3 py-2 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-all text-gray-700 flex items-center space-x-1"
-                >
-                  <i className="ri-truck-line"></i>
-                  <span>Repartidores</span>
-                </button>
-                <button
-                  onClick={() => handleAdvancedMenuClick('payment')}
-                  className="px-3 py-2 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-all text-gray-700 flex items-center space-x-1"
-                >
-                  <i className="ri-bank-card-line"></i>
-                  <span>Pagos</span>
-                </button>
-                <button
-                  onClick={() => handleAdvancedMenuClick('bot-messages')}
-                  className="px-3 py-2 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-all text-gray-700 flex items-center space-x-1"
-                >
-                  <i className="ri-message-3-line"></i>
-                  <span>Mensajes Bot</span>
-                </button>
-                <button
-                  onClick={() => handleAdvancedMenuClick('whatsapp')}
-                  className="px-3 py-2 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-all text-gray-700 flex items-center space-x-1"
-                >
-                  <i className="ri-whatsapp-line"></i>
-                  <span>Bot WhatsApp</span>
-                </button>
-                <button
-                  onClick={() => handleAdvancedMenuClick('settings')}
-                  className="px-3 py-2 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-all text-gray-700 flex items-center space-x-1"
-                >
-                  <i className="ri-store-settings-line"></i>
-                  <span>Configuración</span>
-                </button>
-                <button
-                  onClick={() => handleAdvancedMenuClick('store-categories')}
-                  className="px-3 py-2 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-all text-gray-700 flex items-center space-x-1"
-                >
-                  <i className="ri-folder-line"></i>
-                  <span>Categorías</span>
-                </button>
+          <div className="bg-white border-b border-slate-200 shadow-sm">
+            <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                {[
+                  { id: 'system', icon: 'ri-settings-3-line', label: 'Sistema' },
+                  { id: 'sales', icon: 'ri-bar-chart-line', label: 'Ventas' },
+                  { id: 'cash', icon: 'ri-money-dollar-circle-line', label: 'Caja' },
+                  { id: 'reports', icon: 'ri-file-chart-line', label: 'Reportes' },
+                  { id: 'stock', icon: 'ri-box-3-line', label: 'Stock' },
+                  { id: 'payment', icon: 'ri-bank-card-line', label: 'Pagos' },
+                  { id: 'bot-messages', icon: 'ri-message-3-line', label: 'Mensajes' },
+                  { id: 'whatsapp', icon: 'ri-whatsapp-line', label: 'WhatsApp' },
+                  { id: 'settings', icon: 'ri-store-3-line', label: 'Config' },
+                  { id: 'store-categories', icon: 'ri-folder-line', label: 'Categorías' },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => handleAdvancedMenuClick(item.id)}
+                    className="flex items-center space-x-2 px-3 py-2.5 text-sm font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all"
+                  >
+                    <i className={`${item.icon} text-lg`}></i>
+                    <span>{item.label}</span>
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -534,96 +476,48 @@ export default function AdminPage() {
           />
         )}
 
-        {/* Menú Principal - 4 Botones (Más Pequeños) */}
+        {/* Menú Principal - Tarjetas Modernas */}
         {!advancedTab && (
-          <div className="max-w-7xl mx-auto px-2 sm:px-4 py-3 sm:py-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 mb-4">
-              <button
-                onClick={() => {
-                  setActiveTab('pedidos');
-                  setAdvancedTab(null);
-                }}
-                className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-lg transition-all transform hover:scale-105 ${
-                  activeTab === 'pedidos'
-                    ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white border-2 border-orange-700'
-                    : 'bg-white text-gray-800 border-2 border-gray-300 hover:border-orange-400'
-                }`}
-              >
-                <div className="flex justify-center mb-1 sm:mb-2">
-                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-orange-500 rounded-full flex items-center justify-center">
-                    <i className="ri-shopping-bag-line text-white text-2xl sm:text-3xl"></i>
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+              {[
+                { id: 'pedidos', icon: 'ri-shopping-bag-3-line', label: 'Pedidos', desc: 'Gestionar pedidos', color: 'from-amber-500 to-orange-500', bg: 'bg-amber-50' },
+                { id: 'transferencias', icon: 'ri-bank-card-line', label: 'Pagos', desc: 'Aprobar transferencias', color: 'from-emerald-500 to-teal-500', bg: 'bg-emerald-50' },
+                { id: 'clientes', icon: 'ri-user-heart-line', label: 'Clientes', desc: 'Ver clientes', color: 'from-blue-500 to-indigo-500', bg: 'bg-blue-50' },
+                { id: 'menu', icon: 'ri-restaurant-2-line', label: 'Menú', desc: 'Editar productos', color: 'from-violet-500 to-purple-500', bg: 'bg-violet-50' },
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setActiveTab(item.id as 'pedidos' | 'transferencias' | 'clientes' | 'menu');
+                    setAdvancedTab(null);
+                  }}
+                  className={`group p-4 rounded-2xl transition-all duration-200 ${
+                    activeTab === item.id
+                      ? `bg-gradient-to-br ${item.color} text-white shadow-lg`
+                      : `bg-white hover:shadow-md border border-slate-200 text-slate-700`
+                  }`}
+                >
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-3 ${
+                    activeTab === item.id ? 'bg-white/20' : item.bg
+                  }`}>
+                    <i className={`${item.icon} text-2xl ${activeTab === item.id ? 'text-white' : 'text-slate-600'}`}></i>
                   </div>
-                </div>
-                <div className="text-sm sm:text-lg font-bold">PEDIDOS</div>
-                <div className="text-xs mt-1 opacity-80 hidden sm:block">Ver y gestionar pedidos</div>
-              </button>
-
-              <button
-                onClick={() => {
-                  setActiveTab('transferencias');
-                  setAdvancedTab(null);
-                }}
-                className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-lg transition-all transform hover:scale-105 ${
-                  activeTab === 'transferencias'
-                    ? 'bg-gradient-to-br from-green-500 to-green-600 text-white border-2 border-green-700'
-                    : 'bg-white text-gray-800 border-2 border-gray-300 hover:border-green-400'
-                }`}
-              >
-                <div className="flex justify-center mb-1 sm:mb-2">
-                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-green-500 rounded-full flex items-center justify-center">
-                    <i className="ri-bank-card-line text-white text-2xl sm:text-3xl"></i>
+                  <div className={`text-sm font-semibold ${activeTab === item.id ? 'text-white' : 'text-slate-800'}`}>
+                    {item.label}
                   </div>
-                </div>
-                <div className="text-sm sm:text-lg font-bold">TRANSFERENCIAS</div>
-                <div className="text-xs mt-1 opacity-80 hidden sm:block">Aprobar pagos</div>
-              </button>
-
-              <button
-                onClick={() => {
-                  setActiveTab('clientes');
-                  setAdvancedTab(null);
-                }}
-                className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-lg transition-all transform hover:scale-105 ${
-                  activeTab === 'clientes'
-                    ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white border-2 border-blue-700'
-                    : 'bg-white text-gray-800 border-2 border-gray-300 hover:border-blue-400'
-                }`}
-              >
-                <div className="flex justify-center mb-1 sm:mb-2">
-                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-500 rounded-full flex items-center justify-center">
-                    <i className="ri-user-group-line text-white text-2xl sm:text-3xl"></i>
+                  <div className={`text-xs mt-0.5 ${activeTab === item.id ? 'text-white/80' : 'text-slate-500'}`}>
+                    {item.desc}
                   </div>
-                </div>
-                <div className="text-sm sm:text-lg font-bold">CLIENTES</div>
-                <div className="text-xs mt-1 opacity-80 hidden sm:block">Ver clientes</div>
-              </button>
-
-              <button
-                onClick={() => {
-                  setActiveTab('menu');
-                  setAdvancedTab(null);
-                }}
-                className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-lg transition-all transform hover:scale-105 ${
-                  activeTab === 'menu'
-                    ? 'bg-gradient-to-br from-purple-500 to-purple-600 text-white border-2 border-purple-700'
-                    : 'bg-white text-gray-800 border-2 border-gray-300 hover:border-purple-400'
-                }`}
-              >
-                <div className="flex justify-center mb-1 sm:mb-2">
-                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-purple-500 rounded-full flex items-center justify-center">
-                    <i className="ri-restaurant-line text-white text-2xl sm:text-3xl"></i>
-                  </div>
-                </div>
-                <div className="text-sm sm:text-lg font-bold">MENÚ</div>
-                <div className="text-xs mt-1 opacity-80 hidden sm:block">Editar productos</div>
-              </button>
+                </button>
+              ))}
             </div>
           </div>
         )}
 
         {/* Contenido */}
-        <div className="max-w-7xl mx-auto px-2 sm:px-4 pb-4">
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl border-2 border-gray-200 p-3 sm:p-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 pb-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
             {getActiveComponent()}
           </div>
         </div>
