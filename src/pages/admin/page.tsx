@@ -18,6 +18,22 @@ import StoreConfigPanel from './components/StoreConfigPanel';
 import WhatsAppControlPanel from './components/WhatsAppControlPanel';
 import StoreSetupWizard from './components/StoreSetupWizard';
 import StoreCategoriesManagement from './components/StoreCategoriesManagement';
+import BugDetection from './components/BugDetection';
+import PromotionsManagement from './components/PromotionsManagement';
+import CouponsManagement from './components/CouponsManagement';
+import ReviewsManagement from './components/ReviewsManagement';
+import AdvancedAnalytics from './components/AdvancedAnalytics';
+import DeliveryZonesManagement from './components/DeliveryZonesManagement';
+import LoyaltyManagement from './components/LoyaltyManagement';
+import AdvancedInventory from './components/AdvancedInventory';
+import SmartAlerts from './components/SmartAlerts';
+import ExecutiveDashboard from './components/ExecutiveDashboard';
+import AdvancedReports from './components/AdvancedReports';
+import RealTimeMetrics from './components/RealTimeMetrics';
+import AuditLog from './components/AuditLog';
+import ChartsAndTrends from './components/ChartsAndTrends';
+import EmployeeManagement from './components/EmployeeManagement';
+import AdvancedSettings from './components/AdvancedSettings';
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -353,12 +369,26 @@ export default function AdminPage() {
         case 'cash': return <DailyCash />;
         case 'reports': return <ReportsManagement />;
         case 'stock': return <StockManagement />;
-        // Repartidores eliminado - solo disponible para superadmin
         case 'payment': return <PaymentConfig />;
         case 'bot-messages': return <BotMessagesManager />;
         case 'whatsapp': return <WhatsAppControlPanel storeId={currentStoreId || localStorage.getItem('adminStoreId') || ''} />;
         case 'settings': return <StoreConfigPanel storeId={currentStoreId || localStorage.getItem('adminStoreId') || ''} />;
         case 'store-categories': return <StoreCategoriesManagement />;
+        case 'promotions': return <PromotionsManagement />;
+        case 'coupons': return <CouponsManagement />;
+        case 'reviews': return <ReviewsManagement />;
+        case 'delivery-zones': return <DeliveryZonesManagement />;
+        case 'analytics': return <AdvancedAnalytics />;
+        case 'loyalty': return <LoyaltyManagement />;
+        case 'inventory': return <AdvancedInventory />;
+        case 'alerts': return <SmartAlerts />;
+        case 'dashboard': return <ExecutiveDashboard />;
+        case 'metrics': return <RealTimeMetrics />;
+        case 'advanced-reports': return <AdvancedReports />;
+        case 'audit': return <AuditLog />;
+        case 'charts': return <ChartsAndTrends />;
+        case 'employees': return <EmployeeManagement />;
+        case 'advanced-settings': return <AdvancedSettings />;
         default: return null;
       }
     }
@@ -381,9 +411,9 @@ export default function AdminPage() {
         <AdminTutorial onComplete={handleTutorialComplete} onSkip={handleTutorialSkip} />
       )}
 
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100/50">
-        {/* Header Profesional */}
-        <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-slate-50 to-slate-100">
+        {/* Header Profesional Empresarial */}
+        <header className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-b border-slate-700 sticky top-0 z-40 shadow-xl">
           <div className="max-w-7xl mx-auto px-3 sm:px-6">
             <div className="flex items-center justify-between h-16 sm:h-18">
               {/* Botón Volver */}
@@ -441,18 +471,33 @@ export default function AdminPage() {
         {showAdvancedMenu && (
           <div className="bg-white border-b border-slate-200 shadow-sm">
             <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3">
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-2 max-h-96 overflow-y-auto">
                 {[
-                  { id: 'system', icon: 'ri-settings-3-line', label: 'Sistema' },
-                  { id: 'sales', icon: 'ri-bar-chart-line', label: 'Ventas' },
-                  { id: 'cash', icon: 'ri-money-dollar-circle-line', label: 'Caja' },
-                  { id: 'reports', icon: 'ri-file-chart-line', label: 'Reportes' },
-                  { id: 'stock', icon: 'ri-box-3-line', label: 'Stock' },
-                  { id: 'payment', icon: 'ri-bank-card-line', label: 'Pagos' },
-                  { id: 'bot-messages', icon: 'ri-message-3-line', label: 'Mensajes' },
-                  { id: 'whatsapp', icon: 'ri-whatsapp-line', label: 'WhatsApp' },
-                  { id: 'settings', icon: 'ri-store-3-line', label: 'Config' },
-                  { id: 'store-categories', icon: 'ri-folder-line', label: 'Categorías' },
+                  { id: 'system', icon: 'ri-settings-3-line', label: 'Sistema', category: 'general' },
+                  { id: 'sales', icon: 'ri-bar-chart-line', label: 'Ventas', category: 'analytics' },
+                  { id: 'cash', icon: 'ri-money-dollar-circle-line', label: 'Caja', category: 'finances' },
+                  { id: 'reports', icon: 'ri-file-chart-line', label: 'Reportes', category: 'analytics' },
+                  { id: 'stock', icon: 'ri-box-3-line', label: 'Stock', category: 'inventory' },
+                  { id: 'payment', icon: 'ri-bank-card-line', label: 'Pagos', category: 'finances' },
+                  { id: 'bot-messages', icon: 'ri-message-3-line', label: 'Mensajes', category: 'communication' },
+                  { id: 'whatsapp', icon: 'ri-whatsapp-line', label: 'WhatsApp', category: 'communication' },
+                  { id: 'settings', icon: 'ri-store-3-line', label: 'Config', category: 'general' },
+                  { id: 'store-categories', icon: 'ri-folder-line', label: 'Categorías', category: 'general' },
+                  { id: 'promotions', icon: 'ri-fire-line', label: 'Promociones', category: 'marketing' },
+                  { id: 'coupons', icon: 'ri-coupon-3-line', label: 'Cupones', category: 'marketing' },
+                  { id: 'reviews', icon: 'ri-star-line', label: 'Reseñas', category: 'analytics' },
+                  { id: 'delivery-zones', icon: 'ri-map-pin-range-line', label: 'Zonas', category: 'delivery' },
+                  { id: 'analytics', icon: 'ri-line-chart-line', label: 'Analytics', category: 'analytics' },
+                  { id: 'loyalty', icon: 'ri-vip-crown-line', label: 'Fidelidad', category: 'marketing' },
+                  { id: 'inventory', icon: 'ri-store-2-line', label: 'Inventario', category: 'inventory' },
+                  { id: 'alerts', icon: 'ri-notification-line', label: 'Alertas', category: 'general' },
+                  { id: 'dashboard', icon: 'ri-dashboard-3-line', label: 'Dashboard', category: 'analytics' },
+                  { id: 'metrics', icon: 'ri-pulse-line', label: 'Métricas', category: 'analytics' },
+                  { id: 'advanced-reports', icon: 'ri-file-chart-2-line', label: 'Reportes', category: 'analytics' },
+                  { id: 'audit', icon: 'ri-file-list-3-line', label: 'Auditoría', category: 'general' },
+                  { id: 'charts', icon: 'ri-bar-chart-box-line', label: 'Gráficos', category: 'analytics' },
+                  { id: 'employees', icon: 'ri-team-line', label: 'Empleados', category: 'general' },
+                  { id: 'advanced-settings', icon: 'ri-settings-3-line', label: 'Configuración', category: 'general' },
                 ].map((item) => (
                   <button
                     key={item.id}
