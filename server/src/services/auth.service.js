@@ -338,11 +338,21 @@ class DriverAuthService {
       
       // Intentar primero con el secret principal
       try {
+        // Verificar que el secret no haya cambiado
+        const currentSecret = process.env.JWT_DRIVER_SECRET || 'CHANGE_THIS_IN_PRODUCTION_DRIVER';
+        if (currentSecret !== JWT_DRIVER_SECRET) {
+          console.error('⚠️ [VERIFY DRIVER TOKEN] El secret cambió! Reiniciar servidor.');
+          console.error('⚠️ [VERIFY DRIVER TOKEN] Secret anterior length:', JWT_DRIVER_SECRET.length);
+          console.error('⚠️ [VERIFY DRIVER TOKEN] Secret nuevo length:', currentSecret.length);
+        }
+        
         decoded = jwt.verify(token, JWT_DRIVER_SECRET);
         console.log('✅ [VERIFY DRIVER TOKEN] Token verificado con secret principal');
       } catch (jwtError) {
         // Log del error siempre (importante para diagnóstico)
         console.error('❌ [VERIFY DRIVER TOKEN] Error verificando con secret principal:', jwtError.name, jwtError.message);
+        console.error('❌ [VERIFY DRIVER TOKEN] Secret usado (primeros 30 chars):', JWT_DRIVER_SECRET.substring(0, 30) + '...');
+        console.error('❌ [VERIFY DRIVER TOKEN] Secret length:', JWT_DRIVER_SECRET.length);
         
         // Decodificar el token para ver qué contiene (sin verificar)
         try {
@@ -353,6 +363,18 @@ class DriverAuthService {
               payload: decodedWithoutVerify.payload,
               signature: decodedWithoutVerify.signature ? decodedWithoutVerify.signature.substring(0, 20) + '...' : 'N/A'
             });
+            
+            // Intentar verificar con el secret actual del proceso (por si cambió)
+            const currentSecret = process.env.JWT_DRIVER_SECRET || 'CHANGE_THIS_IN_PRODUCTION_DRIVER';
+            if (currentSecret !== JWT_DRIVER_SECRET && currentSecret !== 'CHANGE_THIS_IN_PRODUCTION_DRIVER') {
+              console.log('🔍 [VERIFY DRIVER TOKEN] Intentando con secret actual del proceso...');
+              try {
+                decoded = jwt.verify(token, currentSecret);
+                console.log('✅ [VERIFY DRIVER TOKEN] Token verificado con secret actual del proceso');
+              } catch (currentSecretError) {
+                console.error('❌ [VERIFY DRIVER TOKEN] También falló con secret actual:', currentSecretError.message);
+              }
+            }
           }
         } catch (decodeError) {
           console.error('❌ [VERIFY DRIVER TOKEN] Error decodificando token:', decodeError.message);
