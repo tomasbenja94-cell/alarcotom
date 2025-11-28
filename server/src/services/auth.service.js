@@ -332,28 +332,35 @@ class DriverAuthService {
       }
 
       // 3. Verificar sesión en BD (opcional, puede no existir la tabla)
+      // Si la tabla existe y la sesión está revocada, rechazar
+      // Pero si solo está expirada, permitir (el JWT puede seguir siendo válido)
       try {
         const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
         const session = await prisma.driverSession.findFirst({
           where: {
             tokenHash,
-            driverId: decoded.driverId,
-            revoked: false
+            driverId: decoded.driverId
           }
         });
 
-        // Si existe sesión y está expirada, rechazar
+        // Solo rechazar si la sesión está explícitamente revocada
+        if (session && session.revoked) {
+          console.warn('⚠️ [VERIFY DRIVER TOKEN] Sesión revocada para driver:', decoded.driverId);
+          throw new Error('Sesión revocada');
+        }
+        
+        // Si la sesión está expirada pero no revocada, permitir (el JWT puede seguir siendo válido)
+        // Esto permite que el token funcione aunque la sesión en BD haya expirado
         if (session && session.expiresAt < new Date()) {
-          console.warn('⚠️ [VERIFY DRIVER TOKEN] Sesión expirada para driver:', decoded.driverId);
-          throw new Error('Sesión expirada');
+          console.warn('⚠️ [VERIFY DRIVER TOKEN] Sesión en BD expirada, pero JWT sigue siendo válido para driver:', decoded.driverId);
         }
       } catch (sessionError) {
         // Si la tabla no existe o hay error, continuar con verificación básica del token
         // Esto permite que funcione aunque no exista la tabla de sesiones
         if (sessionError.code === 'P2021' || sessionError.message?.includes('does not exist')) {
           console.warn('⚠️ [VERIFY DRIVER TOKEN] Tabla driverSession no existe, usando verificación básica del token');
-        } else if (sessionError.message?.includes('Sesión expirada')) {
-          // Si la sesión está expirada, rechazar
+        } else if (sessionError.message?.includes('Sesión revocada')) {
+          // Si la sesión está revocada, rechazar
           throw sessionError;
         } else {
           // Otros errores de sesión: ignorar y continuar con verificación básica
