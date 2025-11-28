@@ -242,15 +242,33 @@ export async function startWhatsAppSession(storeId) {
           // Ignorar errores de BD
         });
 
-        // Reconectar si no fue logout manual y no es error 401 (no autorizado)
+        // Reconectar automáticamente si no fue logout manual y no es error 401 (no autorizado)
         if (reason !== DisconnectReason.loggedOut && reason !== 401) {
-          console.log(`[WhatsApp] [${storeId}] Reconectando en 5s...`);
-          setTimeout(() => {
+          console.log(`[WhatsApp] [${storeId}] ⚠️ Desconectado. Reconectando automáticamente en 5s...`);
+          addBotLog(storeId, 'warn', `Desconectado (razón: ${reason}). Reconectando en 5s...`);
+          
+          setTimeout(async () => {
             // Verificar que no haya otra sesión activa antes de reconectar
             if (!activeSessions.has(storeId)) {
-              startWhatsAppSession(storeId).catch(err => {
-                console.error(`[WhatsApp] [${storeId}] Error en reconexión:`, err.message);
-              });
+              try {
+                console.log(`[WhatsApp] [${storeId}] 🔄 Intentando reconectar...`);
+                addBotLog(storeId, 'info', 'Intentando reconectar...');
+                await startWhatsAppSession(storeId);
+              } catch (err) {
+                console.error(`[WhatsApp] [${storeId}] ❌ Error en reconexión:`, err.message);
+                addBotLog(storeId, 'error', `Error en reconexión: ${err.message}`);
+                // Intentar de nuevo en 30 segundos si falla
+                setTimeout(async () => {
+                  if (!activeSessions.has(storeId)) {
+                    console.log(`[WhatsApp] [${storeId}] 🔄 Reintentando reconexión...`);
+                    try {
+                      await startWhatsAppSession(storeId);
+                    } catch (retryErr) {
+                      console.error(`[WhatsApp] [${storeId}] ❌ Error en reintento:`, retryErr.message);
+                    }
+                  }
+                }, 30000);
+              }
             }
           }, 5000);
         } else if (reason === 401) {
@@ -1144,10 +1162,21 @@ export async function initializeAllStores() {
     
     for (const store of stores) {
       if (store.settings?.whatsappBotEnabled) {
-        console.log(`[WhatsApp] Iniciando bot para: ${store.name}`);
-        await startWhatsAppSession(store.id);
+        console.log(`[WhatsApp] Iniciando bot para: ${store.name} (${store.id})`);
+        try {
+          await startWhatsAppSession(store.id);
+          // Esperar un poco entre cada inicialización para evitar sobrecarga
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } catch (error) {
+          console.error(`[WhatsApp] Error iniciando bot para ${store.name}:`, error.message);
+          // Continuar con las demás tiendas aunque una falle
+        }
+      } else {
+        console.log(`[WhatsApp] Bot deshabilitado para: ${store.name}`);
       }
     }
+    
+    console.log(`[WhatsApp] ✅ Inicialización completada`);
   } catch (error) {
     console.error('[WhatsApp] Error inicializando tiendas:', error);
   }
