@@ -12,7 +12,8 @@
     "prisma:seed": "node prisma/seed.js",
     "create-admin": "node create-admin.js",
     "check-data": "node check-data.js",
-    "reactivate-stores": "node reactivate-stores.js"
+    "reactivate-stores": "node reactivate-stores.js",
+    "recover-data": "node recover-data.js"
   },
   "dependencies": {
     "@prisma/client": "^5.7.1",
