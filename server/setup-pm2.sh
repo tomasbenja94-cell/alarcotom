@@ -11,11 +11,17 @@ pm2 stop all 2>/dev/null || true
 pm2 delete all 2>/dev/null || true
 
 # Iniciar el backend con PM2 usando el archivo de configuración
-# Si existe ecosystem.config.cjs, usarlo; si no, usar ecosystem.config.js
+# Usar ecosystem.config.cjs si existe (más compatible), sino usar ecosystem.config.js
 if [ -f "ecosystem.config.cjs" ]; then
+  echo "📋 Usando ecosystem.config.cjs"
   pm2 start ecosystem.config.cjs
-else
+elif [ -f "ecosystem.config.js" ]; then
+  echo "📋 Usando ecosystem.config.js"
   pm2 start ecosystem.config.js
+else
+  echo "❌ No se encontró archivo de configuración de PM2"
+  echo "📋 Iniciando manualmente..."
+  pm2 start index.js --name backend --cwd /opt/elbuenmenu/server
 fi
 
 # Configurar PM2 para que se inicie automáticamente al reiniciar el servidor
