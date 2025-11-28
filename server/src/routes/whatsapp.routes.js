@@ -68,24 +68,31 @@ router.get('/:storeId/qr', authenticateAdmin, async (req, res) => {
     // Si no hay QR pero el estado es pending_qr, intentar iniciar sesión para generar uno nuevo
     if (!qr) {
       const status = whatsappService.getSessionStatus(storeId);
+      console.log(`[WhatsApp QR] [${storeId}] Estado actual: ${status.status}, QR disponible: ${qr ? 'Sí' : 'No'}`);
+      
       if (status.status === 'pending_qr' || status.status === 'disconnected') {
+        console.log(`[WhatsApp QR] [${storeId}] Iniciando sesión para generar nuevo QR...`);
         // Iniciar sesión para generar nuevo QR
         await whatsappService.startWhatsAppSession(storeId);
         // Esperar un momento para que se genere el QR
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 3000));
         qr = whatsappService.getPendingQR(storeId);
+        console.log(`[WhatsApp QR] [${storeId}] QR después de iniciar sesión: ${qr ? 'Disponible' : 'No disponible'}`);
       }
+    } else {
+      console.log(`[WhatsApp QR] [${storeId}] QR encontrado (${qr.substring(0, 30)}...)`);
     }
     
     if (!qr) {
+      console.log(`[WhatsApp QR] [${storeId}] No hay QR disponible`);
       return res.json({ qr: null, message: 'No hay QR pendiente. Intenta hacer "Generar QR" primero.' });
     }
 
     res.json({ qr });
 
   } catch (error) {
-    console.error('Error obteniendo QR:', error);
-    res.status(500).json({ error: 'Error obteniendo QR' });
+    console.error(`[WhatsApp QR] [${req.params.storeId}] Error obteniendo QR:`, error);
+    res.status(500).json({ error: 'Error obteniendo QR', details: error.message });
   }
 });
 

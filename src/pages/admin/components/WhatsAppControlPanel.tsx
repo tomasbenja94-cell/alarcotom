@@ -37,6 +37,7 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
   const [customMessageTarget, setCustomMessageTarget] = useState('');
   const [customMessageBody, setCustomMessageBody] = useState('');
   const [isBotEnabled, setIsBotEnabled] = useState<boolean | null>(null);
+  const [qrCode, setQrCode] = useState<string | null>(null);
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null;
 
@@ -52,6 +53,34 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
     setActionError(error instanceof Error ? error.message : 'Error desconocido');
   };
 
+  const fetchQR = useCallback(async (): Promise<string | null> => {
+    if (!storeId) return null;
+    try {
+      const response = await fetch(`${API_BASE}/whatsapp/${storeId}/qr`, {
+        headers: authHeaders
+      });
+      if (response.ok) {
+        const data = await response.json();
+        // El endpoint puede devolver { qr: null } o { qr: "data:image..." }
+        if (data.qr && data.qr !== null && data.qr !== 'null') {
+          // Aceptar cualquier formato de QR (data URL, URL, o string base64)
+          setQrCode(data.qr);
+          return data.qr;
+        } else {
+          setQrCode(null);
+          return null;
+        }
+      } else {
+        setQrCode(null);
+        return null;
+      }
+    } catch (error) {
+      console.error('Error obteniendo QR:', error);
+      setQrCode(null);
+      return null;
+    }
+  }, [storeId, authHeaders]);
+
   const fetchStatus = useCallback(async () => {
     if (!storeId) return;
     try {
@@ -61,10 +90,17 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
       if (!response.ok) throw new Error('No se pudo obtener el estado');
       const data = await response.json();
       setStatus(data);
+      
+      // Si el estado es pending_qr, obtener el QR
+      if (data.status === 'pending_qr') {
+        await fetchQR();
+      } else {
+        setQrCode(null);
+      }
     } catch (error) {
       handleApiError(error);
     }
-  }, [storeId, token]);
+  }, [storeId, authHeaders, fetchQR]);
 
   const fetchMetrics = useCallback(async () => {
     if (!storeId) return;
@@ -78,7 +114,7 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
     } catch (error) {
       handleApiError(error);
     }
-  }, [storeId, token]);
+  }, [storeId, authHeaders]);
 
   const fetchLogs = useCallback(async () => {
     if (!storeId) return;
@@ -92,7 +128,7 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
     } catch (error) {
       handleApiError(error);
     }
-  }, [storeId, token]);
+  }, [storeId, authHeaders]);
 
   const fetchAll = useCallback(async () => {
     if (!storeId) return;
@@ -111,6 +147,24 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
       fetchToggleState();
     }
   }, [storeId]);
+
+  // Polling para actualizar el QR automáticamente cuando está pendiente
+  useEffect(() => {
+    if (!storeId || status?.status !== 'pending_qr') {
+      setQrCode(null);
+      return;
+    }
+    
+    // Obtener QR inmediatamente
+    fetchQR();
+    
+    // Luego hacer polling cada 3 segundos
+    const interval = setInterval(async () => {
+      await fetchStatus();
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [storeId, status?.status, fetchStatus, fetchQR]);
 
   const fetchToggleState = async () => {
     if (!storeId) return;
@@ -142,16 +196,56 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
     }
   };
 
-  const handleConnect = () =>
-    runAction(
-      async () => {
-        await fetch(`${API_BASE}/whatsapp/${storeId}/connect`, {
-          method: 'POST',
-          headers: authHeaders
-        });
-      },
-      'Sesión iniciada. Escaneá el nuevo QR.'
-    );
+  const handleConnect = async () => {
+    setLoading(true);
+    setActionMessage(null);
+    setActionError(null);
+    try {
+      const response = await fetch(`${API_BASE}/whatsapp/${storeId}/connect`, {
+        method: 'POST',
+        headers: authHeaders
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Error iniciando conexión');
+      }
+      
+      setActionMessage('Sesión iniciada. Generando QR...');
+      
+      // Esperar y obtener el QR con múltiples intentos
+      let attempts = 0;
+      const maxAttempts = 10; // Aumentar intentos
+      const checkQR = async () => {
+        attempts++;
+        
+        // Actualizar estado primero
+        await fetchStatus();
+        
+        // Obtener QR y verificar si se recibió
+        const qr = await fetchQR();
+        
+        if (qr) {
+          setActionMessage('QR generado. Escaneá el código.');
+          await fetchMetrics();
+          setLoading(false);
+        } else if (attempts >= maxAttempts) {
+          setActionError('No se pudo generar el QR después de varios intentos. Verifica que el servicio esté funcionando.');
+          await fetchMetrics();
+          setLoading(false);
+        } else {
+          // Reintentar después de 2 segundos
+          setTimeout(checkQR, 2000);
+        }
+      };
+      
+      // Empezar a verificar después de 3 segundos (dar tiempo a que se genere)
+      setTimeout(checkQR, 3000);
+    } catch (error) {
+      handleApiError(error);
+      setLoading(false);
+    }
+  };
 
   const handleDisconnect = () =>
     runAction(
@@ -250,13 +344,13 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
   }[status?.status || 'disconnected'];
 
   return (
-    <div className="p-4 sm:p-6 space-y-4">
-      <div className="flex flex-col gap-4 lg:flex-row">
-        <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
-          <div className="flex items-center justify-between mb-4">
+    <div className="space-y-3">
+      <div className="flex flex-col gap-3 lg:flex-row">
+        <div className="flex-1 border border-gray-200 rounded-lg p-3">
+          <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-sm text-gray-500">Estado de WhatsApp</p>
-              <p className={`text-2xl font-bold ${statusColor}`}>
+              <p className="text-[10px] text-gray-500 mb-0.5">Estado</p>
+              <p className={`text-sm font-semibold ${statusColor}`}>
                 {status?.status === 'connected' && 'Conectado'}
                 {status?.status === 'disconnected' && 'Desconectado'}
                 {status?.status === 'pending_qr' && 'QR pendiente'}
@@ -264,20 +358,20 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
                 {!status?.status && 'Desconocido'}
               </p>
               {status?.phoneNumber && (
-                <p className="text-sm text-gray-500 mt-1">Número vinculado: {status.phoneNumber}</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">{status.phoneNumber}</p>
               )}
             </div>
-            <div className="flex flex-col gap-2 text-sm">
+            <div className="flex gap-1.5">
               <button
                 onClick={handleConnect}
-                className="px-3 py-1.5 rounded-lg bg-green-100 text-green-700 font-semibold hover:bg-green-200 transition"
+                className="px-2 py-1 text-[10px] rounded border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 transition"
                 disabled={loading}
               >
-                Generar QR
+                QR
               </button>
               <button
                 onClick={handleDisconnect}
-                className="px-3 py-1.5 rounded-lg bg-red-100 text-red-700 font-semibold hover:bg-red-200 transition"
+                className="px-2 py-1 text-[10px] rounded border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 transition"
                 disabled={loading}
               >
                 Desconectar
@@ -285,142 +379,166 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="grid grid-cols-2 gap-1.5">
             <button
               onClick={handleReloadConfig}
-              className="px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 font-semibold"
+              className="px-2 py-1.5 text-[10px] rounded border border-gray-200 hover:bg-gray-50 font-medium"
               disabled={loading}
             >
-              <i className="ri-refresh-line mr-1"></i>
-              Recargar config
+              <i className="ri-refresh-line text-xs mr-1"></i>
+              Recargar
             </button>
             <button
               onClick={handleRestart}
-              className="px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 font-semibold"
+              className="px-2 py-1.5 text-[10px] rounded border border-gray-200 hover:bg-gray-50 font-medium"
               disabled={loading}
             >
-              <i className="ri-loop-left-line mr-1"></i>
-              Reiniciar bot
+              <i className="ri-loop-left-line text-xs mr-1"></i>
+              Reiniciar
             </button>
             <button
               onClick={() => handleToggle(!(isBotEnabled ?? true))}
-              className={`px-3 py-2 rounded-xl border font-semibold ${
-                isBotEnabled ? 'border-red-200 text-red-600' : 'border-green-200 text-green-600'
+              className={`px-2 py-1.5 text-[10px] rounded border font-medium ${
+                isBotEnabled ? 'border-gray-200 text-gray-700' : 'border-gray-200 text-gray-700'
               }`}
               disabled={loading}
             >
               {isBotEnabled ? (
                 <>
-                  <i className="ri-stop-circle-line mr-1"></i> Desactivar bot
+                  <i className="ri-stop-circle-line text-xs mr-1"></i> Desactivar
                 </>
               ) : (
                 <>
-                  <i className="ri-play-circle-line mr-1"></i> Activar bot
+                  <i className="ri-play-circle-line text-xs mr-1"></i> Activar
                 </>
               )}
             </button>
             <button
               onClick={handleSendTest}
-              className="px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 font-semibold"
+              className="px-2 py-1.5 text-[10px] rounded border border-gray-200 hover:bg-gray-50 font-medium"
               disabled={loading}
             >
-              <i className="ri-message-2-line mr-1"></i>
-              Enviar mensaje test
+              <i className="ri-message-2-line text-xs mr-1"></i>
+              Test
             </button>
           </div>
 
           {(actionMessage || actionError) && (
             <div
-              className={`mt-4 text-sm font-semibold px-3 py-2 rounded-xl ${
-                actionError ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-green-50 text-green-600 border border-green-200'
+              className={`mt-3 text-[10px] font-medium px-2 py-1.5 rounded border ${
+                actionError ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-50 text-gray-700 border-gray-200'
               }`}
             >
               {actionError || actionMessage}
             </div>
           )}
+
+          {/* QR Code */}
+          {status?.status === 'pending_qr' && (
+            <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <p className="text-[10px] font-medium text-gray-800 mb-2 text-center">Escanea el código QR</p>
+              {qrCode ? (
+                <>
+                  <div className="flex justify-center">
+                    <img 
+                      src={qrCode} 
+                      alt="QR Code" 
+                      className="w-48 h-48 rounded border border-gray-300 bg-white p-2"
+                      onError={() => {
+                        console.error('Error cargando imagen QR');
+                        setQrCode(null);
+                      }}
+                    />
+                  </div>
+                  <p className="mt-2 text-[10px] text-gray-600 text-center">
+                    WhatsApp → Dispositivos vinculados → Vincular dispositivo
+                  </p>
+                </>
+              ) : (
+                <div className="text-center py-6">
+                  <div className="animate-spin rounded-full h-6 w-6 border-2 border-gray-300 border-t-black mx-auto mb-2"></div>
+                  <p className="text-[10px] text-gray-500 mb-1">Generando QR...</p>
+                  {actionError && actionError.includes('QR') && (
+                    <p className="text-[10px] text-red-600 mt-2">{actionError}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        <div className="w-full lg:w-72 bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
-          <p className="text-sm text-gray-500 mb-2">Métricas (últimas sesiones)</p>
-          <div className="space-y-2 text-sm">
+        <div className="w-full lg:w-48 border border-gray-200 rounded-lg p-3">
+          <p className="text-[10px] text-gray-500 mb-2">Métricas</p>
+          <div className="space-y-1.5 text-[10px]">
             <div className="flex items-center justify-between">
-              <span className="text-gray-600">Mensajes procesados:</span>
-              <span className="font-semibold">{metrics?.messagesProcessed ?? '—'}</span>
+              <span className="text-gray-600">Procesados:</span>
+              <span className="font-medium">{metrics?.messagesProcessed ?? '—'}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-gray-600">Mensajes bloqueados:</span>
-              <span className="font-semibold">{metrics?.messagesBlocked ?? '—'}</span>
+              <span className="text-gray-600">Bloqueados:</span>
+              <span className="font-medium">{metrics?.messagesBlocked ?? '—'}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-gray-600">Errores:</span>
-              <span className="font-semibold">{metrics?.errors ?? '—'}</span>
-            </div>
-            <div className="text-xs text-gray-500 mt-4">
-              <p>Último mensaje: {metrics?.lastMessageAt ? new Date(metrics.lastMessageAt).toLocaleString() : '—'}</p>
-              <p>Último error: {metrics?.lastErrorAt ? new Date(metrics.lastErrorAt).toLocaleString() : '—'}</p>
+              <span className="font-medium">{metrics?.errors ?? '—'}</span>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 space-y-4">
+      <div className="border border-gray-200 rounded-lg p-3 space-y-2">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-800">Enviar mensaje manual</h3>
+          <h3 className="text-xs font-semibold text-gray-800">Enviar mensaje</h3>
           <button
             onClick={fetchAll}
-            className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 hover:bg-gray-50"
+            className="px-2 py-1 text-[10px] rounded border border-gray-200 hover:bg-gray-50"
             disabled={loading}
           >
-            <i className="ri-refresh-line mr-1"></i>
+            <i className="ri-refresh-line text-xs mr-1"></i>
             Actualizar
           </button>
         </div>
 
-        <form onSubmit={handleSendCustomMessage} className="grid gap-3 md:grid-cols-3">
+        <form onSubmit={handleSendCustomMessage} className="grid gap-2 md:grid-cols-3">
           <input
             type="text"
             value={customMessageTarget}
             onChange={(e) => setCustomMessageTarget(e.target.value)}
-            placeholder="Número de teléfono (ej: 54911...)"
-            className="px-3 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none"
+            placeholder="Número (ej: 54911...)"
+            className="px-2 py-1.5 text-[10px] rounded border border-gray-200 focus:ring-1 focus:ring-black focus:border-black outline-none"
           />
           <input
             type="text"
             value={customMessageBody}
             onChange={(e) => setCustomMessageBody(e.target.value)}
-            placeholder="Mensaje a enviar"
-            className="px-3 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none md:col-span-2"
+            placeholder="Mensaje"
+            className="px-2 py-1.5 text-[10px] rounded border border-gray-200 focus:ring-1 focus:ring-black focus:border-black outline-none md:col-span-2"
           />
           <button
             type="submit"
-            className="bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold py-2 px-4 rounded-xl shadow hover:shadow-lg transition md:col-span-3"
+            className="bg-black text-white font-medium py-1.5 px-3 rounded border border-black hover:bg-gray-800 transition md:col-span-3 text-[10px]"
             disabled={loading}
           >
-            <i className="ri-send-plane-fill mr-1"></i>
+            <i className="ri-send-plane-fill text-xs mr-1"></i>
             Enviar mensaje
           </button>
         </form>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-semibold text-gray-800">Actividad reciente</h3>
-          <span className="text-sm text-gray-500">{logs.length} eventos</span>
+      <div className="border border-gray-200 rounded-lg p-3">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-xs font-semibold text-gray-800">Actividad</h3>
+          <span className="text-[10px] text-gray-500">{logs.length} eventos</span>
         </div>
-        <div className="space-y-3 max-h-80 overflow-y-auto">
-          {logs.length === 0 && <p className="text-sm text-gray-500">Sin eventos registrados.</p>}
+        <div className="space-y-2 max-h-64 overflow-y-auto">
+          {logs.length === 0 && <p className="text-[10px] text-gray-500">Sin eventos.</p>}
           {logs.map((log, index) => (
-            <div key={`${log.timestamp}-${index}`} className="border border-gray-100 rounded-xl p-3 text-sm">
-              <div className="flex justify-between text-xs text-gray-500">
+            <div key={`${log.timestamp}-${index}`} className="border border-gray-100 rounded p-2 text-[10px]">
+              <div className="flex justify-between text-[9px] text-gray-500">
                 <span>{new Date(log.timestamp).toLocaleString()}</span>
-                <span className="uppercase font-semibold">{log.level}</span>
+                <span className="uppercase font-medium">{log.level}</span>
               </div>
-              <p className="text-gray-800 mt-1">{log.message}</p>
-              {log.meta && Object.keys(log.meta).length > 0 && (
-                <pre className="mt-2 text-xs bg-gray-50 rounded-lg p-2 text-gray-600 overflow-x-auto">
-                  {JSON.stringify(log.meta, null, 2)}
-                </pre>
-              )}
+              <p className="text-gray-800 mt-0.5">{log.message}</p>
             </div>
           ))}
         </div>
