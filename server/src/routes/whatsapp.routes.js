@@ -62,10 +62,23 @@ router.get('/:storeId/qr', authenticateAdmin, async (req, res) => {
       return res.status(403).json({ error: 'No tienes acceso a esta tienda' });
     }
 
-    const qr = whatsappService.getPendingQR(storeId);
+    // Obtener QR
+    let qr = whatsappService.getPendingQR(storeId);
+    
+    // Si no hay QR pero el estado es pending_qr, intentar iniciar sesión para generar uno nuevo
+    if (!qr) {
+      const status = whatsappService.getSessionStatus(storeId);
+      if (status.status === 'pending_qr' || status.status === 'disconnected') {
+        // Iniciar sesión para generar nuevo QR
+        await whatsappService.startWhatsAppSession(storeId);
+        // Esperar un momento para que se genere el QR
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        qr = whatsappService.getPendingQR(storeId);
+      }
+    }
     
     if (!qr) {
-      return res.json({ qr: null, message: 'No hay QR pendiente' });
+      return res.json({ qr: null, message: 'No hay QR pendiente. Intenta hacer "Generar QR" primero.' });
     }
 
     res.json({ qr });

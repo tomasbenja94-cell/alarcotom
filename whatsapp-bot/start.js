@@ -1,22 +1,9 @@
 #!/usr/bin/env node
 
-import { startPanel } from './src/panel.js';
+// Este archivo ya no se usa - el bot ahora se maneja desde server/src/services/whatsapp-multi.service.js
+// El sistema multi-tenant maneja todas las sesiones desde el backend
 
-console.log('🚀 Iniciando sistema completo...');
-console.log('');
-console.log('📱 Bot de WhatsApp: Ejecutar "npm start" en otra terminal');
-console.log('📊 Panel de control: Iniciando...');
-console.log('');
-
-// Iniciar panel de control
-startPanel();
-
-console.log('✅ Sistema iniciado correctamente');
-console.log('');
-console.log('📋 URLs disponibles:');
-console.log('   Panel: http://localhost:3000');
-console.log('   API: http://localhost:3000/api/pedidos');
-console.log('');
-console.log('💡 Para iniciar el bot de WhatsApp:');
-console.log('   npm start');
+console.log('⚠️  Este archivo ya no se usa.');
+console.log('📱 El bot de WhatsApp ahora se gestiona desde el admin panel.');
+console.log('🌐 Accede a: /admin?store=TU_STORE_ID y ve a la sección "WhatsApp"');
 console.log('');

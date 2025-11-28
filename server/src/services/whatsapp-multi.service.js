@@ -97,12 +97,28 @@ function getUserSession(storeId, jid) {
 }
 
 // ---------------------------------------------------------------------------
+// Límite de sesiones simultáneas (hasta 10)
+const MAX_SESSIONS = 10;
+
 // INICIAR SESIÓN DE WHATSAPP PARA UNA TIENDA
 // ---------------------------------------------------------------------------
 export async function startWhatsAppSession(storeId) {
+  // Verificar límite de sesiones
+  if (activeSessions.size >= MAX_SESSIONS && !activeSessions.has(storeId)) {
+    console.log(`[WhatsApp] [${storeId}] Límite de sesiones alcanzado (${MAX_SESSIONS})`);
+    return { status: 'error', message: `Límite de ${MAX_SESSIONS} sesiones simultáneas alcanzado` };
+  }
+  
   if (activeSessions.has(storeId)) {
-    console.log(`[WhatsApp] [${storeId}] Sesión ya activa`);
-    return { status: 'already_connected' };
+    const session = activeSessions.get(storeId);
+    // Verificar que la sesión esté realmente activa
+    if (session.socket && session.socket.user) {
+      console.log(`[WhatsApp] [${storeId}] Sesión ya activa`);
+      return { status: 'already_connected' };
+    } else {
+      // Sesión inactiva, limpiarla
+      activeSessions.delete(storeId);
+    }
   }
 
   const config = await loadStoreConfig(storeId);
@@ -138,38 +154,76 @@ export async function startWhatsAppSession(storeId) {
 
       if (qr) {
         console.log(`[WhatsApp] [${storeId}] QR generado`);
-        const qrDataUrl = await QRCode.toDataURL(qr);
-        pendingQRs.set(storeId, {
-          qr: qrDataUrl,
-          timestamp: Date.now(),
-          expires: Date.now() + 60000
-        });
-        
-        // Actualizar estado en BD
-        await prisma.storeSettings.upsert({
-          where: { storeId },
-          update: { whatsappSessionStatus: 'pending_qr' },
-          create: { storeId, whatsappSessionStatus: 'pending_qr' }
-        });
+        try {
+          const qrDataUrl = await QRCode.toDataURL(qr, { 
+            errorCorrectionLevel: 'M',
+            margin: 2,
+            width: 512
+          });
+          pendingQRs.set(storeId, {
+            qr: qrDataUrl,
+            timestamp: Date.now(),
+            expires: Date.now() + 300000 // 5 minutos en lugar de 1 minuto
+          });
+          
+          // Actualizar estado en BD
+          await prisma.storeSettings.upsert({
+            where: { storeId },
+            update: { whatsappSessionStatus: 'pending_qr' },
+            create: { storeId, whatsappSessionStatus: 'pending_qr' }
+          });
+        } catch (error) {
+          console.error(`[WhatsApp] [${storeId}] Error generando QR:`, error);
+        }
       }
 
       if (connection === 'close') {
         const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
         console.log(`[WhatsApp] [${storeId}] Conexión cerrada, razón: ${reason}`);
         
+        // Limpiar sesión
+        const session = activeSessions.get(storeId);
+        if (session?.socket) {
+          try {
+            session.socket.end();
+          } catch (e) {
+            // Ignorar errores al cerrar
+          }
+        }
         activeSessions.delete(storeId);
-        pendingQRs.delete(storeId);
+        // No eliminar QR inmediatamente, puede regenerarse
         
         await prisma.storeSettings.upsert({
           where: { storeId },
           update: { whatsappSessionStatus: 'disconnected' },
           create: { storeId, whatsappSessionStatus: 'disconnected' }
+        }).catch(() => {
+          // Ignorar errores de BD
         });
 
-        // Reconectar si no fue logout manual
-        if (reason !== DisconnectReason.loggedOut) {
+        // Reconectar si no fue logout manual y no es error 401 (no autorizado)
+        if (reason !== DisconnectReason.loggedOut && reason !== 401) {
           console.log(`[WhatsApp] [${storeId}] Reconectando en 5s...`);
-          setTimeout(() => startWhatsAppSession(storeId), 5000);
+          setTimeout(() => {
+            // Verificar que no haya otra sesión activa antes de reconectar
+            if (!activeSessions.has(storeId)) {
+              startWhatsAppSession(storeId).catch(err => {
+                console.error(`[WhatsApp] [${storeId}] Error en reconexión:`, err.message);
+              });
+            }
+          }, 5000);
+        } else if (reason === 401) {
+          // Error 401: sesión inválida, limpiar credenciales
+          console.log(`[WhatsApp] [${storeId}] Sesión inválida (401), limpiando credenciales...`);
+          const sessionPath = path.join(SESSIONS_DIR, storeId);
+          if (fs.existsSync(sessionPath)) {
+            try {
+              fs.rmSync(sessionPath, { recursive: true, force: true });
+              console.log(`[WhatsApp] [${storeId}] Credenciales eliminadas`);
+            } catch (e) {
+              console.error(`[WhatsApp] [${storeId}] Error eliminando credenciales:`, e.message);
+            }
+          }
         }
       }
 
@@ -214,11 +268,22 @@ export async function startWhatsAppSession(storeId) {
     // Guardar credenciales
     socket.ev.on('creds.update', saveCreds);
 
+    // Manejar errores no capturados
+    socket.ev.on('error', (error) => {
+      console.error(`[WhatsApp] [${storeId}] Error en socket:`, error);
+    });
+
     activeSessions.set(storeId, { socket, storeId, createdAt: Date.now() });
+    
+    console.log(`[WhatsApp] [${storeId}] Sesión iniciada. Total activas: ${activeSessions.size}/${MAX_SESSIONS}`);
+    
     return { status: 'connecting' };
 
   } catch (error) {
     console.error(`[WhatsApp] [${storeId}] Error iniciando sesión:`, error);
+    // Limpiar en caso de error
+    activeSessions.delete(storeId);
+    pendingQRs.delete(storeId);
     return { status: 'error', message: error.message };
   }
 }
@@ -814,8 +879,15 @@ export function getSessionStatus(storeId) {
 
 export function getPendingQR(storeId) {
   const qr = pendingQRs.get(storeId);
-  if (qr && qr.expires > Date.now()) {
-    return qr.qr;
+  if (qr) {
+    // Si el QR expiró, limpiarlo pero no devolver null inmediatamente
+    // para dar tiempo a que se regenere
+    if (qr.expires > Date.now()) {
+      return qr.qr;
+    } else {
+      // QR expirado, limpiarlo
+      pendingQRs.delete(storeId);
+    }
   }
   return null;
 }
