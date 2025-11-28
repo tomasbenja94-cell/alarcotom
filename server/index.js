@@ -1131,9 +1131,9 @@ app.get('/api/orders', systemRateLimit, async (req, res) => {
     const showAll = req.query.all === 'true';
     const storeId = req.query.storeId;
     
-    let whereClause = {};
+    let whereClause: any = {};
     
-    // Si hay storeId, filtrar por store
+    // Si hay storeId, SIEMPRE filtrar por store (IMPORTANTE: cada tienda es independiente)
     if (storeId) {
       whereClause.storeId = storeId;
     }
@@ -1146,7 +1146,7 @@ app.get('/api/orders', systemRateLimit, async (req, res) => {
       // Esto evita que aparezcan pedidos de la web que aún no fueron confirmados en WhatsApp
       // Y también evita que aparezcan pedidos por transferencia antes de aprobar la transferencia
       // PERO si el payment_status != 'pending' (ya aprobado), el pedido aparece sin importar las transferencias
-      whereClause = {
+      const filterConditions = {
         AND: [
           {
             OR: [
@@ -1178,6 +1178,18 @@ app.get('/api/orders', systemRateLimit, async (req, res) => {
           }
         ]
       };
+      
+      // Si hay storeId, combinarlo con las condiciones de filtro
+      if (storeId) {
+        whereClause = {
+          AND: [
+            { storeId: storeId }, // Filtrar por tienda (IMPORTANTE)
+            ...filterConditions.AND
+          ]
+        };
+      } else {
+        whereClause = filterConditions;
+      }
     }
     
     const orders = await prisma.order.findMany({
@@ -1195,9 +1207,16 @@ app.get('/api/orders', systemRateLimit, async (req, res) => {
       try {
         // En el fallback también aplicar el filtro si no es 'all=true'
         const showAll = req.query.all === 'true';
-        let whereClause = {};
+        const storeId = req.query.storeId;
+        let whereClause: any = {};
+        
+        // Si hay storeId, SIEMPRE filtrar por store (IMPORTANTE: cada tienda es independiente)
+        if (storeId) {
+          whereClause.storeId = storeId;
+        }
+        
         if (!showAll) {
-          whereClause = {
+          const filterConditions = {
             AND: [
               {
                 OR: [
@@ -1229,6 +1248,18 @@ app.get('/api/orders', systemRateLimit, async (req, res) => {
               }
             ]
           };
+          
+          // Si hay storeId, combinarlo con las condiciones de filtro
+          if (storeId) {
+            whereClause = {
+              AND: [
+                { storeId: storeId }, // Filtrar por tienda (IMPORTANTE)
+                ...filterConditions.AND
+              ]
+            };
+          } else {
+            whereClause = filterConditions;
+          }
         }
         
         const orders = await prisma.order.findMany({
@@ -2985,7 +3016,21 @@ app.post('/api/delivery-persons/:id/deliver-order', async (req, res) => {
 // ========== CLIENTES ==========
 app.get('/api/customers', async (req, res) => {
   try {
+    const storeId = req.query.storeId;
+    
+    // IMPORTANTE: Filtrar clientes por storeId para que cada tienda vea solo sus clientes
+    const whereClause: any = {};
+    if (storeId) {
+      // Los clientes están asociados a pedidos, así que filtramos por pedidos de esta tienda
+      whereClause.orders = {
+        some: {
+          storeId: storeId
+        }
+      };
+    }
+    
     const customers = await prisma.customer.findMany({
+      where: whereClause,
       orderBy: { createdAt: 'desc' }
     });
     res.json(objectToSnakeCase(customers));

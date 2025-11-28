@@ -251,8 +251,17 @@ export default function AdminPage() {
         
         // Si no hay storeId en URL pero el admin tiene uno, usar ese
         const finalStoreId = storeId || data.admin.storeId;
-        setCurrentStoreId(finalStoreId);
         
+        // IMPORTANTE: Limpiar localStorage antes de establecer nuevos valores
+        // para evitar mezclar datos de diferentes tiendas
+        localStorage.removeItem('adminAuth');
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminStoreId');
+        localStorage.removeItem('adminRole');
+        localStorage.removeItem('adminRefreshToken');
+        
+        // Establecer nuevos valores
+        setCurrentStoreId(finalStoreId);
         localStorage.setItem('adminAuth', 'true');
         localStorage.setItem('adminToken', data.accessToken);
         localStorage.setItem('adminStoreId', finalStoreId);
@@ -411,11 +420,11 @@ export default function AdminPage() {
         <AdminTutorial onComplete={handleTutorialComplete} onSkip={handleTutorialSkip} />
       )}
 
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-slate-50 to-slate-100">
-        {/* Header Profesional Empresarial */}
-        <header className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-b border-slate-700 sticky top-0 z-40 shadow-xl">
-          <div className="max-w-7xl mx-auto px-3 sm:px-6">
-            <div className="flex items-center justify-between h-16 sm:h-18">
+      <div className="min-h-screen bg-white">
+        {/* Header Minimalista */}
+        <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
+          <div className="max-w-7xl mx-auto px-3 sm:px-4">
+            <div className="flex items-center justify-between h-12">
               {/* Botón Volver */}
               {advancedTab && (
                 <button
@@ -423,14 +432,14 @@ export default function AdminPage() {
                     setAdvancedTab(null);
                     setShowAdvancedMenu(false);
                   }}
-                  className="mr-3 w-9 h-9 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors"
+                  className="mr-2 w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 transition-colors"
                   title="Volver"
                 >
-                  <i className="ri-arrow-left-line text-slate-600 text-lg"></i>
+                  <i className="ri-arrow-left-line text-gray-600 text-sm"></i>
                 </button>
               )}
               {/* Logo y Título */}
-              <div className="flex items-center space-x-3 flex-1 min-w-0">
+              <div className="flex items-center space-x-2 flex-1 min-w-0">
                 <button
                   onClick={() => {
                     setShowAdvancedMenu(!showAdvancedMenu);
@@ -438,74 +447,74 @@ export default function AdminPage() {
                       setAdvancedTab(null);
                     }
                   }}
-                  className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-all flex-shrink-0"
+                  className="p-1.5 text-gray-600 hover:bg-gray-100 rounded transition-all flex-shrink-0"
                   title="Menú"
                 >
-                  <i className="ri-menu-line text-xl"></i>
+                  <i className="ri-menu-line text-base"></i>
                 </button>
                 
-                <div className="w-10 h-10 bg-gradient-to-br from-slate-700 to-slate-900 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0">
-                  <i className="ri-store-3-line text-white text-lg"></i>
+                <div className="w-7 h-7 bg-black rounded flex items-center justify-center flex-shrink-0">
+                  <i className="ri-store-3-line text-white text-xs"></i>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h1 className="text-sm sm:text-base font-bold text-slate-800 truncate">
-                    Panel de Administración
+                  <h1 className="text-xs font-semibold text-black truncate">
+                    Admin Panel
                   </h1>
-                  <p className="text-xs text-slate-500 truncate">{storeName || 'Mi Negocio'}</p>
+                  <p className="text-[10px] text-gray-500 truncate">{storeName || 'Mi Negocio'}</p>
                 </div>
               </div>
 
               {/* Botón Salir */}
               <button
                 onClick={handleLogout}
-                className="px-3 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-all flex items-center space-x-1"
+                className="px-2 py-1 text-[10px] font-medium text-gray-600 hover:text-black hover:bg-gray-100 rounded transition-all flex items-center space-x-1"
               >
-                <i className="ri-logout-box-line"></i>
+                <i className="ri-logout-box-line text-xs"></i>
                 <span className="hidden sm:inline">Salir</span>
               </button>
             </div>
           </div>
         </header>
 
-        {/* Menú Avanzado Desplegable */}
+        {/* Menú Avanzado Desplegable - Minimalista */}
         {showAdvancedMenu && (
-          <div className="bg-white border-b border-slate-200 shadow-sm">
-            <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3">
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-2 max-h-96 overflow-y-auto">
+          <div className="bg-white border-b border-gray-200">
+            <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-1.5 max-h-80 overflow-y-auto">
                 {[
-                  { id: 'system', icon: 'ri-settings-3-line', label: 'Sistema', category: 'general' },
-                  { id: 'sales', icon: 'ri-bar-chart-line', label: 'Ventas', category: 'analytics' },
-                  { id: 'cash', icon: 'ri-money-dollar-circle-line', label: 'Caja', category: 'finances' },
-                  { id: 'reports', icon: 'ri-file-chart-line', label: 'Reportes', category: 'analytics' },
-                  { id: 'stock', icon: 'ri-box-3-line', label: 'Stock', category: 'inventory' },
-                  { id: 'payment', icon: 'ri-bank-card-line', label: 'Pagos', category: 'finances' },
-                  { id: 'bot-messages', icon: 'ri-message-3-line', label: 'Mensajes', category: 'communication' },
-                  { id: 'whatsapp', icon: 'ri-whatsapp-line', label: 'WhatsApp', category: 'communication' },
-                  { id: 'settings', icon: 'ri-store-3-line', label: 'Config', category: 'general' },
-                  { id: 'store-categories', icon: 'ri-folder-line', label: 'Categorías', category: 'general' },
-                  { id: 'promotions', icon: 'ri-fire-line', label: 'Promociones', category: 'marketing' },
-                  { id: 'coupons', icon: 'ri-coupon-3-line', label: 'Cupones', category: 'marketing' },
-                  { id: 'reviews', icon: 'ri-star-line', label: 'Reseñas', category: 'analytics' },
-                  { id: 'delivery-zones', icon: 'ri-map-pin-range-line', label: 'Zonas', category: 'delivery' },
-                  { id: 'analytics', icon: 'ri-line-chart-line', label: 'Analytics', category: 'analytics' },
-                  { id: 'loyalty', icon: 'ri-vip-crown-line', label: 'Fidelidad', category: 'marketing' },
-                  { id: 'inventory', icon: 'ri-store-2-line', label: 'Inventario', category: 'inventory' },
-                  { id: 'alerts', icon: 'ri-notification-line', label: 'Alertas', category: 'general' },
-                  { id: 'dashboard', icon: 'ri-dashboard-3-line', label: 'Dashboard', category: 'analytics' },
-                  { id: 'metrics', icon: 'ri-pulse-line', label: 'Métricas', category: 'analytics' },
-                  { id: 'advanced-reports', icon: 'ri-file-chart-2-line', label: 'Reportes', category: 'analytics' },
-                  { id: 'audit', icon: 'ri-file-list-3-line', label: 'Auditoría', category: 'general' },
-                  { id: 'charts', icon: 'ri-bar-chart-box-line', label: 'Gráficos', category: 'analytics' },
-                  { id: 'employees', icon: 'ri-team-line', label: 'Empleados', category: 'general' },
-                  { id: 'advanced-settings', icon: 'ri-settings-3-line', label: 'Configuración', category: 'general' },
+                  { id: 'system', icon: 'ri-settings-3-line', label: 'Sistema' },
+                  { id: 'sales', icon: 'ri-bar-chart-line', label: 'Ventas' },
+                  { id: 'cash', icon: 'ri-money-dollar-circle-line', label: 'Caja' },
+                  { id: 'reports', icon: 'ri-file-chart-line', label: 'Reportes' },
+                  { id: 'stock', icon: 'ri-box-3-line', label: 'Stock' },
+                  { id: 'payment', icon: 'ri-bank-card-line', label: 'Pagos' },
+                  { id: 'bot-messages', icon: 'ri-message-3-line', label: 'Mensajes' },
+                  { id: 'whatsapp', icon: 'ri-whatsapp-line', label: 'WhatsApp' },
+                  { id: 'settings', icon: 'ri-store-3-line', label: 'Config' },
+                  { id: 'store-categories', icon: 'ri-folder-line', label: 'Categorías' },
+                  { id: 'promotions', icon: 'ri-fire-line', label: 'Promociones' },
+                  { id: 'coupons', icon: 'ri-coupon-3-line', label: 'Cupones' },
+                  { id: 'reviews', icon: 'ri-star-line', label: 'Reseñas' },
+                  { id: 'delivery-zones', icon: 'ri-map-pin-range-line', label: 'Zonas' },
+                  { id: 'analytics', icon: 'ri-line-chart-line', label: 'Analytics' },
+                  { id: 'loyalty', icon: 'ri-vip-crown-line', label: 'Fidelidad' },
+                  { id: 'inventory', icon: 'ri-store-2-line', label: 'Inventario' },
+                  { id: 'alerts', icon: 'ri-notification-line', label: 'Alertas' },
+                  { id: 'dashboard', icon: 'ri-dashboard-3-line', label: 'Dashboard' },
+                  { id: 'metrics', icon: 'ri-pulse-line', label: 'Métricas' },
+                  { id: 'advanced-reports', icon: 'ri-file-chart-2-line', label: 'Reportes Av.' },
+                  { id: 'audit', icon: 'ri-file-list-3-line', label: 'Auditoría' },
+                  { id: 'charts', icon: 'ri-bar-chart-box-line', label: 'Gráficos' },
+                  { id: 'employees', icon: 'ri-team-line', label: 'Empleados' },
+                  { id: 'advanced-settings', icon: 'ri-settings-3-line', label: 'Config Av.' },
                 ].map((item) => (
                   <button
                     key={item.id}
                     onClick={() => handleAdvancedMenuClick(item.id)}
-                    className="flex items-center space-x-2 px-3 py-2.5 text-sm font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all"
+                    className="flex flex-col items-center justify-center px-2 py-2 text-[10px] font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 rounded transition-all border border-gray-200"
                   >
-                    <i className={`${item.icon} text-lg`}></i>
-                    <span>{item.label}</span>
+                    <i className={`${item.icon} text-sm mb-1`}></i>
+                    <span className="text-center leading-tight">{item.label}</span>
                   </button>
                 ))}
               </div>
@@ -521,15 +530,15 @@ export default function AdminPage() {
           />
         )}
 
-        {/* Menú Principal - Tarjetas Modernas */}
+        {/* Menú Principal - Minimalista */}
         {!advancedTab && (
-          <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+          <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {[
-                { id: 'pedidos', icon: 'ri-shopping-bag-3-line', label: 'Pedidos', desc: 'Gestionar pedidos', color: 'from-amber-500 to-orange-500', bg: 'bg-amber-50' },
-                { id: 'transferencias', icon: 'ri-bank-card-line', label: 'Pagos', desc: 'Aprobar transferencias', color: 'from-emerald-500 to-teal-500', bg: 'bg-emerald-50' },
-                { id: 'clientes', icon: 'ri-user-heart-line', label: 'Clientes', desc: 'Ver clientes', color: 'from-blue-500 to-indigo-500', bg: 'bg-blue-50' },
-                { id: 'menu', icon: 'ri-restaurant-2-line', label: 'Menú', desc: 'Editar productos', color: 'from-violet-500 to-purple-500', bg: 'bg-violet-50' },
+                { id: 'pedidos', icon: 'ri-shopping-bag-3-line', label: 'Pedidos' },
+                { id: 'transferencias', icon: 'ri-bank-card-line', label: 'Pagos' },
+                { id: 'clientes', icon: 'ri-user-heart-line', label: 'Clientes' },
+                { id: 'menu', icon: 'ri-restaurant-2-line', label: 'Menú' },
               ].map((item) => (
                 <button
                   key={item.id}
@@ -537,22 +546,15 @@ export default function AdminPage() {
                     setActiveTab(item.id as 'pedidos' | 'transferencias' | 'clientes' | 'menu');
                     setAdvancedTab(null);
                   }}
-                  className={`group p-4 rounded-2xl transition-all duration-200 ${
+                  className={`group p-2.5 rounded-lg transition-all border text-xs ${
                     activeTab === item.id
-                      ? `bg-gradient-to-br ${item.color} text-white shadow-lg`
-                      : `bg-white hover:shadow-md border border-slate-200 text-slate-700`
+                      ? 'bg-black text-white border-black'
+                      : 'bg-white hover:bg-gray-50 border-gray-200 text-gray-700'
                   }`}
                 >
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-3 ${
-                    activeTab === item.id ? 'bg-white/20' : item.bg
-                  }`}>
-                    <i className={`${item.icon} text-2xl ${activeTab === item.id ? 'text-white' : 'text-slate-600'}`}></i>
-                  </div>
-                  <div className={`text-sm font-semibold ${activeTab === item.id ? 'text-white' : 'text-slate-800'}`}>
-                    {item.label}
-                  </div>
-                  <div className={`text-xs mt-0.5 ${activeTab === item.id ? 'text-white/80' : 'text-slate-500'}`}>
-                    {item.desc}
+                  <div className="flex items-center gap-2">
+                    <i className={`${item.icon} text-sm`}></i>
+                    <span className="font-medium">{item.label}</span>
                   </div>
                 </button>
               ))}
@@ -561,8 +563,8 @@ export default function AdminPage() {
         )}
 
         {/* Contenido */}
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 pb-6">
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 pb-4">
+          <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
             {getActiveComponent()}
           </div>
         </div>

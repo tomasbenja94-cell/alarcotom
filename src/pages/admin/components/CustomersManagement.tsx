@@ -21,15 +21,18 @@ export default function CustomersManagement({ storeId }: CustomersManagementProp
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    loadCustomers();
-    const interval = setInterval(loadCustomers, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    if (storeId) {
+      loadCustomers();
+      const interval = setInterval(loadCustomers, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [storeId]);
 
   const loadCustomers = async () => {
     try {
       setLoading(true);
-      const data = await customersApi.getAll();
+      // IMPORTANTE: Filtrar clientes por storeId para que cada tienda vea solo sus clientes
+      const data = await customersApi.getAll(storeId ? { storeId } : undefined);
       setCustomers(data);
     } catch (error) {
       console.error('Error loading customers:', error);
@@ -104,121 +107,117 @@ export default function CustomersManagement({ storeId }: CustomersManagementProp
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header - Mejorado */}
-      <div className="bg-gradient-to-r from-white to-[#FFF9E6] border-2 border-[#FFC300] rounded-2xl shadow-lg p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-3xl font-bold mb-2 text-[#111111] flex items-center space-x-3">
-              <span className="text-4xl">👥</span>
-              <span>CLIENTES</span>
-            </h2>
-            <p className="text-sm text-[#666] font-medium">Administra clientes y restricciones</p>
+    <div className="space-y-3">
+      {/* Header Minimalista */}
+      <div className="bg-white border border-gray-200 rounded-lg p-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-black rounded flex items-center justify-center">
+              <i className="ri-user-line text-white text-sm"></i>
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-black">Clientes</h2>
+              <p className="text-[10px] text-gray-500">Administra clientes</p>
+            </div>
           </div>
-          <div className="bg-gradient-to-r from-blue-400 to-blue-500 text-white px-6 py-3 rounded-xl text-sm font-bold shadow-md">
-            {customers.length} clientes registrados
+          <div className="px-2 py-1 bg-gray-50 border border-gray-200 rounded text-[10px] font-medium text-gray-700">
+            {customers.length} registrados
           </div>
         </div>
       </div>
 
-      {/* Buscador - Mejorado */}
-      <div className="bg-white border-2 border-[#E5E5E5] rounded-2xl shadow-md p-5">
+      {/* Buscador Minimalista */}
+      <div className="bg-white border border-gray-200 rounded-lg p-2">
         <input
           type="text"
-          placeholder="🔍 Buscar por nombre o teléfono..."
+          placeholder="Buscar por nombre o teléfono..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-5 py-3 border-2 border-[#E5E5E5] rounded-xl focus:ring-2 focus:ring-[#FFC300] focus:border-[#FFC300] transition-all text-sm text-[#111111] font-medium"
+          className="w-full px-2 py-1.5 text-[10px] border border-gray-200 rounded focus:ring-1 focus:ring-black focus:border-black outline-none"
         />
       </div>
 
-      {/* Lista de clientes - Mejorado */}
-      <div className="space-y-4">
+      {/* Lista de clientes - Adaptada para móvil */}
+      <div className="space-y-2">
         {filteredCustomers.length === 0 ? (
-          <div className="bg-white border-2 border-[#E5E5E5] rounded-2xl shadow-lg p-12 text-center">
-            <div className="text-6xl mb-4">👤</div>
-            <p className="text-lg text-[#666] font-bold">No se encontraron clientes</p>
+          <div className="bg-white border border-gray-200 rounded-lg p-6 text-center">
+            <p className="text-xs text-gray-500">No se encontraron clientes</p>
           </div>
         ) : (
           filteredCustomers.map((customer) => (
-            <div key={customer.id} className="bg-white border-2 border-[#E5E5E5] rounded-2xl shadow-lg p-6 hover:border-[#FFC300] hover:shadow-xl transition-all transform hover:scale-[1.01]">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center space-x-4">
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border-2 shadow-lg ${
+            <div key={customer.id} className="bg-white border border-gray-200 rounded-lg p-3 hover:border-gray-300 transition">
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex items-start gap-2 flex-1 min-w-0">
+                  <div className={`w-8 h-8 rounded flex items-center justify-center border flex-shrink-0 ${
                     customer.is_blocked 
-                      ? 'bg-gradient-to-br from-gray-100 to-gray-200 border-gray-300' 
-                      : 'bg-gradient-to-br from-[#111111] to-[#2A2A2A] border-[#FFC300]'
+                      ? 'bg-gray-100 border-gray-300' 
+                      : 'bg-black border-black'
                   }`}>
-                    <span className={`text-3xl ${
-                      customer.is_blocked ? '😴' : '😊'
-                    }`}></span>
+                    <i className={`ri-user-${customer.is_blocked ? 'forbid' : ''}-line text-white text-xs`}></i>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-[#111111] text-lg mb-1">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-xs font-semibold text-black mb-0.5 truncate">
                       {customer.name || 'Sin nombre'}
                     </h3>
-                    <p className="text-sm text-[#666] font-medium mb-1">📱 {customer.phone}</p>
-                    <p className="text-xs text-[#999]">
-                      Registrado: {new Date(customer.created_at).toLocaleDateString('es-AR')}
+                    <p className="text-[10px] text-gray-600 mb-0.5 truncate">{customer.phone}</p>
+                    <p className="text-[9px] text-gray-400">
+                      {new Date(customer.created_at).toLocaleDateString('es-AR')}
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={() => handleToggleBlock(customer)}
-                  className={`px-5 py-3 rounded-xl text-sm font-bold transition-all border-2 shadow-lg hover:shadow-xl transform hover:scale-[1.05] ${
+                  className={`px-2 py-1 text-[10px] font-medium rounded border flex-shrink-0 ${
                     customer.is_blocked
-                      ? 'bg-gradient-to-r from-gray-400 to-gray-500 text-white border-gray-600 hover:from-gray-500 hover:to-gray-600'
-                      : 'bg-gradient-to-r from-green-500 to-green-600 text-white border-green-700 hover:from-green-600 hover:to-green-700'
+                      ? 'bg-gray-100 text-gray-700 border-gray-300'
+                      : 'bg-black text-white border-black'
                   }`}
                 >
-                  {customer.is_blocked ? '🚫 Bloqueado' : '✅ Activo'}
+                  {customer.is_blocked ? 'Bloqueado' : 'Activo'}
                 </button>
               </div>
 
-              {/* Métodos de pago deshabilitados - Mejorado */}
-              <div className="mt-4 p-5 bg-gradient-to-br from-[#F9F9F9] to-white border-2 border-[#E5E5E5] rounded-xl">
-                <h4 className="text-sm font-bold text-[#111111] mb-4 uppercase tracking-wider flex items-center space-x-2">
-                  <span>💳</span>
-                  <span>Métodos de Pago</span>
-                </h4>
-                <div className="grid grid-cols-3 gap-3">
+              {/* Métodos de pago - Compacto para móvil */}
+              <div className="mt-2 pt-2 border-t border-gray-100">
+                <h4 className="text-[10px] font-medium text-gray-700 mb-1.5">Métodos de Pago</h4>
+                <div className="grid grid-cols-3 gap-1.5">
                   <button
                     onClick={() => handleTogglePaymentMethod(customer, 'efectivo')}
-                    className={`px-4 py-3 rounded-xl text-xs font-bold transition-all border-2 shadow-md hover:shadow-lg transform hover:scale-[1.05] ${
+                    className={`px-1.5 py-1 text-[9px] font-medium rounded border ${
                       isPaymentMethodDisabled(customer, 'efectivo')
-                        ? 'bg-gradient-to-r from-red-400 to-red-500 text-white border-red-600'
-                        : 'bg-gradient-to-r from-green-400 to-green-500 text-white border-green-600'
+                        ? 'bg-gray-100 text-gray-600 border-gray-300'
+                        : 'bg-white text-black border-gray-200'
                     }`}
                   >
-                    {isPaymentMethodDisabled(customer, 'efectivo') ? '🚫 Efectivo' : '✅ Efectivo'}
+                    Efectivo
                   </button>
                   <button
                     onClick={() => handleTogglePaymentMethod(customer, 'transferencia')}
-                    className={`px-4 py-3 rounded-xl text-xs font-bold transition-all border-2 shadow-md hover:shadow-lg transform hover:scale-[1.05] ${
+                    className={`px-1.5 py-1 text-[9px] font-medium rounded border ${
                       isPaymentMethodDisabled(customer, 'transferencia')
-                        ? 'bg-gradient-to-r from-red-400 to-red-500 text-white border-red-600'
-                        : 'bg-gradient-to-r from-green-400 to-green-500 text-white border-green-600'
+                        ? 'bg-gray-100 text-gray-600 border-gray-300'
+                        : 'bg-white text-black border-gray-200'
                     }`}
                   >
-                    {isPaymentMethodDisabled(customer, 'transferencia') ? '🚫 Transferencia' : '✅ Transferencia'}
+                    Transfer.
                   </button>
                   <button
                     onClick={() => handleTogglePaymentMethod(customer, 'mercadopago')}
-                    className={`px-4 py-3 rounded-xl text-xs font-bold transition-all border-2 shadow-md hover:shadow-lg transform hover:scale-[1.05] ${
+                    className={`px-1.5 py-1 text-[9px] font-medium rounded border ${
                       isPaymentMethodDisabled(customer, 'mercadopago')
-                        ? 'bg-gradient-to-r from-red-400 to-red-500 text-white border-red-600'
-                        : 'bg-gradient-to-r from-green-400 to-green-500 text-white border-green-600'
+                        ? 'bg-gray-100 text-gray-600 border-gray-300'
+                        : 'bg-white text-black border-gray-200'
                     }`}
                   >
-                    {isPaymentMethodDisabled(customer, 'mercadopago') ? '🚫 Mercado Pago' : '✅ Mercado Pago'}
+                    MPago
                   </button>
                 </div>
               </div>
 
               {customer.notes && (
-                <div className="mt-4 p-4 bg-gradient-to-br from-yellow-50 to-yellow-100 border-2 border-yellow-300 rounded-xl">
-                  <p className="text-sm text-[#111111] font-medium">
-                    <strong className="font-bold">📝 Notas:</strong> {customer.notes}
+                <div className="mt-2 pt-2 border-t border-gray-100">
+                  <p className="text-[10px] text-gray-600">
+                    <span className="font-medium">Notas:</span> {customer.notes}
                   </p>
                 </div>
               )}

@@ -268,7 +268,10 @@ export const trackingApi = {
 
 // Clientes
 export const customersApi = {
-  getAll: () => request('/customers'),
+  getAll: (params?: { storeId?: string }) => {
+    const query = params?.storeId ? `?storeId=${params.storeId}` : '';
+    return request(`/customers${query}`);
+  },
   create: (data: any) => request('/customers', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: any) => request(`/customers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 };
