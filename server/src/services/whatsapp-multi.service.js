@@ -1039,7 +1039,6 @@ export default {
   getPendingQR,
   disconnectSession,
   reloadStoreConfig,
-  initializeAllStores
+  initializeAllStores,
+  getBotLogs
 };
-
-export { getBotLogs };
