@@ -21,13 +21,44 @@ export const storesController = {
   },
 
   /**
-   * Obtener un store por ID
+   * Obtener un store por ID o nombre
    */
   async getById(req, res) {
     try {
-      const store = await prisma.store.findUnique({
-        where: { id: req.params.id }
+      const identifier = req.params.id;
+      
+      // Intentar buscar por ID primero (UUID)
+      let store = await prisma.store.findUnique({
+        where: { id: identifier },
+        include: {
+          category: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
       });
+      
+      // Si no se encuentra por ID, intentar buscar por nombre
+      if (!store) {
+        store = await prisma.store.findFirst({
+          where: { 
+            name: {
+              equals: identifier,
+              mode: 'insensitive'
+            }
+          },
+          include: {
+            category: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
+          }
+        });
+      }
       
       if (!store) {
         return res.status(404).json({ error: 'Store no encontrado' });
