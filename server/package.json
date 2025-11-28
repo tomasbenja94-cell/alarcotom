@@ -15,7 +15,8 @@
     "reactivate-stores": "node reactivate-stores.js",
     "recover-data": "node recover-data.js",
     "check-supabase": "node check-supabase-backups.js",
-    "find-lost-data": "node find-lost-data.js"
+    "find-lost-data": "node find-lost-data.js",
+    "reconstruct-data": "node reconstruct-data.js"
   },
   "dependencies": {
     "@prisma/client": "^5.7.1",
