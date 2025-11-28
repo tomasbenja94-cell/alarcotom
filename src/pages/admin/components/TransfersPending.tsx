@@ -69,12 +69,14 @@ export default function TransfersPending({ storeId }: TransfersPendingProps = {}
   };
 
   useEffect(() => {
-    loadTransfers();
-    
-    // Recargar cada 30 segundos
-    const interval = setInterval(loadTransfers, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    if (storeId) {
+      loadTransfers();
+      
+      // Recargar cada 30 segundos
+      const interval = setInterval(loadTransfers, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [storeId]);
 
   const handleApprove = async (transfer: Transfer) => {
     try {
