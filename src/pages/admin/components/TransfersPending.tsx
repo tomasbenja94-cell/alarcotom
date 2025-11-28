@@ -31,7 +31,13 @@ export default function TransfersPending({ storeId }: TransfersPendingProps = {}
 
   // Debug: Log cuando el componente se monta o storeId cambia
   useEffect(() => {
-    console.log('[TransfersPending] Componente montado/actualizado. storeId:', storeId);
+    console.log('[TransfersPending] Componente montado/actualizado. storeId:', storeId, 'tipo:', typeof storeId);
+    if (!storeId) {
+      console.error('[TransfersPending] ❌ ERROR: storeId es null/undefined!');
+      // Intentar obtener de localStorage como fallback
+      const fallbackStoreId = localStorage.getItem('adminStoreId') || new URLSearchParams(window.location.search).get('store');
+      console.log('[TransfersPending] Fallback storeId:', fallbackStoreId);
+    }
   }, [storeId]);
 
   // Cargar transferencias desde la API local
