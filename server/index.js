@@ -4623,6 +4623,94 @@ app.get('/api/delivery/balance/:driver_id',
   }
 );
 
+// ========== HISTORIAL DE PEDIDOS DEL REPARTIDOR ==========
+app.get('/api/delivery/order-history/:driver_id',
+  authenticateDriver, // Verificar JWT
+  authorizeDriver, // Verificar que driver_id = driver logueado
+  deliveryPollingRateLimit, // Rate limiting específico para polling
+  async (req, res, next) => {
+    try {
+      const { driver_id } = req.params;
+      
+      // Verificar que el driver solo pueda ver su propio historial
+      if (req.driver.id !== driver_id) {
+        return res.status(403).json({ error: 'No tienes permiso para ver este historial' });
+      }
+      
+      // Obtener todos los pedidos del repartidor, ordenados por fecha de creación (más recientes primero)
+      const orders = await prisma.order.findMany({
+        where: {
+          deliveryPersonId: driver_id
+        },
+        select: {
+          id: true,
+          orderNumber: true,
+          customerName: true,
+          customerPhone: true,
+          customerAddress: true,
+          customerLat: true,
+          customerLng: true,
+          status: true,
+          paymentMethod: true,
+          paymentStatus: true,
+          subtotal: true,
+          deliveryFee: true,
+          total: true,
+          notes: true,
+          deliveryCode: true,
+          trackingToken: true,
+          deliveryPersonId: true,
+          createdAt: true,
+          updatedAt: true,
+          items: true,
+          store: {
+            select: {
+              name: true,
+              address: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 100 // Limitar a los últimos 100 pedidos
+      });
+      
+      res.json(objectToSnakeCase(orders));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ========== TRANSACCIONES DEL REPARTIDOR ==========
+app.get('/api/delivery/transactions/:driver_id',
+  authenticateDriver, // Verificar JWT
+  authorizeDriver, // Verificar que driver_id = driver logueado
+  deliveryPollingRateLimit, // Rate limiting específico para polling
+  async (req, res, next) => {
+    try {
+      const { driver_id } = req.params;
+      
+      // Verificar que el driver solo pueda ver sus propias transacciones
+      if (req.driver.id !== driver_id) {
+        return res.status(403).json({ error: 'No tienes permiso para ver estas transacciones' });
+      }
+      
+      // Obtener todas las transacciones del repartidor
+      const transactions = await prisma.driverBalanceTransaction.findMany({
+        where: {
+          driverId: driver_id
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 200 // Limitar a las últimas 200 transacciones
+      });
+      
+      res.json(objectToSnakeCase(transactions));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // ========== REGISTRAR PAGO ADMIN (SOLO ADMIN) ==========
 app.post('/api/delivery/register-payment',
   authenticateAdmin, // Requiere JWT de admin
