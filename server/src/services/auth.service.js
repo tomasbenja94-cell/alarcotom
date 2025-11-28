@@ -293,9 +293,27 @@ class DriverAuthService {
   async verifyDriverToken(token) {
     try {
       // 1. Verificar JWT
-      const decoded = jwt.verify(token, JWT_DRIVER_SECRET);
+      let decoded;
+      try {
+        decoded = jwt.verify(token, JWT_DRIVER_SECRET);
+      } catch (jwtError) {
+        console.error('❌ [VERIFY DRIVER TOKEN] Error verificando JWT:', jwtError.message);
+        if (jwtError.name === 'TokenExpiredError') {
+          throw new Error('Token expirado');
+        } else if (jwtError.name === 'JsonWebTokenError') {
+          throw new Error('Token inválido: ' + jwtError.message);
+        }
+        throw jwtError;
+      }
+
       if (decoded.type !== 'driver') {
+        console.error('❌ [VERIFY DRIVER TOKEN] Tipo de token incorrecto:', decoded.type);
         throw new Error('Token inválido: tipo incorrecto');
+      }
+
+      if (!decoded.driverId) {
+        console.error('❌ [VERIFY DRIVER TOKEN] Token sin driverId');
+        throw new Error('Token inválido: sin driverId');
       }
 
       // 2. Verificar que el driver existe y está activo
@@ -304,10 +322,12 @@ class DriverAuthService {
       });
 
       if (!driver) {
+        console.error('❌ [VERIFY DRIVER TOKEN] Driver no encontrado:', decoded.driverId);
         throw new Error('Repartidor no encontrado');
       }
 
       if (!driver.isActive) {
+        console.error('❌ [VERIFY DRIVER TOKEN] Driver desactivado:', decoded.driverId);
         throw new Error('Repartidor desactivado');
       }
 
@@ -324,16 +344,20 @@ class DriverAuthService {
 
         // Si existe sesión y está expirada, rechazar
         if (session && session.expiresAt < new Date()) {
+          console.warn('⚠️ [VERIFY DRIVER TOKEN] Sesión expirada para driver:', decoded.driverId);
           throw new Error('Sesión expirada');
         }
       } catch (sessionError) {
         // Si la tabla no existe o hay error, continuar con verificación básica del token
         // Esto permite que funcione aunque no exista la tabla de sesiones
         if (sessionError.code === 'P2021' || sessionError.message?.includes('does not exist')) {
-          console.warn('⚠️ Tabla driverSession no existe, usando verificación básica del token');
-        } else if (!sessionError.message?.includes('Sesión expirada')) {
-          // Si no es error de tabla inexistente ni de sesión expirada, relanzar
+          console.warn('⚠️ [VERIFY DRIVER TOKEN] Tabla driverSession no existe, usando verificación básica del token');
+        } else if (sessionError.message?.includes('Sesión expirada')) {
+          // Si la sesión está expirada, rechazar
           throw sessionError;
+        } else {
+          // Otros errores de sesión: ignorar y continuar con verificación básica
+          console.warn('⚠️ [VERIFY DRIVER TOKEN] Error verificando sesión (continuando):', sessionError.message);
         }
       }
 
@@ -341,8 +365,8 @@ class DriverAuthService {
       const { passwordHash, password, ...driverData } = driver;
       return driverData;
     } catch (error) {
-      console.error('❌ [VERIFY DRIVER TOKEN] Error:', error.message);
-      throw new Error('Token inválido o expirado');
+      console.error('❌ [VERIFY DRIVER TOKEN] Error final:', error.message);
+      throw error; // Relanzar el error original para que el middleware pueda manejarlo
     }
   }
 

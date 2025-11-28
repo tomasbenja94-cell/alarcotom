@@ -16,12 +16,16 @@ const prisma = new PrismaClient();
  */
 router.get('/available', authenticateDriver, async (req, res) => {
   try {
+    // Consulta más robusta: pedidos listos para delivery, no asignados
     const tasks = await prisma.order.findMany({
       where: {
-        status: 'ready', // Solo pedidos listos
+        status: { in: ['confirmed', 'preparing', 'ready'] }, // Pedidos en proceso o listos
         deliveryFee: { gt: 0 }, // Solo delivery (no retiro en local)
-        deliveryStatus: { in: [null, 'available'] }, // No asignados
-        deliveryPersonId: null
+        OR: [
+          { deliveryStatus: null },
+          { deliveryStatus: 'available' }
+        ],
+        deliveryPersonId: null // No asignados
       },
       include: {
         store: {
@@ -57,8 +61,16 @@ router.get('/available', authenticateDriver, async (req, res) => {
 
     res.json(formattedTasks);
   } catch (error) {
-    console.error('Error obteniendo tareas disponibles:', error);
-    res.status(500).json({ error: 'Error obteniendo tareas' });
+    console.error('❌ [DELIVERY TASKS] Error obteniendo tareas disponibles:', error);
+    console.error('❌ [DELIVERY TASKS] Error details:', {
+      message: error.message,
+      code: error.code,
+      meta: error.meta
+    });
+    res.status(500).json({ 
+      error: 'Error obteniendo tareas',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 

@@ -118,15 +118,19 @@ export const authenticateDriver = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
+      console.warn('⚠️ [AUTH DRIVER] Token no proporcionado en:', req.path);
       return res.status(401).json({ error: 'Token no proporcionado' });
     }
 
     const token = authHeader.split(' ')[1];
+    console.log('🔍 [AUTH DRIVER] Verificando token para:', req.path);
     const driver = await driverAuthService.verifyDriverToken(token);
+    console.log('✅ [AUTH DRIVER] Token válido, driver:', driver.id);
 
     req.driver = driver;
     next();
   } catch (error) {
+    console.error('❌ [AUTH DRIVER] Error verificando token:', error.message);
     return res.status(401).json({ error: 'Token inválido o expirado' });
   }
 };
