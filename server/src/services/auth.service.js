@@ -7,6 +7,8 @@ const prisma = new PrismaClient();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'CHANGE_THIS_IN_PRODUCTION';
 const JWT_DRIVER_SECRET = process.env.JWT_DRIVER_SECRET || 'CHANGE_THIS_IN_PRODUCTION_DRIVER';
+// Secret alternativo para compatibilidad con tokens antiguos
+const JWT_DRIVER_SECRET_ALT = process.env.JWT_DRIVER_SECRET_ALT || JWT_DRIVER_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'CHANGE_THIS_REFRESH_SECRET';
 
@@ -292,27 +294,48 @@ class DriverAuthService {
   // Verificar token de repartidor
   async verifyDriverToken(token) {
     try {
-      // 1. Verificar JWT
+      // 1. Verificar JWT - Intentar con ambos secrets para compatibilidad
       let decoded;
+      let usedSecret = JWT_DRIVER_SECRET;
+      
       try {
+        // Intentar primero con el secret principal
         decoded = jwt.verify(token, JWT_DRIVER_SECRET);
       } catch (jwtError) {
-        // Loggear el error específico para debugging
-        if (process.env.NODE_ENV !== 'production') {
-          console.error('❌ [VERIFY DRIVER TOKEN] Error verificando JWT:', jwtError.message);
-          console.error('❌ [VERIFY DRIVER TOKEN] Error name:', jwtError.name);
-        }
-        
-        if (jwtError.name === 'TokenExpiredError') {
-          throw new Error('Token expirado');
-        } else if (jwtError.name === 'JsonWebTokenError') {
-          // Mensaje más específico para errores de firma
-          if (jwtError.message.includes('invalid signature')) {
-            throw new Error('Token inválido: firma incorrecta. El token puede haber sido generado con un secret diferente.');
+        // Si falla, intentar con el secret alternativo
+        if (jwtError.name === 'JsonWebTokenError' && jwtError.message.includes('invalid signature')) {
+          try {
+            decoded = jwt.verify(token, JWT_DRIVER_SECRET_ALT);
+            usedSecret = JWT_DRIVER_SECRET_ALT;
+            if (process.env.NODE_ENV !== 'production') {
+              console.log('✅ [VERIFY DRIVER TOKEN] Token verificado con secret alternativo');
+            }
+          } catch (altError) {
+            // Si ambos fallan, lanzar el error original
+            if (process.env.NODE_ENV !== 'production') {
+              console.error('❌ [VERIFY DRIVER TOKEN] Error verificando JWT con ambos secrets:', jwtError.message);
+            }
+            
+            if (jwtError.name === 'TokenExpiredError' || altError.name === 'TokenExpiredError') {
+              throw new Error('Token expirado');
+            } else if (jwtError.name === 'JsonWebTokenError' || altError.name === 'JsonWebTokenError') {
+              throw new Error('Token inválido: ' + jwtError.message);
+            }
+            throw jwtError;
           }
-          throw new Error('Token inválido: ' + jwtError.message);
+        } else {
+          // Si no es un error de firma, lanzar el error original
+          if (process.env.NODE_ENV !== 'production') {
+            console.error('❌ [VERIFY DRIVER TOKEN] Error verificando JWT:', jwtError.message);
+          }
+          
+          if (jwtError.name === 'TokenExpiredError') {
+            throw new Error('Token expirado');
+          } else if (jwtError.name === 'JsonWebTokenError') {
+            throw new Error('Token inválido: ' + jwtError.message);
+          }
+          throw jwtError;
         }
-        throw jwtError;
       }
 
       if (decoded.type !== 'driver') {
