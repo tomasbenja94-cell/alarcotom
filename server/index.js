@@ -2749,10 +2749,13 @@ app.post('/api/delivery-persons',
       let accessToken = null;
       try {
         // Generar token usando el servicio de autenticación
+        console.log(`🔑 [CREATE DRIVER] Generando token para repartidor ${deliveryPerson.id}...`);
         accessToken = driverAuthService.generateAccessToken(deliveryPerson);
+        console.log(`✅ [CREATE DRIVER] Token generado exitosamente. Longitud: ${accessToken.length}`);
         
         // Guardar sesión en la base de datos
         const tokenHash = crypto.createHash('sha256').update(accessToken).digest('hex');
+        console.log(`💾 [CREATE DRIVER] Guardando sesión en BD...`);
         await prisma.driverSession.create({
           data: {
             driverId: deliveryPerson.id,
@@ -2762,8 +2765,10 @@ app.post('/api/delivery-persons',
           }
         });
         console.log(`✅ [CREATE DRIVER] Token generado y sesión guardada para repartidor ${deliveryPerson.id}`);
+        console.log(`📋 [CREATE DRIVER] Token (primeros 20 chars): ${accessToken.substring(0, 20)}...`);
       } catch (tokenError) {
-        console.error('⚠️ [CREATE DRIVER] Error generando token (no crítico):', tokenError.message);
+        console.error('❌ [CREATE DRIVER] Error generando token:', tokenError.message);
+        console.error('❌ [CREATE DRIVER] Stack:', tokenError.stack);
         // Continuar sin token si falla, pero registrar el error
       }
       

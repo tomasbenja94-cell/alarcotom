@@ -284,23 +284,56 @@ class DriverAuthService {
 
   // Generar access token para repartidor
   generateAccessToken(driver) {
-    return jwt.sign(
-      { driverId: driver.id, type: 'driver' },
+    if (!driver || !driver.id) {
+      throw new Error('Driver inválido para generar token');
+    }
+    
+    const payload = { driverId: driver.id, type: 'driver' };
+    const token = jwt.sign(
+      payload,
       JWT_DRIVER_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
+    
+    // Log en desarrollo para debugging
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔑 [GENERATE DRIVER TOKEN] Token generado para driver:', driver.id);
+      console.log('🔑 [GENERATE DRIVER TOKEN] Secret usado:', JWT_DRIVER_SECRET ? 'Configurado' : 'NO CONFIGURADO');
+      console.log('🔑 [GENERATE DRIVER TOKEN] ExpiresIn:', JWT_EXPIRES_IN);
+    }
+    
+    return token;
   }
 
   // Verificar token de repartidor
   async verifyDriverToken(token) {
     try {
+      if (!token) {
+        throw new Error('Token no proporcionado');
+      }
+      
+      // Log en desarrollo
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('🔍 [VERIFY DRIVER TOKEN] Verificando token...');
+        console.log('🔍 [VERIFY DRIVER TOKEN] Secret configurado:', JWT_DRIVER_SECRET ? 'Sí' : 'NO');
+        console.log('🔍 [VERIFY DRIVER TOKEN] Token length:', token.length);
+      }
+      
       // 1. Verificar JWT - Intentar con ambos secrets para compatibilidad
       let decoded;
       
       // Intentar primero con el secret principal
       try {
         decoded = jwt.verify(token, JWT_DRIVER_SECRET);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('✅ [VERIFY DRIVER TOKEN] Token verificado con secret principal');
+        }
       } catch (jwtError) {
+        // Log del error en desarrollo
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('❌ [VERIFY DRIVER TOKEN] Error verificando con secret principal:', jwtError.name, jwtError.message);
+        }
+        
         // Si falla, intentar con el secret alternativo
         if (jwtError.name === 'JsonWebTokenError') {
           try {
@@ -309,6 +342,9 @@ class DriverAuthService {
               console.log('✅ [VERIFY DRIVER TOKEN] Token verificado con secret alternativo');
             }
           } catch (altError) {
+            if (process.env.NODE_ENV !== 'production') {
+              console.error('❌ [VERIFY DRIVER TOKEN] Error verificando con secret alternativo:', altError.name, altError.message);
+            }
             // Si ambos fallan, intentar decodificar sin verificar (solo para obtener driverId)
             // Esto permite que tokens antiguos funcionen mientras se migra
             try {
