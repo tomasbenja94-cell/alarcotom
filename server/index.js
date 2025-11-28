@@ -2745,6 +2745,28 @@ app.post('/api/delivery-persons',
         data: deliveryPersonData
       });
       
+      // Generar token válido para el repartidor recién creado
+      let accessToken = null;
+      try {
+        // Generar token usando el servicio de autenticación
+        accessToken = driverAuthService.generateAccessToken(deliveryPerson);
+        
+        // Guardar sesión en la base de datos
+        const tokenHash = crypto.createHash('sha256').update(accessToken).digest('hex');
+        await prisma.driverSession.create({
+          data: {
+            driverId: deliveryPerson.id,
+            tokenHash,
+            deviceInfo: 'Admin Created',
+            expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000) // 8 horas
+          }
+        });
+        console.log(`✅ [CREATE DRIVER] Token generado y sesión guardada para repartidor ${deliveryPerson.id}`);
+      } catch (tokenError) {
+        console.error('⚠️ [CREATE DRIVER] Error generando token (no crítico):', tokenError.message);
+        // Continuar sin token si falla, pero registrar el error
+      }
+      
       // Log auditoría (solo si req.user existe)
       try {
         if (req.user && req.user.id) {
@@ -2764,7 +2786,14 @@ app.post('/api/delivery-persons',
       
       // No retornar password ni passwordHash
       const { password: _, passwordHash: __, ...driverData } = deliveryPerson;
-      res.json(objectToSnakeCase(driverData));
+      
+      // Incluir el token en la respuesta si se generó correctamente
+      const response = {
+        ...driverData,
+        ...(accessToken && { access_token: accessToken })
+      };
+      
+      res.json(objectToSnakeCase(response));
     } catch (error) {
       next(error); // Pasar al error handler
     }
@@ -2803,6 +2832,83 @@ app.put('/api/delivery-persons/:id',
 );
 
 // DELETE repartidor (solo super_admin)
+// ========== REGENERAR TOKEN PARA REPARTIDOR EXISTENTE ==========
+app.post('/api/delivery-persons/:id/regenerate-token',
+  authenticateAdmin,
+  authorize('admin', 'super_admin'),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      
+      // Verificar que el repartidor existe
+      const deliveryPerson = await prisma.deliveryPerson.findUnique({
+        where: { id }
+      });
+      
+      if (!deliveryPerson) {
+        return res.status(404).json({ error: 'Repartidor no encontrado' });
+      }
+      
+      if (!deliveryPerson.isActive) {
+        return res.status(400).json({ error: 'No se puede generar token para un repartidor desactivado' });
+      }
+      
+      // Generar nuevo token
+      const accessToken = driverAuthService.generateAccessToken(deliveryPerson);
+      
+      // Guardar sesión en la base de datos
+      const tokenHash = crypto.createHash('sha256').update(accessToken).digest('hex');
+      
+      // Eliminar sesiones antiguas del repartidor (opcional, para limpiar)
+      await prisma.driverSession.deleteMany({
+        where: { driverId: id }
+      });
+      
+      // Crear nueva sesión
+      await prisma.driverSession.create({
+        data: {
+          driverId: deliveryPerson.id,
+          tokenHash,
+          deviceInfo: 'Admin Regenerated',
+          expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000) // 8 horas
+        }
+      });
+      
+      console.log(`✅ [REGENERATE TOKEN] Token regenerado para repartidor ${deliveryPerson.id}`);
+      
+      // Log auditoría
+      try {
+        if (req.user && req.user.id) {
+          await auditService.logDataModification(
+            'delivery_person',
+            deliveryPerson.id,
+            'regenerate_token',
+            req.user.id,
+            req.user.role || 'admin',
+            { username: deliveryPerson.username }
+          );
+        }
+      } catch (auditError) {
+        console.warn('⚠️ Error en audit log (no crítico):', auditError.message);
+      }
+      
+      res.json({
+        success: true,
+        access_token: accessToken,
+        driver: objectToSnakeCase({
+          id: deliveryPerson.id,
+          name: deliveryPerson.name,
+          username: deliveryPerson.username,
+          phone: deliveryPerson.phone,
+          isActive: deliveryPerson.isActive
+        })
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 app.delete('/api/delivery-persons/:id',
   authenticateAdmin,
   authorize('super_admin'), // Solo super_admin puede eliminar
