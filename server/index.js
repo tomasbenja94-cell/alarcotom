@@ -1131,7 +1131,7 @@ app.get('/api/orders', systemRateLimit, async (req, res) => {
     const showAll = req.query.all === 'true';
     const storeId = req.query.storeId;
     
-    let whereClause: any = {};
+    let whereClause = {};
     
     // Si hay storeId, SIEMPRE filtrar por store (IMPORTANTE: cada tienda es independiente)
     if (storeId) {
@@ -1208,7 +1208,7 @@ app.get('/api/orders', systemRateLimit, async (req, res) => {
         // En el fallback también aplicar el filtro si no es 'all=true'
         const showAll = req.query.all === 'true';
         const storeId = req.query.storeId;
-        let whereClause: any = {};
+        let whereClause = {};
         
         // Si hay storeId, SIEMPRE filtrar por store (IMPORTANTE: cada tienda es independiente)
         if (storeId) {
@@ -2335,7 +2335,7 @@ app.post('/api/whatsapp-messages', async (req, res) => {
 // ========== TRANSFERENCIAS PENDIENTES ==========
 app.get('/api/pending-transfers', systemRateLimit, async (req, res) => {
   // Construir where clause con filtros opcionales
-  const whereClause: any = {};
+  const whereClause = {};
   
   // Filtrar por status si se proporciona
   if (req.query.status) {
@@ -3023,7 +3023,7 @@ app.get('/api/customers', async (req, res) => {
     const storeId = req.query.storeId;
     
     // IMPORTANTE: Filtrar clientes por storeId para que cada tienda vea solo sus clientes
-    const whereClause: any = {};
+    const whereClause = {};
     if (storeId) {
       // Los clientes están asociados a pedidos, así que filtramos por pedidos de esta tienda
       whereClause.orders = {
