@@ -6,10 +6,41 @@ import { corsMiddleware } from '../middlewares/security.middleware.js';
 const router = express.Router();
 const prisma = new PrismaClient();
 
+// Helper function para resolver storeId (puede ser UUID o nombre)
+async function resolveStoreId(identifier) {
+  // Intentar buscar por ID primero (UUID)
+  let store = await prisma.store.findUnique({
+    where: { id: identifier }
+  });
+  
+  // Si no se encuentra por ID, intentar buscar por nombre
+  if (!store) {
+    store = await prisma.store.findFirst({
+      where: { 
+        name: {
+          equals: identifier,
+          mode: 'insensitive'
+        }
+      }
+    });
+  }
+  
+  if (!store) {
+    return null;
+  }
+  
+  return store.id;
+}
+
 // GET /api/store-settings/:storeId/public - Obtener configuración pública (sin auth)
 router.get('/:storeId/public', corsMiddleware, async (req, res) => {
   try {
-    const { storeId } = req.params;
+    const identifier = req.params.storeId;
+    const storeId = await resolveStoreId(identifier);
+    
+    if (!storeId) {
+      return res.status(404).json({ error: 'Store no encontrado' });
+    }
 
     const settings = await prisma.storeSettings.findUnique({
       where: { storeId }
@@ -53,24 +84,30 @@ router.get('/:storeId/public', corsMiddleware, async (req, res) => {
 // GET /api/store-settings/:storeId - Obtener configuración de tienda
 router.get('/:storeId', corsMiddleware, authenticateAdmin, async (req, res) => {
   try {
-    const { storeId } = req.params;
+    const identifier = req.params.storeId;
+    const resolvedStoreId = await resolveStoreId(identifier);
+    
+    if (!resolvedStoreId) {
+      return res.status(404).json({ error: 'Store no encontrado' });
+    }
+    
     const adminStoreId = req.user.storeId;
     const adminRole = req.user.role;
 
     // Verificar acceso (solo superadmin o admin de esa tienda)
-    if (adminRole !== 'super_admin' && adminStoreId !== storeId) {
+    if (adminRole !== 'super_admin' && adminStoreId !== resolvedStoreId) {
       return res.status(403).json({ error: 'No tienes acceso a esta tienda' });
     }
 
     let settings = await prisma.storeSettings.findUnique({
-      where: { storeId }
+      where: { storeId: resolvedStoreId }
     });
 
     // Si no existe, crear configuración por defecto
     if (!settings) {
       settings = await prisma.storeSettings.create({
         data: {
-          storeId,
+          storeId: resolvedStoreId,
           deliveryEnabled: true,
           pickupEnabled: true,
           cashEnabled: true,
@@ -90,12 +127,18 @@ router.get('/:storeId', corsMiddleware, authenticateAdmin, async (req, res) => {
 // PUT /api/store-settings/:storeId - Actualizar configuración de tienda
 router.put('/:storeId', corsMiddleware, authenticateAdmin, async (req, res) => {
   try {
-    const { storeId } = req.params;
+    const identifier = req.params.storeId;
+    const resolvedStoreId = await resolveStoreId(identifier);
+    
+    if (!resolvedStoreId) {
+      return res.status(404).json({ error: 'Store no encontrado' });
+    }
+    
     const adminStoreId = req.user.storeId;
     const adminRole = req.user.role;
 
     // Verificar acceso
-    if (adminRole !== 'super_admin' && adminStoreId !== storeId) {
+    if (adminRole !== 'super_admin' && adminStoreId !== resolvedStoreId) {
       return res.status(403).json({ error: 'No tienes acceso a esta tienda' });
     }
 
@@ -158,9 +201,9 @@ router.put('/:storeId', corsMiddleware, authenticateAdmin, async (req, res) => {
 
     // Upsert: actualizar si existe, crear si no existe
     const settings = await prisma.storeSettings.upsert({
-      where: { storeId },
+      where: { storeId: resolvedStoreId },
       update: settingsData,
-      create: { storeId, ...settingsData }
+      create: { storeId: resolvedStoreId, ...settingsData }
     });
 
     res.json(settings);
@@ -173,28 +216,34 @@ router.put('/:storeId', corsMiddleware, authenticateAdmin, async (req, res) => {
 // GET /api/store-settings/:storeId/is-empty - Verificar si tienda está vacía
 router.get('/:storeId/is-empty', corsMiddleware, authenticateAdmin, async (req, res) => {
   try {
-    const { storeId } = req.params;
+    const identifier = req.params.storeId;
+    const resolvedStoreId = await resolveStoreId(identifier);
+    
+    if (!resolvedStoreId) {
+      return res.status(404).json({ error: 'Store no encontrado' });
+    }
+    
     const adminStoreId = req.user.storeId;
     const adminRole = req.user.role;
 
     // Verificar acceso
-    if (adminRole !== 'super_admin' && adminStoreId !== storeId) {
+    if (adminRole !== 'super_admin' && adminStoreId !== resolvedStoreId) {
       return res.status(403).json({ error: 'No tienes acceso a esta tienda' });
     }
 
     // Verificar si tiene categorías
     const categoriesCount = await prisma.category.count({
-      where: { storeId }
+      where: { storeId: resolvedStoreId }
     });
 
     // Verificar si tiene productos
     const productsCount = await prisma.product.count({
-      where: { storeId }
+      where: { storeId: resolvedStoreId }
     });
 
     // Verificar si tiene configuración
     const settings = await prisma.storeSettings.findUnique({
-      where: { storeId }
+      where: { storeId: resolvedStoreId }
     });
 
     const isEmpty = categoriesCount === 0 && productsCount === 0 && !settings?.address;
