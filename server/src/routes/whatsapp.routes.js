@@ -294,11 +294,17 @@ router.get('/:storeId/metrics', authenticateAdmin, async (req, res) => {
 router.get('/:storeId/logs', authenticateAdmin, async (req, res) => {
   try {
     const { storeId } = req.params;
+    const limit = parseInt(req.query.limit) || 50;
+    
     if (req.user.role !== 'super_admin' && req.user.storeId !== storeId) {
       return res.status(403).json({ error: 'No tienes acceso a esta tienda' });
     }
-    // Logs vacíos por ahora (el servicio simplificado no guarda logs)
-    res.json({ logs: [] });
+    
+    // Importar la función de logs
+    const { getBotLogs } = await import('../services/whatsapp-multi.service.js');
+    const logs = getBotLogs(storeId, limit);
+    
+    res.json({ logs });
   } catch (error) {
     console.error('Error obteniendo logs:', error);
     res.status(500).json({ error: 'No se pudieron obtener los logs' });

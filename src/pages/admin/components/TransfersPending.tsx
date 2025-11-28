@@ -34,7 +34,8 @@ export default function TransfersPending({ storeId }: TransfersPendingProps = {}
     try {
       setLoadingTransfers(true);
       
-      const data = await transfersApi.getPending();
+      // Pasar storeId si está disponible
+      const data = await transfersApi.getPending(storeId ? { storeId } : undefined);
       
       // Transformar datos a formato esperado
       const transformed = data.map((transfer: any) => ({

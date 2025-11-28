@@ -2303,10 +2303,18 @@ app.post('/api/whatsapp-messages', async (req, res) => {
 
 // ========== TRANSFERENCIAS PENDIENTES ==========
 app.get('/api/pending-transfers', systemRateLimit, async (req, res) => {
-  // Si hay query param status, filtrar por ese estado, sino devolver todas
-  const whereClause = req.query.status 
-    ? { status: req.query.status }
-    : {};
+  // Construir where clause con filtros opcionales
+  const whereClause = {};
+  
+  // Filtrar por status si se proporciona
+  if (req.query.status) {
+    whereClause.status = req.query.status;
+  }
+  
+  // Filtrar por storeId si se proporciona (importante para multi-tienda)
+  if (req.query.storeId) {
+    whereClause.storeId = req.query.storeId;
+  }
   
   console.log('📥 [PENDING TRANSFERS] Obteniendo transferencias pendientes...');
   console.log('📥 [PENDING TRANSFERS] Where clause:', whereClause);

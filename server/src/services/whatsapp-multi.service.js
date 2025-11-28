@@ -42,6 +42,43 @@ const userSessionsPerStore = new Map(); // storeId -> Map(userId -> session)
 const storeConfigs = new Map();        // storeId -> { store, settings }
 const connectionStates = new Map();    // storeId -> lastConnectionState (para evitar procesamiento duplicado)
 
+// Sistema de logs del bot
+const botLogs = new Map(); // storeId -> Array<{timestamp, level, message, meta}>
+const MAX_LOGS_PER_STORE = 500; // Mantener solo los últimos 500 logs por tienda
+
+function addBotLog(storeId, level, message, meta = {}) {
+  if (!botLogs.has(storeId)) {
+    botLogs.set(storeId, []);
+  }
+  const logs = botLogs.get(storeId);
+  logs.push({
+    timestamp: new Date().toISOString(),
+    level,
+    message,
+    meta
+  });
+  
+  // Mantener solo los últimos MAX_LOGS_PER_STORE logs
+  if (logs.length > MAX_LOGS_PER_STORE) {
+    logs.shift();
+  }
+  
+  // También loggear en consola
+  const logMessage = `[WhatsApp] [${storeId}] ${message}`;
+  if (level === 'error') {
+    console.error(logMessage, meta);
+  } else if (level === 'warn') {
+    console.warn(logMessage, meta);
+  } else {
+    console.log(logMessage, meta);
+  }
+}
+
+export function getBotLogs(storeId, limit = 50) {
+  const logs = botLogs.get(storeId) || [];
+  return logs.slice(-limit); // Devolver los últimos N logs
+}
+
 // Logger silencioso para Baileys
 const logger = pino({ level: 'silent' });
 
@@ -154,7 +191,7 @@ export async function startWhatsAppSession(storeId) {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
-        console.log(`[WhatsApp] [${storeId}] QR generado`);
+        addBotLog(storeId, 'info', 'QR generado');
         try {
           const qrDataUrl = await QRCode.toDataURL(qr, { 
             errorCorrectionLevel: 'M',
@@ -180,7 +217,7 @@ export async function startWhatsAppSession(storeId) {
 
       if (connection === 'close') {
         const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
-        console.log(`[WhatsApp] [${storeId}] Conexión cerrada, razón: ${reason}`);
+        addBotLog(storeId, 'warn', `Conexión cerrada, razón: ${reason}`, { reason });
         
         // Limpiar estado de conexión
         connectionStates.delete(storeId);
@@ -218,14 +255,14 @@ export async function startWhatsAppSession(storeId) {
           }, 5000);
         } else if (reason === 401) {
           // Error 401: sesión inválida, limpiar credenciales
-          console.log(`[WhatsApp] [${storeId}] Sesión inválida (401), limpiando credenciales...`);
+          addBotLog(storeId, 'error', 'Sesión inválida (401), limpiando credenciales...');
           const sessionPath = path.join(SESSIONS_DIR, storeId);
           if (fs.existsSync(sessionPath)) {
             try {
               fs.rmSync(sessionPath, { recursive: true, force: true });
-              console.log(`[WhatsApp] [${storeId}] Credenciales eliminadas`);
+              addBotLog(storeId, 'info', 'Credenciales eliminadas');
             } catch (e) {
-              console.error(`[WhatsApp] [${storeId}] Error eliminando credenciales:`, e.message);
+              addBotLog(storeId, 'error', `Error eliminando credenciales: ${e.message}`);
             }
           }
         }
@@ -235,11 +272,11 @@ export async function startWhatsAppSession(storeId) {
         // Evitar procesar múltiples veces el mismo evento
         const lastState = connectionStates.get(storeId);
         if (lastState === 'open') {
-          console.log(`[WhatsApp] [${storeId}] ⚠️ Evento 'open' ya procesado, ignorando duplicado`);
+          addBotLog(storeId, 'warn', "Evento 'open' ya procesado, ignorando duplicado");
           return;
         }
         
-        console.log(`[WhatsApp] [${storeId}] ✅ Conectado`);
+        addBotLog(storeId, 'info', '✅ Conectado exitosamente');
         connectionStates.set(storeId, 'open');
         pendingQRs.delete(storeId);
         
@@ -259,6 +296,8 @@ export async function startWhatsAppSession(storeId) {
             whatsappLastConnected: new Date()
           }
         });
+        
+        addBotLog(storeId, 'info', `Número conectado: ${phoneNumber}`);
       }
     });
 
@@ -296,6 +335,10 @@ export async function startWhatsAppSession(storeId) {
         }
 
         const from = message.key.remoteJid;
+        addBotLog(storeId, 'info', `Mensaje recibido de ${from}`, { 
+          messageId: message.key.id,
+          messageType: Object.keys(message.message || {})[0] 
+        });
         await handleMessage(storeId, socket, from, message, config);
       } catch (error) {
         console.error(`[WhatsApp] [${storeId}] Error procesando mensaje:`, error.message);
@@ -998,3 +1041,5 @@ export default {
   reloadStoreConfig,
   initializeAllStores
 };
+
+export { getBotLogs };
