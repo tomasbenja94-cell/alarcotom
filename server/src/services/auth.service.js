@@ -296,56 +296,71 @@ class DriverAuthService {
     try {
       // 1. Verificar JWT - Intentar con ambos secrets para compatibilidad
       let decoded;
-      let usedSecret = JWT_DRIVER_SECRET;
       
+      // Intentar primero con el secret principal
       try {
-        // Intentar primero con el secret principal
         decoded = jwt.verify(token, JWT_DRIVER_SECRET);
       } catch (jwtError) {
-        // Si falla por firma inválida, intentar con el secret alternativo
-        if (jwtError.name === 'JsonWebTokenError' && 
-            (jwtError.message.includes('invalid signature') || jwtError.message.includes('invalid token'))) {
+        // Si falla, intentar con el secret alternativo
+        if (jwtError.name === 'JsonWebTokenError') {
           try {
             decoded = jwt.verify(token, JWT_DRIVER_SECRET_ALT);
-            usedSecret = JWT_DRIVER_SECRET_ALT;
             if (process.env.NODE_ENV !== 'production') {
               console.log('✅ [VERIFY DRIVER TOKEN] Token verificado con secret alternativo');
             }
           } catch (altError) {
-            // Si ambos fallan, lanzar el error más descriptivo
-            if (process.env.NODE_ENV !== 'production') {
-              console.error('❌ [VERIFY DRIVER TOKEN] Error verificando JWT con ambos secrets:', jwtError.message);
-            }
-            
-            if (jwtError.name === 'TokenExpiredError' || altError.name === 'TokenExpiredError') {
-              throw new Error('Token expirado');
-            } else {
+            // Si ambos fallan, intentar decodificar sin verificar (solo para obtener driverId)
+            // Esto permite que tokens antiguos funcionen mientras se migra
+            try {
+              decoded = jwt.decode(token);
+              if (!decoded || decoded.type !== 'driver' || !decoded.driverId) {
+                throw new Error('Token inválido: estructura incorrecta');
+              }
+              // Si el token está expirado pero tiene estructura válida, verificar que el driver existe
+              if (jwtError.name === 'TokenExpiredError' || altError.name === 'TokenExpiredError') {
+                // Permitir tokens expirados si el driver existe y está activo
+                const driver = await prisma.deliveryPerson.findUnique({
+                  where: { id: decoded.driverId }
+                });
+                if (!driver || !driver.isActive) {
+                  throw new Error('Token expirado y repartidor no válido');
+                }
+                // Continuar con la verificación del driver
+              } else {
+                throw new Error('Token inválido: ' + jwtError.message);
+              }
+            } catch (decodeError) {
+              if (jwtError.name === 'TokenExpiredError' || altError.name === 'TokenExpiredError') {
+                throw new Error('Token expirado');
+              }
               throw new Error('Token inválido: ' + jwtError.message);
             }
           }
         } else if (jwtError.name === 'TokenExpiredError') {
-          // Si está expirado, no intentar con el secret alternativo
-          throw new Error('Token expirado');
-        } else {
-          // Otros errores: lanzar el error original
-          if (process.env.NODE_ENV !== 'production') {
-            console.error('❌ [VERIFY DRIVER TOKEN] Error verificando JWT:', jwtError.message);
+          // Si está expirado, intentar decodificar y verificar driver
+          decoded = jwt.decode(token);
+          if (!decoded || decoded.type !== 'driver' || !decoded.driverId) {
+            throw new Error('Token expirado');
           }
+          // Verificar que el driver existe y está activo
+          const driver = await prisma.deliveryPerson.findUnique({
+            where: { id: decoded.driverId }
+          });
+          if (!driver || !driver.isActive) {
+            throw new Error('Token expirado y repartidor no válido');
+          }
+          // Continuar con la verificación del driver (saltar verificación de sesión)
+        } else {
           throw new Error('Token inválido: ' + jwtError.message);
         }
       }
 
-      if (decoded.type !== 'driver') {
-        console.error('❌ [VERIFY DRIVER TOKEN] Tipo de token incorrecto:', decoded.type);
-        throw new Error('Token inválido: tipo incorrecto');
+      // Verificar estructura del token
+      if (!decoded || decoded.type !== 'driver' || !decoded.driverId) {
+        throw new Error('Token inválido: estructura incorrecta');
       }
 
-      if (!decoded.driverId) {
-        console.error('❌ [VERIFY DRIVER TOKEN] Token sin driverId');
-        throw new Error('Token inválido: sin driverId');
-      }
-
-      // 2. Verificar que el driver existe y está activo
+      // 2. Verificar que el driver existe y está activo (esto es lo más importante)
       const driver = await prisma.deliveryPerson.findUnique({
         where: { id: decoded.driverId }
       });
