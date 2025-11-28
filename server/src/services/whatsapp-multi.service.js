@@ -419,30 +419,66 @@ async function handleMessage(storeId, socket, from, msg, config) {
           deliveryFee: order.deliveryFee,
           items: order.items,
           customerName: order.customerName,
-          customerAddress: order.customerAddress
+          customerAddress: order.customerAddress,
+          deliveryType: order.deliveryFee > 0 ? 'delivery' : 'pickup'
         };
         
-        // Mostrar resumen del pedido
-        let itemsList = order.items.map(item => 
-          `• ${item.quantity}x ${item.productName} - $${item.subtotal.toLocaleString('es-AR')}`
-        ).join('\n');
+        // Mostrar resumen completo del pedido con detalles
+        let itemsList = order.items.map(item => {
+          let itemText = `• ${item.quantity}x ${item.productName}`;
+          // Parsear extras/opciones si existen (usar selectedOptions que es el campo en la BD)
+          const optionsData = item.selectedOptions || item.extras;
+          if (optionsData) {
+            try {
+              const options = typeof optionsData === 'string' ? JSON.parse(optionsData) : optionsData;
+              if (options && Object.keys(options).length > 0) {
+                const optionsList = Object.entries(options)
+                  .filter(([_, value]) => value && value !== 'false' && value !== false)
+                  .map(([key, value]) => {
+                    if (typeof value === 'object' && value.name) {
+                      return `  ↳ ${value.name}${value.price ? ` (+$${value.price})` : ''}`;
+                    }
+                    return `  ↳ ${key}: ${value}`;
+                  })
+                  .join('\n');
+                if (optionsList) {
+                  itemText += '\n' + optionsList;
+                }
+              }
+            } catch (e) {
+              // Ignorar errores de parsing
+            }
+          }
+          return itemText;
+        }).join('\n');
 
-        const orderSummary = `✅ *PEDIDO #${order.orderNumber}*
+        const deliveryInfo = order.deliveryFee > 0 
+          ? `📍 Dirección de envío: ${order.customerAddress || 'No especificada'}`
+          : `📍 Dirección de retiro: ${order.customerAddress || 'Local'} (depende el método de envío)`;
 
-📋 *Detalle:*
+        const orderSummary = `✅ *¡Pedido encontrado con éxito!*
+
+🆔 Código: #${order.orderNumber}
+
+👤 Cliente: ${order.customerName || 'No especificado'}
+
+${deliveryInfo}
+
+📋 *Detalle del pedido:*
+
 ${itemsList}
 
-${order.deliveryFee > 0 ? `🚚 Envío: $${order.deliveryFee.toLocaleString('es-AR')}` : '🏪 Retiro en local'}
-💰 *Total: $${order.total.toLocaleString('es-AR')}*
+💰 *Total a pagar: $${order.total.toLocaleString('es-AR')}*
 
-🔐 Código: ${orderCode}`;
+¿Está todo correcto? ¿Deseás avanzar con el pago?
+
+▶️ Escribí "SÍ" para continuar
+⛔ Escribí "NO" para cancelar`;
 
         await socket.sendMessage(from, { text: orderSummary });
         
-        // Mostrar opciones de pago
-        userSession.waitingForPayment = true;
-        userSession.step = 'checkout_payment';
-        await showPaymentOptions(storeId, socket, from, userSession, settings);
+        // Esperar confirmación del cliente
+        userSession.step = 'waiting_order_confirmation';
       } else {
         await socket.sendMessage(from, { 
           text: `✅ *PEDIDO RECIBIDO*\n\n📋 Pedido: #${orderNum}\n🔐 Código: ${orderCode}\n\n⏳ Estamos procesando tu pedido.\n\n¡Gracias por elegirnos! ❤️` 
@@ -452,6 +488,33 @@ ${order.deliveryFee > 0 ? `🚚 Envío: $${order.deliveryFee.toLocaleString('es-
       console.error(`[WhatsApp] [${storeId}] Error buscando pedido:`, err);
       await socket.sendMessage(from, { 
         text: `✅ *PEDIDO RECIBIDO*\n\n📋 Pedido: #${orderNum}\n🔐 Código: ${orderCode}\n\n⏳ Estamos procesando tu pedido.\n\n¡Gracias por elegirnos! ❤️` 
+      });
+    }
+    return;
+  }
+
+  // =========================================================================
+  // CONFIRMACIÓN DE PEDIDO (SÍ/NO)
+  // =========================================================================
+  if (userSession.step === 'waiting_order_confirmation') {
+    if (lowerText === 'sí' || lowerText === 'si' || lowerText === 'yes' || lowerText === 'ok' || lowerText === 'confirmar') {
+      // Cliente confirmó, mostrar opciones de pago
+      userSession.step = 'checkout_payment';
+      userSession.waitingForPayment = true;
+      await socket.sendMessage(from, { 
+        text: `✅ *¡Perfecto! Tu pedido está confirmado.*\n\n💳 *MÉTODO DE PAGO*\n\nElegí cómo querés pagar:` 
+      });
+      await showPaymentOptions(storeId, socket, from, userSession, settings);
+    } else if (lowerText === 'no' || lowerText === 'cancelar' || lowerText === 'cancel') {
+      // Cliente canceló
+      userSession.currentOrder = null;
+      userSession.step = 'welcome';
+      await socket.sendMessage(from, { 
+        text: `❌ Pedido cancelado.\n\nEscribí "hola" para ver opciones.` 
+      });
+    } else {
+      await socket.sendMessage(from, { 
+        text: `❓ No entendí tu respuesta.\n\n▶️ Escribí "SÍ" para continuar con el pago\n⛔ Escribí "NO" para cancelar` 
       });
     }
     return;
@@ -640,26 +703,42 @@ async function showMainMenu(storeId, socket, from, storeName, storeUrl) {
 // ---------------------------------------------------------------------------
 async function showPaymentOptions(storeId, socket, from, userSession, settings) {
   let options = [];
+  let optionNumber = 1;
   
-  if (settings?.mercadoPagoEnabled && settings?.mercadoPagoLink) {
-    options.push('1️⃣ Mercado Pago');
+  // Verificar si Mercado Pago está activo
+  // Los settings pueden venir como JSON string o como objeto
+  let parsedSettings = settings;
+  if (typeof settings === 'string') {
+    try {
+      parsedSettings = JSON.parse(settings);
+    } catch (e) {
+      parsedSettings = settings;
+    }
   }
-  if (settings?.transferEnabled !== false) {
-    options.push('2️⃣ Transferencia');
+  
+  // Verificar múltiples campos posibles para Mercado Pago
+  const mercadoPagoActive = (parsedSettings?.mercadoPagoEnabled === true || parsedSettings?.mercadoPagoEnabled === 'true') && 
+                             (parsedSettings?.mercadoPagoLink || parsedSettings?.mercadoPagoPublicKey || parsedSettings?.mercadoPagoAccessToken);
+  
+  if (mercadoPagoActive) {
+    options.push(`${optionNumber}️⃣ Mercado Pago`);
+    optionNumber++;
   }
-  if (settings?.cashEnabled !== false) {
-    options.push('3️⃣ Efectivo');
+  
+  if (parsedSettings?.transferEnabled !== false) {
+    options.push(`${optionNumber}️⃣ Transferencia (CVU)`);
+    optionNumber++;
   }
-  options.push('4️⃣ Cancelar');
+  
+  if (parsedSettings?.cashEnabled !== false) {
+    options.push(`${optionNumber}️⃣ Efectivo`);
+    optionNumber++;
+  }
+  
+  options.push(`${optionNumber}️⃣ Cancelar pago`);
   
   await socket.sendMessage(from, { 
-    text: `💳 *MÉTODO DE PAGO*
-
-Elegí cómo querés pagar:
-
-${options.join('\n')}
-
-Escribí el número de tu opción.` 
+    text: `${options.join('\n')}\n\nEscribí el número de la opción.` 
   });
 }
 
@@ -667,8 +746,30 @@ Escribí el número de tu opción.`
 // MANEJAR SELECCIÓN DE PAGO
 // ---------------------------------------------------------------------------
 async function handlePaymentSelection(storeId, socket, from, body, userSession, settings) {
-  // Cancelar (4)
-  if (body === '4' || body.includes('cancelar')) {
+  // Determinar qué opciones están disponibles
+  // Los settings pueden venir como JSON string o como objeto
+  let parsedSettings = settings;
+  if (typeof settings === 'string') {
+    try {
+      parsedSettings = JSON.parse(settings);
+    } catch (e) {
+      parsedSettings = settings;
+    }
+  }
+  
+  // Verificar múltiples campos posibles para Mercado Pago
+  const mercadoPagoActive = (parsedSettings?.mercadoPagoEnabled === true || parsedSettings?.mercadoPagoEnabled === 'true') && 
+                             (parsedSettings?.mercadoPagoLink || parsedSettings?.mercadoPagoPublicKey || parsedSettings?.mercadoPagoAccessToken);
+  const transferEnabled = parsedSettings?.transferEnabled !== false;
+  const cashEnabled = parsedSettings?.cashEnabled !== false;
+  
+  let cancelOptionNumber = 1;
+  if (mercadoPagoActive) cancelOptionNumber++;
+  if (transferEnabled) cancelOptionNumber++;
+  if (cashEnabled) cancelOptionNumber++;
+  
+  // Cancelar
+  if (body === cancelOptionNumber.toString() || body.includes('cancelar') || body.includes('cancel')) {
     userSession.waitingForPayment = false;
     userSession.currentOrder = null;
     userSession.step = 'welcome';
@@ -676,13 +777,13 @@ async function handlePaymentSelection(storeId, socket, from, body, userSession, 
     return;
   }
   
-  // Mercado Pago (1)
-  if (body === '1' || body.includes('mercado')) {
+  // Mercado Pago (1 si está activo)
+  if (mercadoPagoActive && (body === '1' || body.includes('mercado'))) {
     userSession.paymentMethod = 'mercadopago';
     userSession.waitingForPayment = false;
     userSession.waitingForTransferProof = true;
     
-    const mpLink = settings?.mercadoPagoLink || 'Contactanos para el link de pago';
+    const mpLink = parsedSettings?.mercadoPagoLink || 'Contactanos para el link de pago';
     
     await socket.sendMessage(from, { 
       text: `💳 *MERCADO PAGO*
@@ -697,15 +798,16 @@ ${mpLink}
     return;
   }
   
-  // Transferencia (2)
-  if (body === '2' || body.includes('transferencia') || body.includes('transfer')) {
+  // Transferencia (2 si MP está activo, 1 si no)
+  const transferOptionNumber = mercadoPagoActive ? '2' : '1';
+  if (body === transferOptionNumber || body.includes('transferencia') || body.includes('transfer')) {
     userSession.paymentMethod = 'transferencia';
     userSession.waitingForPayment = false;
     userSession.waitingForTransferProof = true;
     
-    const alias = settings?.transferAlias || 'No configurado';
-    const cvu = settings?.transferCvu || '';
-    const titular = settings?.transferTitular || '';
+    const alias = parsedSettings?.transferAlias || 'No configurado';
+    const cvu = parsedSettings?.transferCvu || '';
+    const titular = parsedSettings?.transferTitular || '';
     
     let transferInfo = `🏦 *TRANSFERENCIA BANCARIA*\n\n`;
     transferInfo += `📝 Alias: *${alias}*\n`;
@@ -720,8 +822,12 @@ ${mpLink}
     return;
   }
   
-  // Efectivo (3)
-  if (body === '3' || body.includes('efectivo') || body.includes('cash')) {
+  // Efectivo (3 si MP y Transfer están activos, 2 si solo uno, 1 si ninguno)
+  let efectivoOptionNumber = '3';
+  if (!mercadoPagoActive && !transferEnabled) efectivoOptionNumber = '1';
+  else if (!mercadoPagoActive || !transferEnabled) efectivoOptionNumber = '2';
+  
+  if (body === efectivoOptionNumber || body.includes('efectivo') || body.includes('cash')) {
     userSession.paymentMethod = 'efectivo';
     userSession.waitingForPayment = false;
     userSession.step = 'welcome';
@@ -764,9 +870,25 @@ ${userSession.currentOrder?.total ? `💰 Total a pagar: $${userSession.currentO
     return;
   }
   
-  // Opción no válida
+  // Opción no válida - mostrar opciones disponibles
+  let errorOptions = [];
+  let errorOptionNum = 1;
+  if (mercadoPagoActive) {
+    errorOptions.push(`${errorOptionNum}️⃣ Mercado Pago`);
+    errorOptionNum++;
+  }
+  if (transferEnabled) {
+    errorOptions.push(`${errorOptionNum}️⃣ Transferencia (CVU)`);
+    errorOptionNum++;
+  }
+  if (cashEnabled) {
+    errorOptions.push(`${errorOptionNum}️⃣ Efectivo`);
+    errorOptionNum++;
+  }
+  errorOptions.push(`${errorOptionNum}️⃣ Cancelar pago`);
+  
   await socket.sendMessage(from, { 
-    text: `❓ No entendí tu respuesta.\n\nEscribí el número de la opción:\n1️⃣ Mercado Pago\n2️⃣ Transferencia\n3️⃣ Efectivo\n4️⃣ Cancelar` 
+    text: `❓ No entendí tu respuesta.\n\nEscribí el número de la opción:\n${errorOptions.join('\n')}` 
   });
 }
 
