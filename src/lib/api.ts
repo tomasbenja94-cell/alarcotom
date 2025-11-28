@@ -233,7 +233,9 @@ export const whatsappMessagesApi = {
 export const transfersApi = {
   getPending: (params?: { storeId?: string }) => {
     const query = params?.storeId ? `?storeId=${params.storeId}` : '';
-    return request(`/pending-transfers${query}`);
+    const url = `/pending-transfers${query}`;
+    console.log('[transfersApi.getPending] URL:', url, 'params:', params);
+    return request(url);
   },
   update: (id: string, data: any) => request(`/pending-transfers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 };

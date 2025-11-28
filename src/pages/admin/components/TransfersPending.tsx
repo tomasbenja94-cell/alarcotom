@@ -29,6 +29,11 @@ export default function TransfersPending({ storeId }: TransfersPendingProps = {}
   const [isLoading, setIsLoading] = useState(false);
   const [loadingTransfers, setLoadingTransfers] = useState(true);
 
+  // Debug: Log cuando el componente se monta o storeId cambia
+  useEffect(() => {
+    console.log('[TransfersPending] Componente montado/actualizado. storeId:', storeId);
+  }, [storeId]);
+
   // Cargar transferencias desde la API local
   const loadTransfers = async () => {
     try {
@@ -42,7 +47,9 @@ export default function TransfersPending({ storeId }: TransfersPendingProps = {}
       }
       
       console.log('[TransfersPending] Cargando transferencias para storeId:', storeId);
+      console.log('[TransfersPending] Llamando a transfersApi.getPending con:', { storeId });
       const data = await transfersApi.getPending({ storeId });
+      console.log('[TransfersPending] Transferencias recibidas:', data?.length || 0);
       
       // Transformar datos a formato esperado
       const transformed = data.map((transfer: any) => ({
