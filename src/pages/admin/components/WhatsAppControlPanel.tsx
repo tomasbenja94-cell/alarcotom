@@ -67,7 +67,15 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
         if (data.qr && data.qr !== null && data.qr !== 'null' && data.qr.trim() !== '') {
           // Aceptar cualquier formato de QR (data URL, URL, o string base64)
           // Asegurar que sea un data URL válido
-          let qrValue = data.qr;
+          let qrValue = String(data.qr).trim();
+          
+          // Validar que el QR tenga contenido
+          if (qrValue.length < 100) {
+            console.error('[WhatsApp QR] QR demasiado corto, posiblemente inválido:', qrValue.length);
+            setQrCode(null);
+            return null;
+          }
+          
           if (!qrValue.startsWith('data:image')) {
             // Si no es un data URL, intentar convertirlo
             if (qrValue.startsWith('http')) {
@@ -78,7 +86,15 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
               qrValue = `data:image/png;base64,${qrValue}`;
             }
           }
-          console.log('[WhatsApp QR] QR procesado, estableciendo en estado');
+          
+          // Validar que el data URL sea válido
+          if (!qrValue.match(/^data:image\/(png|jpeg|jpg|gif);base64,/)) {
+            console.error('[WhatsApp QR] Formato de data URL inválido:', qrValue.substring(0, 50));
+            setQrCode(null);
+            return null;
+          }
+          
+          console.log('[WhatsApp QR] QR procesado correctamente, longitud:', qrValue.length, 'Formato:', qrValue.substring(0, 30));
           setQrCode(qrValue);
           return qrValue;
         } else {
@@ -475,19 +491,38 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
               {qrCode ? (
                 <>
                   <div className="flex justify-center">
-                    <img 
-                      src={qrCode} 
-                      alt="QR Code" 
-                      className="w-48 h-48 rounded border border-gray-300 bg-white p-2"
-                      onLoad={() => {
-                        console.log('[WhatsApp QR] Imagen QR cargada correctamente');
-                      }}
-                      onError={(e) => {
-                        console.error('[WhatsApp QR] Error cargando imagen QR:', e);
-                        console.error('[WhatsApp QR] Valor del QR:', qrCode?.substring(0, 100));
-                        // No limpiar el QR inmediatamente, puede ser un problema temporal
-                      }}
-                    />
+                    <div className="relative">
+                      <img 
+                        src={qrCode} 
+                        alt="QR Code" 
+                        className="w-48 h-48 rounded border border-gray-300 bg-white p-2 object-contain"
+                        onLoad={(e) => {
+                          const img = e.target as HTMLImageElement;
+                          console.log('[WhatsApp QR] ✅ Imagen QR cargada correctamente');
+                          console.log('[WhatsApp QR] Dimensiones de la imagen:', {
+                            naturalWidth: img.naturalWidth,
+                            naturalHeight: img.naturalHeight
+                          });
+                        }}
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          console.error('[WhatsApp QR] ❌ Error cargando imagen QR');
+                          console.error('[WhatsApp QR] Valor del QR (primeros 100 chars):', qrCode?.substring(0, 100));
+                          console.error('[WhatsApp QR] Valor del QR (últimos 50 chars):', qrCode?.substring(qrCode.length - 50));
+                          console.error('[WhatsApp QR] Longitud total:', qrCode?.length);
+                          console.error('[WhatsApp QR] Formato detectado:', qrCode?.match(/^data:image\/([^;]+)/)?.[1]);
+                          // No limpiar el QR inmediatamente, puede ser un problema temporal
+                          setActionError('Error al cargar la imagen del QR. Intenta recargar.');
+                        }}
+                      />
+                      {qrCode && (
+                        <div className="mt-2 text-center">
+                          <p className="text-[9px] text-gray-500">
+                            QR válido ({Math.round(qrCode.length / 1024)}KB)
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <p className="mt-2 text-[10px] text-gray-600 text-center">
                     WhatsApp → Dispositivos vinculados → Vincular dispositivo
