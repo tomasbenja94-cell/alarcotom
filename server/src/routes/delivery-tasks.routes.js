@@ -69,7 +69,7 @@ router.get('/available', authenticateDriver, async (req, res) => {
 router.post('/:orderId/accept', authenticateDriver, async (req, res) => {
   try {
     const { orderId } = req.params;
-    const driverId = req.user.id;
+    const driverId = req.driver.id;
 
     // Verificar que la tarea está disponible
     const order = await prisma.order.findUnique({
@@ -120,7 +120,7 @@ router.post('/:orderId/accept', authenticateDriver, async (req, res) => {
  */
 router.get('/my-tasks', authenticateDriver, async (req, res) => {
   try {
-    const driverId = req.user.id;
+    const driverId = req.driver.id;
 
     const tasks = await prisma.order.findMany({
       where: {
@@ -186,7 +186,7 @@ router.get('/my-tasks', authenticateDriver, async (req, res) => {
 router.post('/:orderId/pickup', authenticateDriver, async (req, res) => {
   try {
     const { orderId } = req.params;
-    const driverId = req.user.id;
+    const driverId = req.driver.id;
 
     const order = await prisma.order.findUnique({
       where: { id: orderId }
@@ -240,7 +240,7 @@ router.post('/:orderId/pickup', authenticateDriver, async (req, res) => {
 router.post('/start-multi-route', authenticateDriver, async (req, res) => {
   try {
     const { orderIds } = req.body;
-    const driverId = req.user.id;
+    const driverId = req.driver.id;
 
     if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
       return res.status(400).json({ error: 'Debe seleccionar al menos un pedido' });
@@ -310,7 +310,7 @@ router.post('/start-multi-route', authenticateDriver, async (req, res) => {
  */
 router.get('/active-route', authenticateDriver, async (req, res) => {
   try {
-    const driverId = req.user.id;
+    const driverId = req.driver.id;
 
     const driver = await prisma.deliveryPerson.findUnique({
       where: { id: driverId },
@@ -378,7 +378,7 @@ router.post('/:orderId/deliver', authenticateDriver, async (req, res) => {
   try {
     const { orderId } = req.params;
     const { code } = req.body; // Código de entrega para verificar
-    const driverId = req.user.id;
+    const driverId = req.driver.id;
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
@@ -476,7 +476,7 @@ router.post('/:orderId/cancel', authenticateDriver, async (req, res) => {
   try {
     const { orderId } = req.params;
     const { reason } = req.body;
-    const driverId = req.user.id;
+    const driverId = req.driver.id;
 
     const order = await prisma.order.findUnique({
       where: { id: orderId }

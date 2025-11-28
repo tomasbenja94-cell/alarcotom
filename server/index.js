@@ -4321,9 +4321,9 @@ app.get('/api/delivery/balance/:driver_id',
     try {
       const { driver_id } = req.params;
       
-      // Si es admin, permitir ver cualquier saldo, si no, solo el propio
-      const isAdmin = req.user?.role === 'admin' || req.user?.role === 'super_admin';
-      if (!isAdmin && req.driver.id !== driver_id) {
+      // Verificar que el driver solo pueda ver su propio saldo
+      // El middleware authorizeDriver ya verifica esto, pero por seguridad lo verificamos de nuevo
+      if (req.driver.id !== driver_id) {
         return res.status(403).json({ error: 'No tienes permiso para ver este saldo' });
       }
       
