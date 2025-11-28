@@ -302,8 +302,9 @@ class DriverAuthService {
         // Intentar primero con el secret principal
         decoded = jwt.verify(token, JWT_DRIVER_SECRET);
       } catch (jwtError) {
-        // Si falla, intentar con el secret alternativo
-        if (jwtError.name === 'JsonWebTokenError' && jwtError.message.includes('invalid signature')) {
+        // Si falla por firma inválida, intentar con el secret alternativo
+        if (jwtError.name === 'JsonWebTokenError' && 
+            (jwtError.message.includes('invalid signature') || jwtError.message.includes('invalid token'))) {
           try {
             decoded = jwt.verify(token, JWT_DRIVER_SECRET_ALT);
             usedSecret = JWT_DRIVER_SECRET_ALT;
@@ -311,30 +312,26 @@ class DriverAuthService {
               console.log('✅ [VERIFY DRIVER TOKEN] Token verificado con secret alternativo');
             }
           } catch (altError) {
-            // Si ambos fallan, lanzar el error original
+            // Si ambos fallan, lanzar el error más descriptivo
             if (process.env.NODE_ENV !== 'production') {
               console.error('❌ [VERIFY DRIVER TOKEN] Error verificando JWT con ambos secrets:', jwtError.message);
             }
             
             if (jwtError.name === 'TokenExpiredError' || altError.name === 'TokenExpiredError') {
               throw new Error('Token expirado');
-            } else if (jwtError.name === 'JsonWebTokenError' || altError.name === 'JsonWebTokenError') {
+            } else {
               throw new Error('Token inválido: ' + jwtError.message);
             }
-            throw jwtError;
           }
+        } else if (jwtError.name === 'TokenExpiredError') {
+          // Si está expirado, no intentar con el secret alternativo
+          throw new Error('Token expirado');
         } else {
-          // Si no es un error de firma, lanzar el error original
+          // Otros errores: lanzar el error original
           if (process.env.NODE_ENV !== 'production') {
             console.error('❌ [VERIFY DRIVER TOKEN] Error verificando JWT:', jwtError.message);
           }
-          
-          if (jwtError.name === 'TokenExpiredError') {
-            throw new Error('Token expirado');
-          } else if (jwtError.name === 'JsonWebTokenError') {
-            throw new Error('Token inválido: ' + jwtError.message);
-          }
-          throw jwtError;
+          throw new Error('Token inválido: ' + jwtError.message);
         }
       }
 
