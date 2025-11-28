@@ -1023,13 +1023,20 @@ export async function sendMessageToClient(storeId, phoneNumber, message) {
 // ---------------------------------------------------------------------------
 export async function notifyOrderStatus(storeId, orderId, status, extraInfo = {}) {
   try {
+    console.log(`[WhatsApp] [${storeId}] 📨 Notificando estado ${status} para pedido ${orderId}`);
+    
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: { store: true }
     });
     
-    if (!order || !order.customerPhone) {
-      console.log(`[WhatsApp] [${storeId}] Pedido sin teléfono de cliente`);
+    if (!order) {
+      console.error(`[WhatsApp] [${storeId}] ❌ Pedido ${orderId} no encontrado`);
+      return { success: false, error: 'Pedido no encontrado' };
+    }
+    
+    if (!order.customerPhone) {
+      console.log(`[WhatsApp] [${storeId}] ⚠️ Pedido ${orderId} sin teléfono de cliente`);
       return { success: false, error: 'Sin teléfono de cliente' };
     }
     
@@ -1064,10 +1071,20 @@ export async function notifyOrderStatus(storeId, orderId, status, extraInfo = {}
         message = `📋 *ACTUALIZACIÓN DE PEDIDO*\n\nPedido #${order.orderNumber}\n\nEstado: ${status}`;
     }
     
-    return await sendMessageToClient(storeId, order.customerPhone, message);
+    console.log(`[WhatsApp] [${storeId}] 📤 Enviando mensaje a ${order.customerPhone}`);
+    const result = await sendMessageToClient(storeId, order.customerPhone, message);
+    
+    if (result.success) {
+      console.log(`[WhatsApp] [${storeId}] ✅ Notificación enviada exitosamente`);
+    } else {
+      console.error(`[WhatsApp] [${storeId}] ❌ Error enviando notificación: ${result.error}`);
+    }
+    
+    return result;
   } catch (error) {
-    console.error(`[WhatsApp] [${storeId}] Error notificando:`, error);
-    return { success: false, error: error.message };
+    console.error(`[WhatsApp] [${storeId}] ❌ Error notificando estado:`, error);
+    console.error(`[WhatsApp] [${storeId}] Stack trace:`, error.stack);
+    return { success: false, error: error.message || 'Error desconocido' };
   }
 }
 
