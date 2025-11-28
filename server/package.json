@@ -16,7 +16,8 @@
     "recover-data": "node recover-data.js",
     "check-supabase": "node check-supabase-backups.js",
     "find-lost-data": "node find-lost-data.js",
-    "reconstruct-data": "node reconstruct-data.js"
+    "reconstruct-data": "node reconstruct-data.js",
+    "check-secrets": "node check-secrets.js"
   },
   "dependencies": {
     "@prisma/client": "^5.7.1",
