@@ -2937,17 +2937,64 @@ app.delete('/api/delivery-persons/:id',
         return res.status(400).json({ error: 'No se puede eliminar un repartidor con pedidos activos' });
       }
       
-      // Eliminar sesiones del repartidor
-      await prisma.driverSession.deleteMany({
-        where: { driverId: id }
-      });
+      // Eliminar todas las relaciones del repartidor en orden correcto
+      // (Prisma manejará las relaciones con onDelete: Cascade, pero es mejor ser explícito)
       
-      // Eliminar transacciones de balance
-      await prisma.balanceTransaction.deleteMany({
-        where: { deliveryPersonId: id }
-      });
+      // 1. Eliminar sesiones
+      try {
+        await prisma.driverSession.deleteMany({
+          where: { driverId: id }
+        });
+      } catch (error) {
+        console.warn('⚠️ Error eliminando sesiones (continuando):', error.message);
+      }
       
-      // Eliminar el repartidor
+      // 2. Eliminar transacciones de balance del repartidor
+      try {
+        await prisma.driverBalanceTransaction.deleteMany({
+          where: { driverId: id }
+        });
+      } catch (error) {
+        console.warn('⚠️ Error eliminando transacciones de balance (continuando):', error.message);
+      }
+      
+      // 3. Eliminar solicitudes de retiro
+      try {
+        await prisma.withdrawalRequest.deleteMany({
+          where: { deliveryPersonId: id }
+        });
+      } catch (error) {
+        console.warn('⚠️ Error eliminando solicitudes de retiro (continuando):', error.message);
+      }
+      
+      // 4. Eliminar pagos pendientes
+      try {
+        await prisma.driverPayment.deleteMany({
+          where: { deliveryPersonId: id }
+        });
+      } catch (error) {
+        console.warn('⚠️ Error eliminando pagos pendientes (continuando):', error.message);
+      }
+      
+      // 5. Eliminar rutas múltiples
+      try {
+        await prisma.multiDeliveryRoute.deleteMany({
+          where: { deliveryPersonId: id }
+        });
+      } catch (error) {
+        console.warn('⚠️ Error eliminando rutas múltiples (continuando):', error.message);
+      }
+      
+      // 6. Eliminar intentos de código de entrega
+      try {
+        await prisma.deliveryCodeAttempt.deleteMany({
+          where: { driverId: id }
+        });
+      } catch (error) {
+        console.warn('⚠️ Error eliminando intentos de código (continuando):', error.message);
+      }
+      
+      // 7. Eliminar el repartidor (esto debería eliminar automáticamente las relaciones con onDelete: Cascade)
       await prisma.deliveryPerson.delete({
         where: { id }
       });
