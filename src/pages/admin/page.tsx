@@ -370,7 +370,15 @@ export default function AdminPage() {
   }
 
   const getActiveComponent = () => {
-    const storeId = currentStoreId || localStorage.getItem('adminStoreId');
+    // IMPORTANTE: Obtener storeId de múltiples fuentes para asegurar que siempre esté disponible
+    // Primero intentar de la URL, luego del localStorage, luego del estado
+    const urlStoreId = new URLSearchParams(window.location.search).get('store');
+    const storeId = urlStoreId || currentStoreId || localStorage.getItem('adminStoreId') || null;
+    
+    // Debug: Log para verificar que storeId se está pasando correctamente
+    if (window.location.pathname.includes('/admin')) {
+      console.log('[AdminPage.getActiveComponent] storeId:', storeId, 'activeTab:', activeTab);
+    }
     if (advancedTab) {
       switch (advancedTab) {
         case 'system': return <SystemConfig />;
