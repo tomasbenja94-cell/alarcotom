@@ -288,6 +288,13 @@ class DriverAuthService {
       throw new Error('Driver inválido para generar token');
     }
     
+    // Verificar que el secret esté configurado
+    if (!JWT_DRIVER_SECRET || JWT_DRIVER_SECRET === 'CHANGE_THIS_IN_PRODUCTION_DRIVER') {
+      console.error('❌ [GENERATE DRIVER TOKEN] JWT_DRIVER_SECRET no está configurado correctamente!');
+      console.error('❌ [GENERATE DRIVER TOKEN] Valor actual:', JWT_DRIVER_SECRET ? 'Usando valor por defecto' : 'NO CONFIGURADO');
+      throw new Error('JWT_DRIVER_SECRET no está configurado. Configura la variable de entorno JWT_DRIVER_SECRET en el servidor.');
+    }
+    
     const payload = { driverId: driver.id, type: 'driver' };
     const token = jwt.sign(
       payload,
@@ -295,12 +302,12 @@ class DriverAuthService {
       { expiresIn: JWT_EXPIRES_IN }
     );
     
-    // Log en desarrollo para debugging
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('🔑 [GENERATE DRIVER TOKEN] Token generado para driver:', driver.id);
-      console.log('🔑 [GENERATE DRIVER TOKEN] Secret usado:', JWT_DRIVER_SECRET ? 'Configurado' : 'NO CONFIGURADO');
-      console.log('🔑 [GENERATE DRIVER TOKEN] ExpiresIn:', JWT_EXPIRES_IN);
-    }
+    // Log siempre para debugging (importante para producción)
+    console.log('🔑 [GENERATE DRIVER TOKEN] Token generado para driver:', driver.id);
+    console.log('🔑 [GENERATE DRIVER TOKEN] Secret configurado:', JWT_DRIVER_SECRET ? 'Sí' : 'NO');
+    console.log('🔑 [GENERATE DRIVER TOKEN] Secret length:', JWT_DRIVER_SECRET ? JWT_DRIVER_SECRET.length : 0);
+    console.log('🔑 [GENERATE DRIVER TOKEN] ExpiresIn:', JWT_EXPIRES_IN);
+    console.log('🔑 [GENERATE DRIVER TOKEN] Token (primeros 30 chars):', token.substring(0, 30) + '...');
     
     return token;
   }
@@ -312,11 +319,18 @@ class DriverAuthService {
         throw new Error('Token no proporcionado');
       }
       
-      // Log en desarrollo
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('🔍 [VERIFY DRIVER TOKEN] Verificando token...');
-        console.log('🔍 [VERIFY DRIVER TOKEN] Secret configurado:', JWT_DRIVER_SECRET ? 'Sí' : 'NO');
-        console.log('🔍 [VERIFY DRIVER TOKEN] Token length:', token.length);
+      // Log siempre para debugging (importante para producción)
+      console.log('🔍 [VERIFY DRIVER TOKEN] Verificando token...');
+      console.log('🔍 [VERIFY DRIVER TOKEN] Secret configurado:', JWT_DRIVER_SECRET ? 'Sí' : 'NO');
+      console.log('🔍 [VERIFY DRIVER TOKEN] Secret length:', JWT_DRIVER_SECRET ? JWT_DRIVER_SECRET.length : 0);
+      console.log('🔍 [VERIFY DRIVER TOKEN] Secret value (primeros 20 chars):', JWT_DRIVER_SECRET ? JWT_DRIVER_SECRET.substring(0, 20) + '...' : 'NO CONFIGURADO');
+      console.log('🔍 [VERIFY DRIVER TOKEN] Token length:', token.length);
+      console.log('🔍 [VERIFY DRIVER TOKEN] Token (primeros 30 chars):', token.substring(0, 30) + '...');
+      
+      // Verificar que el secret esté configurado
+      if (!JWT_DRIVER_SECRET || JWT_DRIVER_SECRET === 'CHANGE_THIS_IN_PRODUCTION_DRIVER') {
+        console.error('❌ [VERIFY DRIVER TOKEN] JWT_DRIVER_SECRET no está configurado correctamente!');
+        throw new Error('JWT_DRIVER_SECRET no está configurado en el servidor');
       }
       
       // 1. Verificar JWT - Intentar con ambos secrets para compatibilidad
