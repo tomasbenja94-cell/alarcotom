@@ -40,6 +40,7 @@ const activeSessions = new Map();      // storeId -> { socket, storeId, createdA
 const pendingQRs = new Map();          // storeId -> { qr, timestamp, expires }
 const userSessionsPerStore = new Map(); // storeId -> Map(userId -> session)
 const storeConfigs = new Map();        // storeId -> { store, settings }
+const connectionStates = new Map();    // storeId -> lastConnectionState (para evitar procesamiento duplicado)
 
 // Logger silencioso para Baileys
 const logger = pino({ level: 'silent' });
@@ -181,6 +182,9 @@ export async function startWhatsAppSession(storeId) {
         const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
         console.log(`[WhatsApp] [${storeId}] Conexión cerrada, razón: ${reason}`);
         
+        // Limpiar estado de conexión
+        connectionStates.delete(storeId);
+        
         // Limpiar sesión
         const session = activeSessions.get(storeId);
         if (session?.socket) {
@@ -228,7 +232,15 @@ export async function startWhatsAppSession(storeId) {
       }
 
       if (connection === 'open') {
+        // Evitar procesar múltiples veces el mismo evento
+        const lastState = connectionStates.get(storeId);
+        if (lastState === 'open') {
+          console.log(`[WhatsApp] [${storeId}] ⚠️ Evento 'open' ya procesado, ignorando duplicado`);
+          return;
+        }
+        
         console.log(`[WhatsApp] [${storeId}] ✅ Conectado`);
+        connectionStates.set(storeId, 'open');
         pendingQRs.delete(storeId);
         
         const phoneNumber = socket.user?.id?.split(':')[0] || socket.user?.id?.split('@')[0];
@@ -251,12 +263,37 @@ export async function startWhatsAppSession(storeId) {
     });
 
     // Manejar mensajes entrantes
+    const processedMessages = new Set(); // Para evitar procesar mensajes duplicados
     socket.ev.on('messages.upsert', async (m) => {
       try {
         const message = m.messages[0];
         if (!message || !message.key || !message.message) return;
         if (message.key.fromMe) return;
         if (message.key.remoteJid?.includes('@g.us')) return; // Ignorar grupos
+
+        // Crear un ID único para el mensaje
+        const messageId = `${message.key.remoteJid}_${message.key.id}_${message.messageTimestamp || Date.now()}`;
+        
+        // Evitar procesar el mismo mensaje múltiples veces
+        if (processedMessages.has(messageId)) {
+          console.log(`[WhatsApp] [${storeId}] ⚠️ Mensaje duplicado ignorado: ${messageId}`);
+          return;
+        }
+        
+        // Solo procesar mensajes recientes (últimos 5 minutos) para evitar procesar mensajes antiguos al reconectar
+        const messageAge = Date.now() - (message.messageTimestamp * 1000 || Date.now());
+        if (messageAge > 5 * 60 * 1000) {
+          console.log(`[WhatsApp] [${storeId}] ⚠️ Mensaje antiguo ignorado (${Math.round(messageAge / 1000)}s de antigüedad)`);
+          return;
+        }
+        
+        processedMessages.add(messageId);
+        
+        // Limpiar mensajes procesados antiguos (mantener solo los últimos 1000)
+        if (processedMessages.size > 1000) {
+          const firstEntry = processedMessages.values().next().value;
+          processedMessages.delete(firstEntry);
+        }
 
         const from = message.key.remoteJid;
         await handleMessage(storeId, socket, from, message, config);
@@ -902,6 +939,7 @@ export async function disconnectSession(storeId) {
     }
     activeSessions.delete(storeId);
     pendingQRs.delete(storeId);
+    connectionStates.delete(storeId); // Limpiar estado de conexión
     
     // Limpiar archivos de sesión
     const sessionPath = path.join(SESSIONS_DIR, storeId);
@@ -917,6 +955,8 @@ export async function disconnectSession(storeId) {
     
     return { success: true };
   }
+  // Limpiar estado incluso si no hay sesión activa
+  connectionStates.delete(storeId);
   return { success: false, error: 'No hay sesión activa' };
 }
 
