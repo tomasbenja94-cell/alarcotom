@@ -473,9 +473,33 @@ class DriverAuthService {
 
       // 4. Retornar datos del driver (sin passwordHash)
       const { passwordHash, password, ...driverData } = driver;
+      console.log('✅ [VERIFY DRIVER TOKEN] Token verificado exitosamente para driver:', driver.id);
       return driverData;
     } catch (error) {
       console.error('❌ [VERIFY DRIVER TOKEN] Error final:', error.message);
+      console.error('❌ [VERIFY DRIVER TOKEN] Error name:', error.name);
+      
+      // Si es "invalid signature", intentar decodificar para diagnóstico
+      if (error.message?.includes('invalid signature') || error.message?.includes('Invalid signature')) {
+        try {
+          const decoded = jwt.decode(token, { complete: true });
+          if (decoded) {
+            console.error('🔍 [VERIFY DRIVER TOKEN] Token decodificado (sin verificar):', {
+              header: decoded.header,
+              payload: decoded.payload,
+              driverId: decoded.payload?.driverId,
+              type: decoded.payload?.type,
+              iat: decoded.payload?.iat,
+              exp: decoded.payload?.exp
+            });
+            console.error('🔍 [VERIFY DRIVER TOKEN] El token fue generado con un secret diferente al configurado actualmente');
+            console.error('🔍 [VERIFY DRIVER TOKEN] Secret actual (primeros 20):', JWT_DRIVER_SECRET.substring(0, 20) + '...');
+          }
+        } catch (decodeError) {
+          console.error('❌ [VERIFY DRIVER TOKEN] No se pudo decodificar el token:', decodeError.message);
+        }
+      }
+      
       throw error; // Relanzar el error original para que el middleware pueda manejarlo
     }
   }
