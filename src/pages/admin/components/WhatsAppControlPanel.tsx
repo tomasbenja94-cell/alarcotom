@@ -61,21 +61,39 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
       });
       if (response.ok) {
         const data = await response.json();
+        console.log('[WhatsApp QR] Respuesta del servidor:', { hasQr: !!data.qr, qrType: typeof data.qr, qrPreview: data.qr ? data.qr.substring(0, 50) + '...' : 'null' });
+        
         // El endpoint puede devolver { qr: null } o { qr: "data:image..." }
-        if (data.qr && data.qr !== null && data.qr !== 'null') {
+        if (data.qr && data.qr !== null && data.qr !== 'null' && data.qr.trim() !== '') {
           // Aceptar cualquier formato de QR (data URL, URL, o string base64)
-          setQrCode(data.qr);
-          return data.qr;
+          // Asegurar que sea un data URL válido
+          let qrValue = data.qr;
+          if (!qrValue.startsWith('data:image')) {
+            // Si no es un data URL, intentar convertirlo
+            if (qrValue.startsWith('http')) {
+              // Es una URL, mantenerla
+              qrValue = qrValue;
+            } else {
+              // Asumir que es base64 y agregar el prefijo
+              qrValue = `data:image/png;base64,${qrValue}`;
+            }
+          }
+          console.log('[WhatsApp QR] QR procesado, estableciendo en estado');
+          setQrCode(qrValue);
+          return qrValue;
         } else {
+          console.log('[WhatsApp QR] No hay QR válido en la respuesta');
           setQrCode(null);
           return null;
         }
       } else {
+        const errorText = await response.text();
+        console.error('[WhatsApp QR] Error en respuesta:', response.status, errorText);
         setQrCode(null);
         return null;
       }
     } catch (error) {
-      console.error('Error obteniendo QR:', error);
+      console.error('[WhatsApp QR] Error obteniendo QR:', error);
       setQrCode(null);
       return null;
     }
@@ -151,16 +169,27 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
   // Polling para actualizar el QR automáticamente cuando está pendiente
   useEffect(() => {
     if (!storeId || status?.status !== 'pending_qr') {
-      setQrCode(null);
+      // Solo limpiar QR si el estado cambió a algo diferente de pending_qr
+      if (status?.status && status.status !== 'pending_qr') {
+        console.log('[WhatsApp QR] Estado cambió a', status.status, ', limpiando QR');
+        setQrCode(null);
+      }
       return;
     }
+    
+    console.log('[WhatsApp QR] Estado es pending_qr, obteniendo QR...');
     
     // Obtener QR inmediatamente
     fetchQR();
     
-    // Luego hacer polling cada 3 segundos
+    // Luego hacer polling cada 3 segundos para actualizar el estado y el QR
     const interval = setInterval(async () => {
       await fetchStatus();
+      // Siempre intentar obtener el QR en cada polling (por si expiró o cambió)
+      const currentQr = await fetchQR();
+      if (currentQr) {
+        console.log('[WhatsApp QR] QR actualizado en polling');
+      }
     }, 3000);
 
     return () => clearInterval(interval);
@@ -200,6 +229,7 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
     setLoading(true);
     setActionMessage(null);
     setActionError(null);
+    setQrCode(null); // Limpiar QR anterior
     try {
       const response = await fetch(`${API_BASE}/whatsapp/${storeId}/connect`, {
         method: 'POST',
@@ -218,17 +248,22 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
       const maxAttempts = 10; // Aumentar intentos
       const checkQR = async () => {
         attempts++;
+        console.log(`[WhatsApp Connect] Intento ${attempts}/${maxAttempts} para obtener QR`);
         
         // Actualizar estado primero
         await fetchStatus();
         
         // Obtener QR y verificar si se recibió
         const qr = await fetchQR();
+        console.log(`[WhatsApp Connect] QR obtenido: ${qr ? 'Sí' : 'No'}, Longitud: ${qr ? qr.length : 0}`);
         
         if (qr) {
+          // Asegurar que el QR esté en el estado
+          setQrCode(qr);
           setActionMessage('QR generado. Escaneá el código.');
           await fetchMetrics();
           setLoading(false);
+          console.log('[WhatsApp Connect] QR establecido correctamente en el estado');
         } else if (attempts >= maxAttempts) {
           setActionError('No se pudo generar el QR después de varios intentos. Verifica que el servicio esté funcionando.');
           await fetchMetrics();
@@ -444,15 +479,29 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
                       src={qrCode} 
                       alt="QR Code" 
                       className="w-48 h-48 rounded border border-gray-300 bg-white p-2"
-                      onError={() => {
-                        console.error('Error cargando imagen QR');
-                        setQrCode(null);
+                      onLoad={() => {
+                        console.log('[WhatsApp QR] Imagen QR cargada correctamente');
+                      }}
+                      onError={(e) => {
+                        console.error('[WhatsApp QR] Error cargando imagen QR:', e);
+                        console.error('[WhatsApp QR] Valor del QR:', qrCode?.substring(0, 100));
+                        // No limpiar el QR inmediatamente, puede ser un problema temporal
                       }}
                     />
                   </div>
                   <p className="mt-2 text-[10px] text-gray-600 text-center">
                     WhatsApp → Dispositivos vinculados → Vincular dispositivo
                   </p>
+                  <button
+                    onClick={async () => {
+                      console.log('[WhatsApp QR] Recargando QR manualmente...');
+                      await fetchQR();
+                    }}
+                    className="mt-2 w-full px-2 py-1 text-[10px] rounded border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 transition"
+                  >
+                    <i className="ri-refresh-line text-xs mr-1"></i>
+                    Recargar QR
+                  </button>
                 </>
               ) : (
                 <div className="text-center py-6">
@@ -461,6 +510,18 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
                   {actionError && actionError.includes('QR') && (
                     <p className="text-[10px] text-red-600 mt-2">{actionError}</p>
                   )}
+                  <button
+                    onClick={async () => {
+                      console.log('[WhatsApp QR] Intentando obtener QR manualmente...');
+                      const qr = await fetchQR();
+                      if (!qr) {
+                        setActionError('No se pudo obtener el QR. Verifica la consola para más detalles.');
+                      }
+                    }}
+                    className="mt-2 px-3 py-1 text-[10px] rounded border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 transition"
+                  >
+                    Intentar de nuevo
+                  </button>
                 </div>
               )}
             </div>
