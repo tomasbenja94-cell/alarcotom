@@ -11,17 +11,22 @@ async function request(endpoint: string, options: RequestInit = {}) {
   // Leer directamente de localStorage en cada llamada para evitar problemas de sincronización
   let adminToken = localStorage.getItem('adminToken');
   let driverToken = localStorage.getItem('driverToken');
-  let token = adminToken || driverToken;
   
-  // Debug: verificar token solo para endpoints de delivery (reducir logs)
-  if (endpoint.includes('/delivery/') && !token) {
-    console.warn(`⚠️ [API] No hay token para endpoint de delivery: ${endpoint}`);
-    // Verificar localStorage directamente (puede haber un problema de timing)
-    const directCheck = localStorage.getItem('driverToken');
-    if (directCheck) {
-      token = directCheck;
-      driverToken = directCheck;
+  // IMPORTANTE: Para endpoints de delivery, usar SOLO driverToken
+  // No usar adminToken para endpoints de delivery, ya que son tokens diferentes
+  let token: string | null = null;
+  if (endpoint.includes('/delivery/')) {
+    // Endpoints de delivery requieren driverToken específicamente
+    token = driverToken;
+    if (!token) {
+      console.warn(`⚠️ [API] No hay driverToken para endpoint de delivery: ${endpoint}`);
+    } else if (adminToken && adminToken !== driverToken) {
+      // Log de advertencia si hay confusión de tokens
+      console.warn(`⚠️ [API] Endpoint de delivery detectado, usando driverToken (no adminToken)`);
     }
+  } else {
+    // Para otros endpoints, usar adminToken o driverToken (prioridad admin)
+    token = adminToken || driverToken;
   }
   
   const headers: HeadersInit = {
@@ -56,7 +61,10 @@ async function request(endpoint: string, options: RequestInit = {}) {
     });
   } catch (fetchError: any) {
     // Capturar errores de red (Failed to fetch, CORS, etc.)
-    console.error(`❌ [API] Error de red al conectar con ${fullUrl}:`, fetchError);
+    // Solo loggear en desarrollo para no saturar la consola
+    if (import.meta.env.DEV) {
+      console.error(`❌ [API] Error de red al conectar con ${fullUrl}:`, fetchError);
+    }
     
     // Determinar el tipo de error
     let errorMessage = 'Error de conexión con el servidor';
@@ -100,15 +108,21 @@ async function request(endpoint: string, options: RequestInit = {}) {
       if (!token) {
         throw new Error('Token no proporcionado');
       }
-      // Si hay token pero el backend lo rechaza, puede estar expirado o ser inválido
-      console.warn(`⚠️ [API] Token rechazado por el backend para ${endpoint}`);
-      console.warn(`⚠️ [API] Token usado: ${token.substring(0, 20)}...`);
-      // Limpiar token inválido y forzar re-login
-      if (endpoint.includes('/delivery/')) {
-        localStorage.removeItem('driverToken');
-        localStorage.removeItem('delivery_driver_session');
+      // Si hay token pero el backend lo rechaza, está expirado o es inválido
+      // Limpiar token inválido del localStorage
+      const tokenKey = endpoint.includes('/delivery/') ? 'driverToken' : 'token';
+      if (localStorage.getItem(tokenKey)) {
+        console.warn(`⚠️ [API] Token rechazado por el backend para ${endpoint} - Limpiando token inválido`);
+        localStorage.removeItem(tokenKey);
+        // También limpiar sesión de repartidor si existe
+        if (tokenKey === 'driverToken') {
+          localStorage.removeItem('delivery_driver_session');
+        }
       }
-      throw new Error('Token inválido o expirado. Por favor, inicia sesión nuevamente.');
+      const error = new Error('Token inválido o expirado. Por favor, inicia sesión nuevamente.');
+      (error as any).status = 401;
+      (error as any).shouldLogout = true;
+      throw error;
     }
     
     // Manejar errores 429 (Too Many Requests)
@@ -245,6 +259,8 @@ export const deliveryPersonsApi = {
   getAll: () => request('/delivery-persons'),
   create: (data: any) => request('/delivery-persons', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: any) => request(`/delivery-persons/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request(`/delivery-persons/${id}`, { method: 'DELETE' }),
+  regenerateToken: (id: string) => request(`/delivery-persons/${id}/regenerate-token`, { method: 'POST' }),
   acceptOrder: (id: string, orderId: string) => request(`/delivery-persons/${id}/accept-order`, { method: 'POST', body: JSON.stringify({ order_id: orderId }) }),
   deliverOrder: (id: string, orderId: string, deliveryCode: string) => request(`/delivery-persons/${id}/deliver-order`, { method: 'POST', body: JSON.stringify({ order_id: orderId, delivery_code: deliveryCode }) }),
 };
@@ -261,6 +277,7 @@ export const deliveryApi = {
   getBalance: (driverId: string) => request(`/delivery/balance/${driverId}`),
   getDriversLocation: () => request('/delivery/drivers-location'),
   registerPayment: (driverId: string, amount: number, reference?: string) => request('/delivery/register-payment', { method: 'POST', body: JSON.stringify({ driver_id: driverId, amount, reference }) }),
+  requestWithdrawal: (cvu: string | null, alias: string | null, account_name: string) => request('/delivery/withdrawal-request', { method: 'POST', body: JSON.stringify({ cvu, alias, account_name }) }),
 };
 
 // Tracking
