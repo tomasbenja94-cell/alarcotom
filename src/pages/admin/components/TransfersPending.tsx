@@ -45,16 +45,23 @@ export default function TransfersPending({ storeId }: TransfersPendingProps = {}
     try {
       setLoadingTransfers(true);
       
+      // Obtener storeId de múltiples fuentes si no está disponible como prop
+      let finalStoreId = storeId;
+      if (!finalStoreId) {
+        finalStoreId = localStorage.getItem('adminStoreId') || new URLSearchParams(window.location.search).get('store') || null;
+        console.warn('[TransfersPending] ⚠️ storeId no disponible como prop, usando fallback:', finalStoreId);
+      }
+      
       // Pasar storeId si está disponible (IMPORTANTE: cada tienda debe ver solo sus transferencias)
-      if (!storeId) {
-        console.warn('[TransfersPending] ⚠️ No hay storeId, no se pueden cargar transferencias');
+      if (!finalStoreId) {
+        console.error('[TransfersPending] ❌ ERROR: No hay storeId disponible de ninguna fuente!');
         setTransfers([]);
         return;
       }
       
-      console.log('[TransfersPending] Cargando transferencias para storeId:', storeId);
-      console.log('[TransfersPending] Llamando a transfersApi.getPending con:', { storeId });
-      const data = await transfersApi.getPending({ storeId });
+      console.log('[TransfersPending] Cargando transferencias para storeId:', finalStoreId);
+      console.log('[TransfersPending] Llamando a transfersApi.getPending con:', { storeId: finalStoreId });
+      const data = await transfersApi.getPending({ storeId: finalStoreId });
       console.log('[TransfersPending] Transferencias recibidas:', data?.length || 0);
       
       // Transformar datos a formato esperado
