@@ -484,10 +484,12 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
             </div>
           )}
 
-          {/* QR Code */}
-          {status?.status === 'pending_qr' && (
+          {/* QR Code - Mostrar si hay QR disponible o si el estado es pending_qr */}
+          {(status?.status === 'pending_qr' || qrCode) && (
             <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-              <p className="text-[10px] font-medium text-gray-800 mb-2 text-center">Escanea el código QR</p>
+              <p className="text-[10px] font-medium text-gray-800 mb-2 text-center">
+                {status?.status === 'pending_qr' ? 'Escanea el código QR' : 'Código QR disponible'}
+              </p>
               {qrCode ? (
                 <>
                   <div className="flex justify-center">
@@ -542,15 +544,23 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
                 <div className="text-center py-6">
                   <div className="animate-spin rounded-full h-6 w-6 border-2 border-gray-300 border-t-black mx-auto mb-2"></div>
                   <p className="text-[10px] text-gray-500 mb-1">Generando QR...</p>
+                  <p className="text-[9px] text-gray-400 mb-2">
+                    Estado: {status?.status || 'desconocido'}
+                  </p>
                   {actionError && actionError.includes('QR') && (
                     <p className="text-[10px] text-red-600 mt-2">{actionError}</p>
                   )}
                   <button
                     onClick={async () => {
                       console.log('[WhatsApp QR] Intentando obtener QR manualmente...');
+                      console.log('[WhatsApp QR] Estado actual:', status);
+                      console.log('[WhatsApp QR] QR actual en estado:', qrCode);
                       const qr = await fetchQR();
+                      console.log('[WhatsApp QR] QR obtenido:', qr ? 'Sí' : 'No');
                       if (!qr) {
                         setActionError('No se pudo obtener el QR. Verifica la consola para más detalles.');
+                      } else {
+                        setActionMessage('QR obtenido correctamente.');
                       }
                     }}
                     className="mt-2 px-3 py-1 text-[10px] rounded border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 transition"
@@ -559,6 +569,16 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
                   </button>
                 </div>
               )}
+            </div>
+          )}
+          
+          {/* Debug info - Solo en desarrollo */}
+          {import.meta.env.DEV && (
+            <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-[9px] text-yellow-800">
+              <p><strong>Debug:</strong></p>
+              <p>Estado: {status?.status || 'null'}</p>
+              <p>QR en estado: {qrCode ? `Sí (${qrCode.length} chars)` : 'No'}</p>
+              <p>QR preview: {qrCode ? qrCode.substring(0, 50) + '...' : 'N/A'}</p>
             </div>
           )}
         </div>
