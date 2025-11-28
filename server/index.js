@@ -38,7 +38,7 @@ import storeCategoriesRoutes from './src/routes/store-categories.routes.js';
 import usersRoutes from './src/routes/users.routes.js';
 import stockIssuesRoutes from './src/routes/stock-issues.routes.js';
 import whatsappRoutes from './src/routes/whatsapp.routes.js';
-// import { sendOrderNotification } from './src/services/whatsapp-multi.service.js';
+import whatsappService from './src/services/whatsapp-multi.service.js';
 import reviewsRoutes from './src/routes/reviews.routes.js';
 import couponsRoutes from './src/routes/coupons.routes.js';
 import referralsRoutes from './src/routes/referrals.routes.js';
@@ -2335,20 +2335,24 @@ app.post('/api/whatsapp-messages', async (req, res) => {
 // ========== TRANSFERENCIAS PENDIENTES ==========
 app.get('/api/pending-transfers', systemRateLimit, async (req, res) => {
   // Construir where clause con filtros opcionales
-  const whereClause = {};
+  const whereClause: any = {};
   
   // Filtrar por status si se proporciona
   if (req.query.status) {
     whereClause.status = req.query.status;
   }
   
-  // Filtrar por storeId si se proporciona (importante para multi-tienda)
+  // IMPORTANTE: Filtrar por storeId si se proporciona (cada tienda debe ver solo sus transferencias)
   if (req.query.storeId) {
     whereClause.storeId = req.query.storeId;
+    console.log('📥 [PENDING TRANSFERS] Filtrando por storeId:', req.query.storeId);
+  } else {
+    console.warn('⚠️ [PENDING TRANSFERS] No se proporcionó storeId, se mostrarán todas las transferencias');
   }
   
   console.log('📥 [PENDING TRANSFERS] Obteniendo transferencias pendientes...');
-  console.log('📥 [PENDING TRANSFERS] Where clause:', whereClause);
+  console.log('📥 [PENDING TRANSFERS] Query params:', req.query);
+  console.log('📥 [PENDING TRANSFERS] Where clause:', JSON.stringify(whereClause));
   
   try {
     const transfers = await prisma.pendingTransfer.findMany({
@@ -8029,8 +8033,17 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // ========== INICIAR SERVIDOR ==========
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 Servidor corriendo en https://elbuenmenu.site`);
   console.log(`🔒 Seguridad habilitada: JWT, bcrypt, rate limiting, validación`);
+  
+  // Inicializar bots de WhatsApp para todas las tiendas activas
+  try {
+    console.log(`📱 Inicializando bots de WhatsApp...`);
+    await whatsappService.initializeAllStores();
+    console.log(`✅ Bots de WhatsApp inicializados`);
+  } catch (error) {
+    console.error(`❌ Error inicializando bots de WhatsApp:`, error);
+  }
 });
 

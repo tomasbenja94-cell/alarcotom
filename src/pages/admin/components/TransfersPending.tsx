@@ -34,8 +34,15 @@ export default function TransfersPending({ storeId }: TransfersPendingProps = {}
     try {
       setLoadingTransfers(true);
       
-      // Pasar storeId si está disponible
-      const data = await transfersApi.getPending(storeId ? { storeId } : undefined);
+      // Pasar storeId si está disponible (IMPORTANTE: cada tienda debe ver solo sus transferencias)
+      if (!storeId) {
+        console.warn('[TransfersPending] ⚠️ No hay storeId, no se pueden cargar transferencias');
+        setTransfers([]);
+        return;
+      }
+      
+      console.log('[TransfersPending] Cargando transferencias para storeId:', storeId);
+      const data = await transfersApi.getPending({ storeId });
       
       // Transformar datos a formato esperado
       const transformed = data.map((transfer: any) => ({
