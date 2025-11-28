@@ -339,26 +339,34 @@ class DriverAuthService {
       // Intentar primero con el secret principal
       try {
         decoded = jwt.verify(token, JWT_DRIVER_SECRET);
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('✅ [VERIFY DRIVER TOKEN] Token verificado con secret principal');
-        }
+        console.log('✅ [VERIFY DRIVER TOKEN] Token verificado con secret principal');
       } catch (jwtError) {
-        // Log del error en desarrollo
-        if (process.env.NODE_ENV !== 'production') {
-          console.error('❌ [VERIFY DRIVER TOKEN] Error verificando con secret principal:', jwtError.name, jwtError.message);
+        // Log del error siempre (importante para diagnóstico)
+        console.error('❌ [VERIFY DRIVER TOKEN] Error verificando con secret principal:', jwtError.name, jwtError.message);
+        
+        // Decodificar el token para ver qué contiene (sin verificar)
+        try {
+          const decodedWithoutVerify = jwt.decode(token, { complete: true });
+          if (decodedWithoutVerify) {
+            console.log('🔍 [VERIFY DRIVER TOKEN] Token decodificado (sin verificar):', {
+              header: decodedWithoutVerify.header,
+              payload: decodedWithoutVerify.payload,
+              signature: decodedWithoutVerify.signature ? decodedWithoutVerify.signature.substring(0, 20) + '...' : 'N/A'
+            });
+          }
+        } catch (decodeError) {
+          console.error('❌ [VERIFY DRIVER TOKEN] Error decodificando token:', decodeError.message);
         }
         
         // Si falla, intentar con el secret alternativo
         if (jwtError.name === 'JsonWebTokenError') {
           try {
             decoded = jwt.verify(token, JWT_DRIVER_SECRET_ALT);
-            if (process.env.NODE_ENV !== 'production') {
-              console.log('✅ [VERIFY DRIVER TOKEN] Token verificado con secret alternativo');
-            }
+            console.log('✅ [VERIFY DRIVER TOKEN] Token verificado con secret alternativo');
           } catch (altError) {
-            if (process.env.NODE_ENV !== 'production') {
-              console.error('❌ [VERIFY DRIVER TOKEN] Error verificando con secret alternativo:', altError.name, altError.message);
-            }
+            console.error('❌ [VERIFY DRIVER TOKEN] Error verificando con secret alternativo:', altError.name, altError.message);
+            console.log('🔍 [VERIFY DRIVER TOKEN] Secret alternativo length:', JWT_DRIVER_SECRET_ALT ? JWT_DRIVER_SECRET_ALT.length : 0);
+            console.log('🔍 [VERIFY DRIVER TOKEN] Secret alternativo (primeros 20 chars):', JWT_DRIVER_SECRET_ALT ? JWT_DRIVER_SECRET_ALT.substring(0, 20) + '...' : 'NO CONFIGURADO');
             // Si ambos fallan, intentar decodificar sin verificar (solo para obtener driverId)
             // Esto permite que tokens antiguos funcionen mientras se migra
             try {
