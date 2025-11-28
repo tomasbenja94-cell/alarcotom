@@ -295,6 +295,8 @@ model DeliveryPerson {
   multiRoutes         MultiDeliveryRoute[] // Rutas múltiples
   balanceTransactions DriverBalanceTransaction[]
   sessions            DriverSession[] // Sesiones activas del repartidor
+  withdrawalRequests  WithdrawalRequest[] // Solicitudes de retiro
+  driverPayments      DriverPayment[] // Pagos pendientes por store
   createdAt           DateTime                   @default(now()) @map("created_at")
   updatedAt           DateTime                   @updatedAt @map("updated_at")
 
@@ -336,6 +338,49 @@ model DriverSession {
   @@index([driverId])
   @@index([tokenHash])
   @@map("driver_sessions")
+}
+
+// Solicitudes de retiro de repartidores
+model WithdrawalRequest {
+  id              String   @id @default(uuid())
+  deliveryPersonId String  @map("delivery_person_id")
+  deliveryPerson  DeliveryPerson @relation(fields: [deliveryPersonId], references: [id], onDelete: Cascade)
+  amount          Decimal  @db.Decimal(10, 2)
+  cvu             String?  // CVU o alias para transferencia
+  alias           String?  // Alias para transferencia
+  accountName     String   @map("account_name") // Nombre del titular
+  status          String   @default("pending") // pending, processing, completed, rejected
+  completedAt     DateTime? @map("completed_at")
+  rejectedAt      DateTime? @map("rejected_at")
+  rejectionReason String?  @map("rejection_reason")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([deliveryPersonId])
+  @@index([status])
+  @@map("withdrawal_requests")
+}
+
+// Pagos pendientes a repartidores por store
+model DriverPayment {
+  id              String   @id @default(uuid())
+  deliveryPersonId String  @map("delivery_person_id")
+  deliveryPerson  DeliveryPerson @relation(fields: [deliveryPersonId], references: [id], onDelete: Cascade)
+  storeId         String   @map("store_id")
+  store           Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  orderIds        String   @db.Text // JSON array de order IDs
+  deliveryCount   Int      @default(0) @map("delivery_count")
+  amount          Decimal  @db.Decimal(10, 2) // Monto total a pagar (deliveryCount * 4000)
+  status          String   @default("pending") // pending, paid
+  paidAt          DateTime? @map("paid_at")
+  paidBy          String?  @map("paid_by") // Admin ID que marcó como pagado
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([deliveryPersonId])
+  @@index([storeId])
+  @@index([status])
+  @@map("driver_payments")
 }
 
 // Admins del sistema
@@ -820,6 +865,7 @@ model Store {
   products        Product[]
   orders          Order[]
   pendingTransfers PendingTransfer[]
+  driverPayments  DriverPayment[] // Pagos pendientes a repartidores
   admins          Admin[]
   botMessages     BotMessage[]
   systemStates    SystemState[]

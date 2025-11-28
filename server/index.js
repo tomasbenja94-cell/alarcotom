@@ -2771,32 +2771,103 @@ app.post('/api/delivery-persons',
   }
 );
 
-app.put('/api/delivery-persons/:id', async (req, res) => {
-  try {
-    const deliveryPersonData = {};
-    if (req.body.name !== undefined) {
-      deliveryPersonData.name = req.body.name;
+app.put('/api/delivery-persons/:id', 
+  authenticateAdmin,
+  authorize('admin', 'super_admin'),
+  async (req, res) => {
+    try {
+      const deliveryPersonData = {};
+      if (req.body.name !== undefined) {
+        deliveryPersonData.name = req.body.name;
+      }
+      if (req.body.phone !== undefined) {
+        deliveryPersonData.phone = req.body.phone;
+      }
+      if (req.body.is_active !== undefined || req.body.isActive !== undefined) {
+        deliveryPersonData.isActive = req.body.is_active !== undefined ? req.body.is_active : req.body.isActive;
+      }
+      if (req.body.current_order_id !== undefined || req.body.currentOrderId !== undefined) {
+        deliveryPersonData.currentOrderId = req.body.current_order_id || req.body.currentOrderId;
+      }
+      
+      const deliveryPerson = await prisma.deliveryPerson.update({
+        where: { id: req.params.id },
+        data: deliveryPersonData
+      });
+      res.json(objectToSnakeCase(deliveryPerson));
+    } catch (error) {
+      console.error('Error updating delivery person:', error);
+      res.status(500).json({ error: 'Error al actualizar repartidor' });
     }
-    if (req.body.phone !== undefined) {
-      deliveryPersonData.phone = req.body.phone;
-    }
-    if (req.body.is_active !== undefined || req.body.isActive !== undefined) {
-      deliveryPersonData.isActive = req.body.is_active !== undefined ? req.body.is_active : req.body.isActive;
-    }
-    if (req.body.current_order_id !== undefined || req.body.currentOrderId !== undefined) {
-      deliveryPersonData.currentOrderId = req.body.current_order_id || req.body.currentOrderId;
-    }
-    
-    const deliveryPerson = await prisma.deliveryPerson.update({
-      where: { id: req.params.id },
-      data: deliveryPersonData
-    });
-    res.json(objectToSnakeCase(deliveryPerson));
-  } catch (error) {
-    console.error('Error updating delivery person:', error);
-    res.status(500).json({ error: 'Error al actualizar repartidor' });
   }
-});
+);
+
+// DELETE repartidor (solo super_admin)
+app.delete('/api/delivery-persons/:id',
+  authenticateAdmin,
+  authorize('super_admin'), // Solo super_admin puede eliminar
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      
+      // Verificar que el repartidor existe
+      const deliveryPerson = await prisma.deliveryPerson.findUnique({
+        where: { id },
+        include: {
+          orders: {
+            where: {
+              status: { in: ['confirmed', 'preparing', 'ready', 'assigned', 'in_transit'] }
+            }
+          }
+        }
+      });
+      
+      if (!deliveryPerson) {
+        return res.status(404).json({ error: 'Repartidor no encontrado' });
+      }
+      
+      // Verificar que no tenga pedidos activos
+      if (deliveryPerson.orders.length > 0) {
+        return res.status(400).json({ error: 'No se puede eliminar un repartidor con pedidos activos' });
+      }
+      
+      // Eliminar sesiones del repartidor
+      await prisma.driverSession.deleteMany({
+        where: { driverId: id }
+      });
+      
+      // Eliminar transacciones de balance
+      await prisma.balanceTransaction.deleteMany({
+        where: { deliveryPersonId: id }
+      });
+      
+      // Eliminar el repartidor
+      await prisma.deliveryPerson.delete({
+        where: { id }
+      });
+      
+      // Log auditoría
+      try {
+        if (req.user && req.user.id) {
+          await auditService.logDataModification(
+            'delivery_person',
+            id,
+            'delete',
+            req.user.id,
+            req.user.role || 'super_admin',
+            { name: deliveryPerson.name, phone: deliveryPerson.phone }
+          );
+        }
+      } catch (auditError) {
+        console.warn('⚠️ Error en audit log (no crítico):', auditError.message);
+      }
+      
+      res.json({ message: 'Repartidor eliminado exitosamente' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 // Endpoint para que repartidor acepte un pedido
 app.post('/api/delivery-persons/:id/accept-order', async (req, res) => {
@@ -4060,7 +4131,17 @@ app.post('/api/delivery/deliver-order',
       const isDelivery = order.deliveryFee && order.deliveryFee > 0;
       const needsCashCollection = isCashPayment && isDelivery;
 
-      // 4. Marcar como entregado, liberar repartidor, registrar cobro en efectivo (si aplica) y sumar saldo (transacción atómica)
+      // 4. Obtener storeId del pedido
+      const orderWithStore = await prisma.order.findUnique({
+        where: { id: order_id },
+        select: { storeId: true }
+      });
+      
+      if (!orderWithStore || !orderWithStore.storeId) {
+        return res.status(400).json({ error: 'El pedido no tiene storeId asociado' });
+      }
+      
+      // 5. Marcar como entregado, liberar repartidor, registrar cobro en efectivo (si aplica) y crear DriverPayment (transacción atómica)
       await prisma.$transaction(async (tx) => {
         // Actualizar pedido
         await tx.order.update({
@@ -4094,8 +4175,42 @@ app.post('/api/delivery/deliver-order',
           }
         }
         
-        // Sumar saldo por entrega (solo una vez, usando servicio con cliente de transacción)
-        await balanceService.addBalanceForDelivery(driver_id, order_id, 3000, tx);
+        // Crear o actualizar DriverPayment para este store
+        // Buscar si ya existe un pago pendiente para este repartidor y store
+        const existingPayment = await tx.driverPayment.findFirst({
+          where: {
+            deliveryPersonId: driver_id,
+            storeId: orderWithStore.storeId,
+            status: 'pending'
+          }
+        });
+        
+        if (existingPayment) {
+          // Actualizar pago existente
+          const orderIds = JSON.parse(existingPayment.orderIds || '[]');
+          orderIds.push(order_id);
+          
+          await tx.driverPayment.update({
+            where: { id: existingPayment.id },
+            data: {
+              orderIds: JSON.stringify(orderIds),
+              deliveryCount: { increment: 1 },
+              amount: { increment: 4000 } // $4000 por envío
+            }
+          });
+        } else {
+          // Crear nuevo pago
+          await tx.driverPayment.create({
+            data: {
+              deliveryPersonId: driver_id,
+              storeId: orderWithStore.storeId,
+              orderIds: JSON.stringify([order_id]),
+              deliveryCount: 1,
+              amount: 4000, // $4000 por envío
+              status: 'pending'
+            }
+          });
+        }
       });
       
       // 4. Notificar al cliente
@@ -4117,7 +4232,7 @@ app.post('/api/delivery/deliver-order',
       }
       
       // Mensaje de respuesta según si hubo cobro en efectivo
-      let successMessage = 'Entrega registrada. Se sumaron $3000 a tu saldo.';
+      let successMessage = 'Entrega registrada. El pago se procesará cuando el administrador lo apruebe.';
       if (needsCashCollection) {
         const formattedAmount = new Intl.NumberFormat('es-AR', {
           style: 'currency',
@@ -4125,20 +4240,18 @@ app.post('/api/delivery/deliver-order',
           minimumFractionDigits: 2,
           maximumFractionDigits: 2
         }).format(order.total);
-        successMessage = `Entrega registrada.\n\n💰 Cobro en efectivo: ${formattedAmount}\n✅ Entrega: +$3000\n\nTotal agregado a tu saldo: ${new Intl.NumberFormat('es-AR', {
-          style: 'currency',
-          currency: 'ARS',
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2
-        }).format(order.total + 3000)}`;
+        successMessage = `Entrega registrada.\n\n💰 Cobro en efectivo: ${formattedAmount}\n✅ Entrega: +$4000 (pendiente de pago)\n\n⚠️ IMPORTANTE: Recordá cobrar el dinero al cliente. El pago se procesará cuando el administrador lo apruebe.`;
+      } else {
+        successMessage = `Entrega registrada.\n\n✅ Entrega: +$4000 (pendiente de pago)\n\nEl pago se procesará cuando el administrador lo apruebe.`;
       }
-
-      res.json({ 
+      
+      res.json({
         success: true,
         message: successMessage,
         cash_collected: needsCashCollection ? order.total : 0,
-        delivery_fee: 3000,
-        total_added: needsCashCollection ? order.total + 3000 : 3000
+        delivery_fee: 4000,
+        total_added: needsCashCollection ? (order.total + 4000) : 4000,
+        payment_pending: true // Indica que el pago está pendiente
       });
     } catch (error) {
       console.error('Error entregando pedido:', error);
@@ -4380,6 +4493,270 @@ app.post('/api/delivery/register-payment',
       );
       
       res.json({ success: true, transaction: objectToSnakeCase(transaction) });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ========== SOLICITUD DE RETIRO DE REPARTIDOR ==========
+app.post('/api/delivery/withdrawal-request',
+  authenticateDriver,
+  async (req, res, next) => {
+    try {
+      const driverId = req.driver.id;
+      const { cvu, alias, account_name } = req.body;
+      
+      // Validar que se proporcione CVU o alias
+      if (!cvu && !alias) {
+        return res.status(400).json({ error: 'Debe proporcionar CVU o alias' });
+      }
+      
+      if (!account_name) {
+        return res.status(400).json({ error: 'Debe proporcionar el nombre del titular' });
+      }
+      
+      // Obtener saldo actual del repartidor
+      const driver = await prisma.deliveryPerson.findUnique({
+        where: { id: driverId }
+      });
+      
+      if (!driver) {
+        return res.status(404).json({ error: 'Repartidor no encontrado' });
+      }
+      
+      if (driver.balance <= 0) {
+        return res.status(400).json({ error: 'No tienes saldo disponible para retirar' });
+      }
+      
+      // Verificar que no haya una solicitud pendiente
+      const pendingRequest = await prisma.withdrawalRequest.findFirst({
+        where: {
+          deliveryPersonId: driverId,
+          status: { in: ['pending', 'processing'] }
+        }
+      });
+      
+      if (pendingRequest) {
+        return res.status(400).json({ error: 'Ya tienes una solicitud de retiro pendiente' });
+      }
+      
+      // Crear solicitud de retiro (solo puede retirar el total)
+      const withdrawalRequest = await prisma.withdrawalRequest.create({
+        data: {
+          deliveryPersonId: driverId,
+          amount: driver.balance,
+          cvu: cvu || null,
+          alias: alias || null,
+          accountName: account_name,
+          status: 'pending'
+        }
+      });
+      
+      res.json({ 
+        success: true, 
+        withdrawal_request: objectToSnakeCase(withdrawalRequest),
+        message: 'Solicitud de retiro creada. El administrador la procesará pronto.'
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ========== OBTENER PAGOS PENDIENTES A REPARTIDORES POR STORE ==========
+app.get('/api/admin/driver-payments',
+  authenticateAdmin,
+  authorize('admin', 'super_admin'),
+  async (req, res, next) => {
+    try {
+      const { storeId } = req.query;
+      
+      const whereClause = {
+        status: 'pending'
+      };
+      
+      // Si es admin normal, solo ver pagos de su store
+      if (req.user.role === 'admin' && req.user.storeId) {
+        whereClause.storeId = req.user.storeId;
+      } else if (storeId) {
+        // Si es super_admin y especifica storeId, filtrar por ese
+        whereClause.storeId = storeId;
+      }
+      
+      const payments = await prisma.driverPayment.findMany({
+        where: whereClause,
+        include: {
+          deliveryPerson: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+              withdrawalRequests: {
+                where: { status: { in: ['pending', 'processing'] } },
+                orderBy: { createdAt: 'desc' },
+                take: 1
+              }
+            }
+          },
+          store: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        },
+        orderBy: [
+          { storeId: 'asc' },
+          { deliveryPersonId: 'asc' },
+          { createdAt: 'asc' }
+        ]
+      });
+      
+      // Agrupar por store y repartidor
+      const grouped = payments.reduce((acc, payment) => {
+        const storeKey = payment.storeId;
+        const driverKey = payment.deliveryPersonId;
+        
+        if (!acc[storeKey]) {
+          acc[storeKey] = {
+            store: payment.store,
+            drivers: {}
+          };
+        }
+        
+        if (!acc[storeKey].drivers[driverKey]) {
+          const withdrawalRequest = payment.deliveryPerson.withdrawalRequests[0];
+          acc[storeKey].drivers[driverKey] = {
+            driver: {
+              id: payment.deliveryPerson.id,
+              name: payment.deliveryPerson.name,
+              phone: payment.deliveryPerson.phone,
+              cvu: withdrawalRequest?.cvu || null,
+              alias: withdrawalRequest?.alias || null,
+              account_name: withdrawalRequest?.accountName || null
+            },
+            payments: [],
+            total_amount: 0,
+            total_deliveries: 0
+          };
+        }
+        
+        const orderIds = JSON.parse(payment.orderIds || '[]');
+        acc[storeKey].drivers[driverKey].payments.push({
+          id: payment.id,
+          order_ids: orderIds,
+          delivery_count: payment.deliveryCount,
+          amount: parseFloat(payment.amount.toString())
+        });
+        acc[storeKey].drivers[driverKey].total_amount += parseFloat(payment.amount.toString());
+        acc[storeKey].drivers[driverKey].total_deliveries += payment.deliveryCount;
+        
+        return acc;
+      }, {});
+      
+      // Convertir a array
+      const result = Object.values(grouped).map((storeGroup: any) => ({
+        store: storeGroup.store,
+        drivers: Object.values(storeGroup.drivers).map((driverGroup: any) => ({
+          ...driverGroup,
+          total_amount: Math.round(driverGroup.total_amount * 100) / 100 // Redondear a 2 decimales
+        }))
+      }));
+      
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ========== MARCAR PAGO COMO PAGADO ==========
+app.post('/api/admin/driver-payments/:id/mark-paid',
+  authenticateAdmin,
+  authorize('admin', 'super_admin'),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const adminId = req.user.id;
+      
+      // Obtener el pago
+      const payment = await prisma.driverPayment.findUnique({
+        where: { id },
+        include: {
+          deliveryPerson: true,
+          store: true
+        }
+      });
+      
+      if (!payment) {
+        return res.status(404).json({ error: 'Pago no encontrado' });
+      }
+      
+      // Verificar que el admin tenga acceso a este store
+      if (req.user.role === 'admin' && req.user.storeId !== payment.storeId) {
+        return res.status(403).json({ error: 'No tienes permiso para marcar este pago' });
+      }
+      
+      if (payment.status === 'paid') {
+        return res.status(400).json({ error: 'Este pago ya fue marcado como pagado' });
+      }
+      
+      // Marcar como pagado
+      await prisma.driverPayment.update({
+        where: { id },
+        data: {
+          status: 'paid',
+          paidAt: new Date(),
+          paidBy: adminId
+        }
+      });
+      
+      // Restar el monto del saldo del repartidor
+      const amountToDeduct = parseFloat(payment.amount.toString());
+      await prisma.deliveryPerson.update({
+        where: { id: payment.deliveryPersonId },
+        data: {
+          balance: {
+            decrement: amountToDeduct
+          }
+        }
+      });
+      
+      // Crear transacción de balance
+      await prisma.driverBalanceTransaction.create({
+        data: {
+          deliveryPersonId: payment.deliveryPersonId,
+          type: 'pago_admin',
+          amount: -amountToDeduct,
+          reference: `Pago de ${payment.deliveryCount} envío(s) a ${payment.store.name}`
+        }
+      });
+      
+      // Si el saldo queda en 0 o menos, completar la solicitud de retiro si existe
+      const driver = await prisma.deliveryPerson.findUnique({
+        where: { id: payment.deliveryPersonId }
+      });
+      
+      if (driver && driver.balance <= 0) {
+        // Completar solicitud de retiro pendiente si existe
+        await prisma.withdrawalRequest.updateMany({
+          where: {
+            deliveryPersonId: payment.deliveryPersonId,
+            status: 'pending'
+          },
+          data: {
+            status: 'completed',
+            completedAt: new Date()
+          }
+        });
+      }
+      
+      res.json({ 
+        success: true, 
+        message: 'Pago marcado como pagado exitosamente',
+        new_balance: driver?.balance || 0
+      });
     } catch (error) {
       next(error);
     }
