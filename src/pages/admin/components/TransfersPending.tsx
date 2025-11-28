@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { transfersApi, ordersApi } from '../../../lib/api';
 
 interface Transfer {
@@ -35,7 +35,7 @@ export default function TransfersPending({ storeId }: TransfersPendingProps = {}
   }, [storeId]);
 
   // Cargar transferencias desde la API local
-  const loadTransfers = async () => {
+  const loadTransfers = useCallback(async () => {
     try {
       setLoadingTransfers(true);
       
@@ -73,7 +73,7 @@ export default function TransfersPending({ storeId }: TransfersPendingProps = {}
     } finally {
       setLoadingTransfers(false);
     }
-  };
+  }, [storeId]);
 
   useEffect(() => {
     if (storeId) {
@@ -83,7 +83,7 @@ export default function TransfersPending({ storeId }: TransfersPendingProps = {}
       const interval = setInterval(loadTransfers, 30000);
       return () => clearInterval(interval);
     }
-  }, [storeId]);
+  }, [storeId, loadTransfers]);
 
   const handleApprove = async (transfer: Transfer) => {
     try {
