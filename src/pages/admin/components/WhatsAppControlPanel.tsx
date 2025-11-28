@@ -184,32 +184,38 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
 
   // Polling para actualizar el QR automáticamente cuando está pendiente
   useEffect(() => {
-    if (!storeId || status?.status !== 'pending_qr') {
-      // Solo limpiar QR si el estado cambió a algo diferente de pending_qr
-      if (status?.status && status.status !== 'pending_qr') {
-        console.log('[WhatsApp QR] Estado cambió a', status.status, ', limpiando QR');
-        setQrCode(null);
-      }
-      return;
+    if (!storeId) return;
+    
+    // Si el estado es pending_qr, obtener y mantener el QR
+    if (status?.status === 'pending_qr') {
+      console.log('[WhatsApp QR] Estado es pending_qr, obteniendo QR...');
+      
+      // Obtener QR inmediatamente
+      fetchQR();
+      
+      // Luego hacer polling cada 3 segundos para actualizar el estado y el QR
+      const interval = setInterval(async () => {
+        await fetchStatus();
+        // Solo actualizar QR si el estado sigue siendo pending_qr
+        if (status?.status === 'pending_qr') {
+          const currentQr = await fetchQR();
+          if (currentQr) {
+            console.log('[WhatsApp QR] QR actualizado en polling');
+          }
+        }
+      }, 3000);
+
+      return () => clearInterval(interval);
     }
     
-    console.log('[WhatsApp QR] Estado es pending_qr, obteniendo QR...');
-    
-    // Obtener QR inmediatamente
-    fetchQR();
-    
-    // Luego hacer polling cada 3 segundos para actualizar el estado y el QR
-    const interval = setInterval(async () => {
-      await fetchStatus();
-      // Siempre intentar obtener el QR en cada polling (por si expiró o cambió)
-      const currentQr = await fetchQR();
-      if (currentQr) {
-        console.log('[WhatsApp QR] QR actualizado en polling');
-      }
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [storeId, status?.status, fetchStatus, fetchQR]);
+    // Si el estado cambió a connected, mantener el QR visible por un momento
+    // pero no limpiarlo automáticamente - el usuario puede eliminarlo manualmente
+    // Solo limpiar si el estado es disconnected Y no hay QR visible
+    if (status?.status === 'disconnected' && !qrCode) {
+      // No hacer nada, el QR ya está limpio
+      return;
+    }
+  }, [storeId, status?.status, fetchStatus, fetchQR, qrCode]);
 
   const fetchToggleState = async () => {
     if (!storeId) return;
@@ -305,9 +311,30 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
           method: 'POST',
           headers: authHeaders
         });
+        // Limpiar QR después de desconectar
+        setQrCode(null);
       },
       'Sesión desconectada correctamente.'
     );
+
+  const handleDeleteSession = () => {
+    if (!confirm('¿Estás seguro de eliminar completamente la sesión? Esto eliminará todos los datos de conexión y tendrás que escanear el QR nuevamente.')) {
+      return;
+    }
+    runAction(
+      async () => {
+        // Desconectar y limpiar todo
+        await fetch(`${API_BASE}/whatsapp/${storeId}/disconnect`, {
+          method: 'POST',
+          headers: authHeaders
+        });
+        // Limpiar QR y estado local
+        setQrCode(null);
+        setStatus({ status: 'disconnected' });
+      },
+      'Sesión eliminada completamente. Puedes generar un nuevo QR.'
+    );
+  };
 
   const handleReloadConfig = () =>
     runAction(
@@ -426,6 +453,14 @@ export default function WhatsAppControlPanel({ storeId }: WhatsAppControlPanelPr
                 disabled={loading}
               >
                 Desconectar
+              </button>
+              <button
+                onClick={handleDeleteSession}
+                className="px-2 py-1 text-[10px] rounded border border-red-300 bg-white hover:bg-red-50 text-red-700 transition"
+                disabled={loading}
+                title="Eliminar sesión completamente"
+              >
+                <i className="ri-delete-bin-line text-xs"></i>
               </button>
             </div>
           </div>

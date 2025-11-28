@@ -98,7 +98,7 @@ router.get('/:storeId/qr', authenticateAdmin, async (req, res) => {
 
 /**
  * POST /api/whatsapp/:storeId/disconnect
- * Desconecta la sesión de WhatsApp
+ * Desconecta la sesión de WhatsApp y limpia todo (QR, sesión, archivos)
  */
 router.post('/:storeId/disconnect', authenticateAdmin, async (req, res) => {
   try {
@@ -108,12 +108,31 @@ router.post('/:storeId/disconnect', authenticateAdmin, async (req, res) => {
       return res.status(403).json({ error: 'No tienes acceso a esta tienda' });
     }
 
+    console.log(`[WhatsApp Disconnect] [${storeId}] Desconectando y limpiando sesión...`);
     const result = await whatsappService.disconnectSession(storeId);
-    res.json(result);
+    
+    // Asegurar que el estado se actualice a disconnected
+    const { PrismaClient } = await import('@prisma/client');
+    const prisma = new PrismaClient();
+    await prisma.storeSettings.upsert({
+      where: { storeId },
+      update: { 
+        whatsappSessionStatus: 'disconnected', 
+        whatsappConnectedNumber: null 
+      },
+      create: { 
+        storeId, 
+        whatsappSessionStatus: 'disconnected' 
+      }
+    });
+    await prisma.$disconnect();
+    
+    console.log(`[WhatsApp Disconnect] [${storeId}] Sesión eliminada completamente`);
+    res.json({ ...result, message: 'Sesión desconectada y eliminada completamente' });
 
   } catch (error) {
-    console.error('Error desconectando WhatsApp:', error);
-    res.status(500).json({ error: 'Error desconectando' });
+    console.error(`[WhatsApp Disconnect] [${req.params.storeId}] Error:`, error);
+    res.status(500).json({ error: 'Error desconectando', details: error.message });
   }
 });
 
