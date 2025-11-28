@@ -30,6 +30,11 @@ async function request(endpoint: string, options: RequestInit = {}) {
     ...options.headers,
   };
   
+  // Log de la URL completa para debugging (solo en desarrollo)
+  if (import.meta.env.DEV) {
+    console.log(`[API] Request: ${API_URL}${endpoint}`);
+  }
+  
   // Si hay headers personalizados, pueden sobrescribir Authorization
   if (options.headers && 'Authorization' in options.headers) {
     headers['Authorization'] = (options.headers as any)['Authorization'];
@@ -43,10 +48,34 @@ async function request(endpoint: string, options: RequestInit = {}) {
     console.log(`🔗 [API] Llamando a: ${fullUrl}`);
   }
   
-  const response = await fetch(fullUrl, {
-    headers,
-    ...options,
-  });
+  let response: Response;
+  try {
+    response = await fetch(fullUrl, {
+      headers,
+      ...options,
+    });
+  } catch (fetchError: any) {
+    // Capturar errores de red (Failed to fetch, CORS, etc.)
+    console.error(`❌ [API] Error de red al conectar con ${fullUrl}:`, fetchError);
+    
+    // Determinar el tipo de error
+    let errorMessage = 'Error de conexión con el servidor';
+    if (fetchError.message?.includes('Failed to fetch') || fetchError.message?.includes('NetworkError')) {
+      errorMessage = `No se pudo conectar con el servidor. Verifica que:
+1. El backend esté corriendo
+2. La URL del API sea correcta: ${API_URL}
+3. No haya problemas de CORS o firewall`;
+    } else if (fetchError.message?.includes('CORS')) {
+      errorMessage = 'Error de CORS. El servidor no permite peticiones desde este origen.';
+    } else {
+      errorMessage = `Error de red: ${fetchError.message || 'Error desconocido'}`;
+    }
+    
+    const error = new Error(errorMessage);
+    (error as any).isNetworkError = true;
+    (error as any).originalError = fetchError;
+    throw error;
+  }
 
   // Obtener el texto de la respuesta primero para verificar si es HTML
   const responseText = await response.text();
