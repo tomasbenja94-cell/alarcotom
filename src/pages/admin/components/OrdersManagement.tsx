@@ -35,27 +35,48 @@ interface DeliveryPerson {
   status?: 'available' | 'busy';
 }
 
-// Toast component
+// Toast component Ultra Premium
 function Toast({ message, type, onClose }: { message: string; type: 'success' | 'error' | 'info'; onClose: () => void }) {
   useEffect(() => {
-    const timer = setTimeout(onClose, 5000);
+    const timer = setTimeout(onClose, 6000);
     return () => clearTimeout(timer);
   }, [onClose]);
 
-  const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
-  const icon = type === 'success' ? (
-    <i className="ri-checkbox-circle-fill text-white text-2xl"></i>
-  ) : type === 'error' ? (
-    <i className="ri-close-circle-fill text-white text-2xl"></i>
-  ) : (
-    <i className="ri-information-fill text-white text-2xl"></i>
-  );
+  const config = {
+    success: {
+      gradient: 'from-green-500 to-emerald-600',
+      icon: 'ri-checkbox-circle-fill',
+      bg: 'bg-green-500',
+    },
+    error: {
+      gradient: 'from-red-500 to-rose-600',
+      icon: 'ri-error-warning-fill',
+      bg: 'bg-red-500',
+    },
+    info: {
+      gradient: 'from-blue-500 to-indigo-600',
+      icon: 'ri-information-fill',
+      bg: 'bg-blue-500',
+    },
+  };
+
+  const current = config[type];
 
   return (
-    <div className={`fixed top-4 right-4 ${bgColor} text-white px-6 py-4 rounded-xl shadow-2xl z-50 flex items-center space-x-3 min-w-[300px] max-w-md animate-slideInRight`}>
-      <span>{icon}</span>
-      <p className="font-semibold flex-1">{message}</p>
-      <button onClick={onClose} className="text-white hover:text-gray-200 font-bold text-xl hover:scale-110 transition-transform">×</button>
+    <div className={`fixed top-6 right-6 z-[9999] animate-slideInRight`}>
+      <div className={`relative bg-gradient-to-r ${current.gradient} text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px] max-w-md border-2 border-white/20 backdrop-blur-sm`}>
+        <div className="absolute inset-0 bg-white/10 rounded-2xl"></div>
+        <div className="relative z-10 w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+          <i className={`${current.icon} text-white text-2xl`}></i>
+        </div>
+        <p className="font-bold flex-1 text-sm leading-relaxed">{message}</p>
+        <button 
+          onClick={onClose} 
+          className="relative z-10 text-white/80 hover:text-white font-bold text-xl hover:scale-110 transition-transform w-6 h-6 flex items-center justify-center rounded-full hover:bg-white/20"
+        >
+          ×
+        </button>
+      </div>
     </div>
   );
 }
@@ -77,6 +98,7 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
   const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [storeName, setStoreName] = useState<string>('EL BUEN MENÚ');
   const [searchTerm, setSearchTerm] = useState('');
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>('all');
   const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'all'>('all');
@@ -122,10 +144,25 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
     }
   }, []);
 
+  const loadStoreName = async () => {
+    if (!storeId) return;
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'https://api.elbuenmenu.site/api';
+      const response = await fetch(`${API_URL}/stores/${storeId}`);
+      if (response.ok) {
+        const store = await response.json();
+        setStoreName(store.name || 'EL BUEN MENÚ');
+      }
+    } catch (error) {
+      console.error('Error loading store name:', error);
+    }
+  };
+
   useEffect(() => {
     loadOrders();
     loadDeliveryPersons();
     loadPendingTransfers();
+    loadStoreName();
     
     // Polling inteligente: verifica cada 5 segundos inicialmente
     // Luego se adapta según si hay pedidos pendientes (cada 3s si hay, 8s si no hay)
@@ -177,7 +214,8 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
 
   const loadPendingTransfers = async () => {
     try {
-      const data = await transfersApi.getPending();
+      // IMPORTANTE: Pasar storeId para filtrar transferencias por tienda
+      const data = await transfersApi.getPending(storeId ? { storeId } : undefined);
       setPendingTransfers(data || []);
     } catch (error) {
       console.error('Error loading pending transfers:', error);
@@ -216,16 +254,7 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
         delivery_code: order.delivery_code || order.deliveryCode,
       };
       
-      // Log para depuración
-      if (normalizedOrder.status === 'pending') {
-        console.log(`[LOAD ORDERS] Pedido ${normalizedOrder.order_number}:`, {
-          status: normalizedOrder.status,
-          customer_phone: normalizedOrder.customer_phone ? 'SÍ' : 'NO',
-          payment_method: normalizedOrder.payment_method || 'N/A',
-          payment_status: normalizedOrder.payment_status || 'N/A',
-          delivery_fee: normalizedOrder.delivery_fee
-        });
-      }
+      // Pedido cargado
       
       return normalizedOrder;
     });
@@ -250,20 +279,20 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
                           o.customer_phone.trim() !== '' && 
                           o.customer_phone.length >= 10;
           if (!hasPhone) {
-            console.warn(`[PEDIDO DESCARTADO] Pedido ${o.order_number} sin teléfono válido`);
+            // Pedido descartado: sin teléfono válido
             return false;
           }
           
           // 4. Verificar que tenga nombre de cliente
           const hasName = o.customer_name && o.customer_name.trim() !== '';
           if (!hasName) {
-            console.warn(`[PEDIDO DESCARTADO] Pedido ${o.order_number} sin nombre de cliente`);
+            // Pedido descartado: sin nombre de cliente
             return false;
           }
           
           // 5. Verificar que tenga items
           if (!o.items || o.items.length === 0) {
-            console.warn(`[PEDIDO DESCARTADO] Pedido ${o.order_number} sin items`);
+            // Pedido descartado: sin items
             return false;
           }
           
@@ -277,17 +306,17 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
                                          paymentMethod.includes('sin definir');
           
           if (isPaymentMethodPending) {
-            console.warn(`[PEDIDO DESCARTADO] Pedido ${o.order_number} con método de pago pendiente: "${paymentMethod}"`);
+            // Pedido descartado: método de pago pendiente
             return false;
           }
           
           // 7. Validar que el total sea mayor a 0
           if (!o.total || o.total <= 0) {
-            console.warn(`[PEDIDO DESCARTADO] Pedido ${o.order_number} con total inválido: ${o.total}`);
+            // Pedido descartado: total inválido
             return false;
           }
           
-          console.log(`[NUEVO PEDIDO DETECTADO] ${o.order_number} - ${o.customer_name} - ${o.payment_method} - $${o.total}`);
+          // Nuevo pedido detectado
           return true;
         });
         
@@ -602,8 +631,11 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
   };
 
 
-  // Imprimir ticket del pedido
+  // Imprimir ticket del pedido - Sistema Ultra Premium
   const handlePrintTicket = (order: Order) => {
+    // Mostrar feedback visual antes de imprimir
+    showToast('Preparando ticket para imprimir...', 'info');
+    
     // Crear una ventana nueva con el ticket estético
     const printWindow = window.open('', '_blank', 'width=400,height=600');
     if (!printWindow) {
@@ -611,7 +643,7 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
       return;
     }
 
-    // Construir HTML del ticket
+    // Construir HTML del ticket mejorado
     const ticketHTML = `
 <!DOCTYPE html>
         <html>
@@ -620,91 +652,135 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
   <title>Ticket Pedido ${order.order_number}</title>
             <style>
               @media print {
-      @page { margin: 0; size: 80mm auto; }
+      @page { 
+        margin: 0; 
+        size: 80mm auto; 
+      }
                 body { margin: 0; }
+                @page {
+                  margin: 5mm;
+                }
     }
     * { box-sizing: border-box; }
     body {
-      font-family: 'Courier New', monospace;
+      font-family: 'Courier New', 'Arial', sans-serif;
       width: 80mm;
       margin: 0 auto;
-      padding: 10mm;
+      padding: 12mm 8mm;
       background: white;
-      font-size: 12px;
-      line-height: 1.4;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #000;
     }
     .header {
       text-align: center;
-      border-bottom: 2px solid #000;
-      padding-bottom: 10px;
-      margin-bottom: 15px;
+      border-bottom: 3px double #000;
+      padding-bottom: 12px;
+      margin-bottom: 18px;
     }
     .header h1 {
       margin: 0;
-      font-size: 18px;
+      font-size: 20px;
       font-weight: bold;
+      letter-spacing: 1px;
+      text-transform: uppercase;
     }
     .header p {
-      margin: 5px 0 0 0;
-      font-size: 10px;
+      margin: 6px 0 0 0;
+      font-size: 11px;
+    }
+    .header .order-number {
+      font-size: 14px;
+      font-weight: bold;
+      margin-top: 4px;
     }
     .section {
-      margin: 15px 0;
-      padding-bottom: 10px;
-      border-bottom: 1px dashed #ccc;
+      margin: 16px 0;
+      padding-bottom: 12px;
+      border-bottom: 1px dashed #666;
     }
     .section:last-child {
       border-bottom: none;
     }
     .section-title {
       font-weight: bold;
-      font-size: 14px;
-      margin-bottom: 8px;
+      font-size: 13px;
+      margin-bottom: 10px;
       text-transform: uppercase;
+      border-bottom: 1px solid #000;
+      padding-bottom: 3px;
     }
     .item {
       display: flex;
       justify-content: space-between;
-      margin: 5px 0;
+      margin: 6px 0;
       font-size: 11px;
+      line-height: 1.4;
     }
     .item-name {
       flex: 1;
+      padding-right: 5px;
     }
     .item-price {
       font-weight: bold;
-      margin-left: 10px;
+      margin-left: 8px;
+      white-space: nowrap;
     }
     .extras {
-      margin-left: 15px;
-      font-size: 10px;
-      color: #666;
+      margin-left: 12px;
+      font-size: 9px;
+      color: #444;
+      margin-top: 2px;
+      line-height: 1.3;
     }
     .total {
-      font-size: 16px;
+      font-size: 18px;
       font-weight: bold;
       text-align: right;
-      margin-top: 10px;
-      padding-top: 10px;
-      border-top: 2px solid #000;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 3px double #000;
     }
     .footer {
       text-align: center;
       margin-top: 20px;
-      font-size: 10px;
+      font-size: 9px;
       color: #666;
+      border-top: 1px dashed #ccc;
+      padding-top: 12px;
     }
     .divider {
       border-top: 1px dashed #000;
-      margin: 10px 0;
-              }
+      margin: 12px 0;
+    }
+    .highlight-box {
+      border: 2px solid #000;
+      padding: 12px;
+      text-align: center;
+      background: #f5f5f5;
+      margin-top: 15px;
+      font-weight: bold;
+    }
+    .code-large {
+      font-size: 28px;
+      font-weight: bold;
+      letter-spacing: 4px;
+      margin: 8px 0;
+      font-family: 'Courier New', monospace;
+    }
             </style>
           </head>
           <body>
   <div class="header">
-    <h1>EL BUEN MENÚ</h1>
-    <p>Pedido ${order.order_number}</p>
-    <p>${new Date(order.created_at).toLocaleString('es-AR')}</p>
+    <h1>${storeName.toUpperCase()}</h1>
+    <div class="order-number">PEDIDO #${order.order_number}</div>
+    <p>${new Date(order.created_at).toLocaleString('es-AR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })}</p>
   </div>
 
   <div class="section">
@@ -826,10 +902,10 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
     
     if (isPickup && hasDeliveryCode) {
       return `
-  <div class="section" style="border: 3px solid #000; padding: 15px; text-align: center; background: #f9f9f9; margin-top: 20px;">
-    <div class="section-title" style="font-size: 16px; margin-bottom: 10px;">🔐 CÓDIGO DE RETIRO</div>
-    <div style="font-size: 32px; font-weight: bold; letter-spacing: 5px; margin: 10px 0; color: #000;">${order.delivery_code}</div>
-    <div style="font-size: 10px; color: #666; margin-top: 5px;">Presentá este código al retirar</div>
+  <div class="highlight-box">
+    <div style="font-size: 14px; margin-bottom: 8px; text-transform: uppercase;">🔐 CÓDIGO DE RETIRO</div>
+    <div class="code-large">${order.delivery_code}</div>
+    <div style="font-size: 9px; color: #666; margin-top: 6px;">Presentá este código al retirar</div>
   </div>
       `;
     }
@@ -850,14 +926,15 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
     
     // Esperar a que se cargue el contenido y luego imprimir
     setTimeout(() => {
+      printWindow.focus();
       printWindow.print();
-    }, 500);
+      showToast('Ticket enviado a impresión', 'success');
+    }, 800);
   };
 
   // Filtrar pedidos
   const filteredOrders = useMemo(() => {
-    console.log(`[FILTER DEBUG] Total pedidos cargados: ${orders.length}`);
-    console.log(`[FILTER DEBUG] Filtro activo: ${activeFilter}, Tipo: ${deliveryType}`);
+    // Filtrando pedidos
     
     let filtered = orders;
     
@@ -868,41 +945,35 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
         .map(t => t.order_id)
     );
     
-    console.log(`[FILTER DEBUG] Pedidos con transferencias pendientes: ${ordersWithPendingTransfer.size}`);
+    // Transferencias pendientes procesadas
     
     // Excluir pedidos con transferencias pendientes (deben ser aprobados primero en transferencias)
     filtered = filtered.filter(order => !ordersWithPendingTransfer.has(order.id));
-    console.log(`[FILTER DEBUG] Después de excluir transferencias: ${filtered.length}`);
+    // Después de filtrar transferencias
     
     // Filtrar por tipo de entrega: DOMICILIO (delivery_fee > 0) o RETIRO (delivery_fee = 0)
     if (deliveryType === 'delivery') {
       // Solo pedidos a domicilio
       filtered = filtered.filter(order => (order.delivery_fee || 0) > 0);
-      console.log(`[FILTER DEBUG] Después de filtrar DOMICILIO: ${filtered.length}`);
+      // Filtrado por DOMICILIO
     } else if (deliveryType === 'pickup') {
       // Solo pedidos para retiro
       filtered = filtered.filter(order => (order.delivery_fee || 0) === 0);
-      console.log(`[FILTER DEBUG] Después de filtrar RETIRO: ${filtered.length}`);
+      // Filtrado por RETIRO
     }
     
     // Filtrar por estado simplificado: PENDIENTES - CANCELADAS - COMPLETADAS
     if (activeFilter === 'pending') {
-      console.log(`[FILTER DEBUG] Filtrando PENDIENTES. Pedidos antes del filtro: ${filtered.length}`);
+      // Filtrando PENDIENTES
       // Solo pedidos pendientes de aceptar
       // IMPORTANTE: Solo mostrar pedidos confirmados en WhatsApp Y con método de pago confirmado
       filtered = filtered.filter(order => {
-        console.log(`[FILTER DETAIL] Analizando pedido ${order.order_number}:`, {
-          status: order.status,
-          customer_phone: order.customer_phone ? 'SÍ' : 'NO',
-          payment_method: order.payment_method || 'N/A',
-          payment_status: order.payment_status || 'N/A',
-          delivery_fee: order.delivery_fee
-        });
+        // Analizando pedido
         
         // Incluir pedidos con status 'pending' o 'confirmed' (cuando el pago está aprobado pero aún no aprobado por admin)
         const isPendingOrConfirmed = order.status === 'pending' || order.status === 'confirmed';
         if (!isPendingOrConfirmed) {
-          console.log(`[FILTER] ❌ Pedido ${order.order_number}: status no es 'pending' ni 'confirmed' (${order.status})`);
+          // Pedido excluido: status inválido
           return false;
         }
         
@@ -911,7 +982,7 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
         
         // Solo mostrar si tiene teléfono (confirmado en WhatsApp)
         if (!hasPhone) {
-          console.log(`[FILTER] ❌ Pedido ${order.order_number}: sin customer_phone`);
+          // Pedido excluido: sin teléfono
           return false; // Excluir pedidos de la web que aún no fueron confirmados en WhatsApp
         }
         
@@ -931,7 +1002,7 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
         
         // Excluir si el método de pago aún no está confirmado
         if (isPaymentMethodPending) {
-          console.log(`[FILTER] ❌ Pedido ${order.order_number}: método de pago pendiente o inválido (${order.payment_method})`);
+          // Pedido excluido: método de pago inválido
           return false; // Excluir pedidos que aún no tienen método de pago confirmado
         }
         
@@ -943,31 +1014,31 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
         // Para Mercado Pago: solo mostrar si el pago está aprobado
         if (isMercadoPago) {
           if (paymentStatus !== 'approved' && paymentStatus !== 'completed') {
-            console.log(`[FILTER] ❌ Pedido ${order.order_number}: Mercado Pago aún no aprobado (status: ${order.payment_status})`);
+            // Pedido excluido: Mercado Pago no aprobado
             return false; // No mostrar hasta que el pago esté aprobado
           }
-          console.log(`[FILTER] ✅ Pedido ${order.order_number}: Mercado Pago aprobado - MOSTRAR`);
+          // Pedido incluido: Mercado Pago aprobado
           return true;
         }
         
-        // Para Transferencia: solo mostrar si tiene una transferencia pendiente asociada
+        // Para Transferencia: mostrar si el pago está completado O si tiene transferencia pendiente
         if (isTransferencia) {
+          // Si el pago está completado, mostrarlo directamente
+          if (paymentStatus === 'completed' || paymentStatus === 'approved') {
+            return true;
+          }
+          // Si no está completado, solo mostrar si tiene transferencia pendiente
           const hasPendingTransfer = pendingTransfers.some(
             t => t.order_id === order.id && t.status === 'pending'
           );
-          if (!hasPendingTransfer) {
-            console.log(`[FILTER] ❌ Pedido ${order.order_number}: Transferencia sin comprobante pendiente`);
-            return false;
-          }
-          console.log(`[FILTER] ✅ Pedido ${order.order_number}: Transferencia con comprobante - MOSTRAR`);
-          return true;
+          return hasPendingTransfer;
         }
         
         // Para Efectivo: mostrar directamente (el pago se hace al recibir/retirar)
         if (isEfectivo) {
           const isPickup = (order.delivery_fee || 0) === 0;
           if (isPickup) {
-            console.log(`[FILTER] ✅ Pedido ${order.order_number}: retiro con efectivo - MOSTRAR`);
+            // Pedido incluido: retiro con efectivo
           } else {
             console.log(`[FILTER] ✅ Pedido ${order.order_number}: domicilio con efectivo - MOSTRAR`);
           }
@@ -978,7 +1049,7 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
         console.log(`[FILTER] ✅ Pedido ${order.order_number} PASÓ EL FILTRO - método: ${order.payment_method}, status: ${order.status}`);
         return true;
       });
-      console.log(`[FILTER DEBUG] Pedidos después del filtro PENDIENTES: ${filtered.length}`);
+      // Filtrado completado
     } else if (activeFilter === 'cancelled') {
       // Solo pedidos cancelados/rechazados
       filtered = filtered.filter(order => order.status === 'cancelled');
@@ -1056,14 +1127,51 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
     return sorted;
   }, [orders, activeFilter, deliveryType, searchTerm, paymentMethodFilter, dateRange, sortBy, pendingTransfers]);
 
-  // Estadísticas simplificadas
+  // Estadísticas - usar la misma lógica de filtrado que filteredOrders pero sin búsqueda ni fechas
   const stats = useMemo(() => {
+    // Obtener IDs de pedidos con transferencias pendientes
+    const ordersWithPendingTransfer = new Set(
+      pendingTransfers
+        .filter(t => t.status === 'pending')
+        .map(t => t.order_id)
+    );
+    
+    // Aplicar los mismos filtros que filteredOrders pero sin searchTerm y dateRange
+    let filteredForStats = orders.filter(order => {
+      // Excluir pedidos con transferencias pendientes
+      if (ordersWithPendingTransfer.has(order.id)) return false;
+      
+      // Solo pedidos confirmados (con customer_phone y método de pago válido)
+      const hasPhone = order.customer_phone && order.customer_phone.trim() !== '';
+      if (!hasPhone) return false;
+      
+      // Verificar método de pago
+      const paymentMethod = (order.payment_method || '').trim();
+      const paymentMethodLower = paymentMethod.toLowerCase();
+      const validPaymentMethods = ['mercadopago', 'mercado pago', 'transferencia', 'efectivo', 'cash', 'transfer'];
+      const isPaymentMethodPending = paymentMethod === '' || 
+                                     paymentMethod === 'null' ||
+                                     paymentMethodLower.includes('pendiente') ||
+                                     (!validPaymentMethods.some(valid => paymentMethodLower.includes(valid)));
+      
+      if (isPaymentMethodPending) return false;
+      
+      // Verificar estado de pago para Mercado Pago
+      const paymentStatus = (order.payment_status || '').toLowerCase();
+      const isMercadoPago = paymentMethodLower.includes('mercadopago') || paymentMethodLower.includes('mercado pago');
+      if (isMercadoPago && paymentStatus !== 'approved' && paymentStatus !== 'completed') {
+        return false;
+      }
+      
+      return true;
+    });
+    
     return {
-      pending: orders.filter(o => o.status === 'pending').length,
-      cancelled: orders.filter(o => o.status === 'cancelled').length,
-      completed: orders.filter(o => o.status === 'delivered').length, // Solo pedidos realmente entregados
+      pending: filteredForStats.filter(o => o.status === 'pending' || o.status === 'confirmed').length,
+      cancelled: filteredForStats.filter(o => o.status === 'cancelled').length,
+      completed: filteredForStats.filter(o => o.status === 'delivered').length,
     };
-  }, [orders]);
+  }, [orders, pendingTransfers]);
 
   const getStatusColor = (status: string, paymentStatus?: string) => {
     if (status === 'cancelled') return 'bg-red-100 text-red-800 border-red-300';
@@ -1144,97 +1252,120 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
         />
       )}
 
-      {/* Header - Más Pequeño */}
-      <div className="bg-gradient-to-r from-orange-100 to-yellow-100 border-2 border-orange-400 rounded-xl sm:rounded-2xl shadow-lg p-3 sm:p-4 mb-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
-          <div>
-            <h2 className="text-lg sm:text-2xl font-bold mb-1 text-gray-800 flex items-center space-x-2">
-              <span className="text-2xl sm:text-3xl">📦</span>
-              <span>PEDIDOS</span>
-            </h2>
-            <p className="text-xs sm:text-sm text-gray-600 font-semibold">Gestiona los pedidos fácilmente</p>
+      {/* Header Minimalista */}
+      <div className="bg-white border border-gray-200 rounded-lg mb-3 p-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-black rounded flex items-center justify-center">
+              <i className="ri-shopping-bag-3-line text-white text-sm"></i>
+            </div>
+            <div>
+              <h1 className="text-sm font-semibold text-black flex items-center gap-2">
+                <span>Pedidos</span>
+                {stats.pending > 0 && (
+                  <span className="px-1.5 py-0.5 bg-red-600 text-white text-[10px] font-bold rounded">
+                    {stats.pending}
+                  </span>
+                )}
+              </h1>
+            </div>
           </div>
-          <button
-            onClick={() => loadOrders()}
-            disabled={loading}
-            className="px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 rounded-lg sm:rounded-xl transition-all shadow-md hover:shadow-lg transform hover:scale-105 disabled:opacity-50 disabled:transform-none flex items-center space-x-2"
-          >
-            <span className="text-lg sm:text-xl">🔄</span>
-            <span>ACTUALIZAR</span>
-          </button>
+          
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 bg-gray-50 rounded border border-gray-200">
+              <div className="w-1.5 h-1.5 bg-gray-400 rounded-full"></div>
+              <span className="text-[10px] text-gray-600">Auto</span>
+            </div>
+            <button
+              onClick={() => loadOrders()}
+              disabled={loading}
+              className="px-2 py-1 text-[10px] bg-black text-white rounded border border-black hover:bg-gray-800 transition disabled:opacity-50 flex items-center gap-1"
+            >
+              {loading ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Cargando...</span>
+                </>
+              ) : (
+                <>
+                  <i className="ri-refresh-line text-xs"></i>
+                  <span>Actualizar</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
-              {/* Estadísticas - Más Pequeñas con Iconos Modernos */}
-              <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
-                <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-2 border-yellow-400 rounded-xl sm:rounded-2xl shadow-lg p-2 sm:p-4 hover:scale-105 transition-all text-center">
-                  <div className="flex justify-center mb-1 sm:mb-2">
-                    <div className="w-8 h-8 sm:w-12 sm:h-12 bg-yellow-500 rounded-full flex items-center justify-center">
-                      <i className="ri-time-line text-white text-lg sm:text-2xl"></i>
-                    </div>
-                  </div>
-                  <div className="text-xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">{stats.pending}</div>
-                  <div className="text-xs sm:text-sm text-gray-700 font-bold">PENDIENTES</div>
-                </div>
-                <div className="bg-gradient-to-br from-red-50 to-red-100 border-2 border-red-400 rounded-xl sm:rounded-2xl shadow-lg p-2 sm:p-4 hover:scale-105 transition-all text-center">
-                  <div className="flex justify-center mb-1 sm:mb-2">
-                    <div className="w-8 h-8 sm:w-12 sm:h-12 bg-red-500 rounded-full flex items-center justify-center">
-                      <i className="ri-close-circle-line text-white text-lg sm:text-2xl"></i>
-                    </div>
-                  </div>
-                  <div className="text-xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">{stats.cancelled}</div>
-                  <div className="text-xs sm:text-sm text-gray-700 font-bold">CANCELADAS</div>
-                </div>
-                <div className="bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-400 rounded-xl sm:rounded-2xl shadow-lg p-2 sm:p-4 hover:scale-105 transition-all text-center">
-                  <div className="flex justify-center mb-1 sm:mb-2">
-                    <div className="w-8 h-8 sm:w-12 sm:h-12 bg-green-500 rounded-full flex items-center justify-center">
-                      <i className="ri-checkbox-circle-fill text-white text-lg sm:text-2xl"></i>
-                    </div>
-                  </div>
-                  <div className="text-xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">{stats.completed}</div>
-                  <div className="text-xs sm:text-sm text-gray-700 font-bold">COMPLETADAS</div>
-                </div>
-              </div>
+      {/* Estadísticas Minimalistas */}
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        {/* PENDIENTES */}
+        <div className="bg-white border border-gray-200 rounded-lg p-2 cursor-pointer hover:border-gray-300 transition" onClick={() => setActiveFilter('pending')}>
+          <div className="flex items-center justify-between mb-1">
+            <i className="ri-time-line text-gray-600 text-xs"></i>
+            {stats.pending > 0 && (
+              <span className="w-4 h-4 bg-red-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                {stats.pending > 9 ? '9+' : stats.pending}
+              </span>
+            )}
+          </div>
+          <div className="text-xl font-bold text-black leading-none mb-0.5">{stats.pending}</div>
+          <div className="text-[9px] text-gray-600 font-medium">Pendientes</div>
+        </div>
 
-      {/* Selector de tipo de pedido - SÚPER GRANDES */}
-      <div className="bg-white border-2 sm:border-4 border-gray-300 rounded-xl sm:rounded-3xl shadow-xl sm:shadow-2xl p-3 sm:p-6 mb-4 sm:mb-8">
-        <div className="flex gap-2 sm:gap-6">
+        {/* CANCELADAS */}
+        <div className="bg-white border border-gray-200 rounded-lg p-2 cursor-pointer hover:border-gray-300 transition" onClick={() => setActiveFilter('cancelled')}>
+          <div className="flex items-center justify-center mb-1">
+            <i className="ri-close-circle-line text-gray-600 text-xs"></i>
+          </div>
+          <div className="text-xl font-bold text-black leading-none mb-0.5">{stats.cancelled}</div>
+          <div className="text-[9px] text-gray-600 font-medium">Cancelados</div>
+        </div>
+
+        {/* COMPLETADAS */}
+        <div className="bg-white border border-gray-200 rounded-lg p-2 cursor-pointer hover:border-gray-300 transition" onClick={() => setActiveFilter('completed')}>
+          <div className="flex items-center justify-center mb-1">
+            <i className="ri-checkbox-circle-fill text-gray-600 text-xs"></i>
+          </div>
+          <div className="text-xl font-bold text-black leading-none mb-0.5">{stats.completed}</div>
+          <div className="text-[9px] text-gray-600 font-medium">Completados</div>
+        </div>
+      </div>
+
+      {/* Selector de tipo de pedido - Minimalista */}
+      <div className="bg-white border border-gray-200 rounded-lg p-2 mb-3">
+        <div className="grid grid-cols-2 gap-2">
+          {/* DOMICILIO */}
           <button
             onClick={() => setDeliveryType('delivery')}
-            className={`flex-1 px-3 py-3 sm:px-8 sm:py-6 text-base sm:text-2xl font-bold transition-all rounded-xl sm:rounded-3xl flex items-center justify-center space-x-2 sm:space-x-4 relative ${
+            className={`relative px-3 py-2 text-xs font-medium transition-all rounded border flex items-center justify-center gap-1.5 ${
               deliveryType === 'delivery'
-                ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white border-2 sm:border-4 border-orange-700 shadow-xl sm:shadow-2xl'
-                : 'bg-white text-gray-800 hover:bg-orange-50 border-2 sm:border-4 border-gray-300 hover:border-orange-400'
-            } ${notificationAnimation === 'delivery' ? 'animate-pulse' : ''}`}
+                ? 'bg-black text-white border-black'
+                : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
+            }`}
           >
-            <span className="text-2xl sm:text-5xl">🚚</span>
-            <span>DOMICILIO</span>
+            <span className="text-sm">🚚</span>
+            <span>Domicilio</span>
             {pendingDeliveryCount > 0 && (
-              <span 
-                className={`absolute -top-2 -right-2 sm:-top-3 sm:-right-3 bg-red-500 text-white text-sm sm:text-xl font-bold rounded-full w-7 h-7 sm:w-10 sm:h-10 flex items-center justify-center shadow-xl ${
-                  notificationAnimation === 'delivery' ? 'animate-bounce' : ''
-                }`}
-              >
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
                 {pendingDeliveryCount > 9 ? '9+' : pendingDeliveryCount}
               </span>
             )}
           </button>
+
+          {/* RETIRO */}
           <button
             onClick={() => setDeliveryType('pickup')}
-            className={`flex-1 px-3 py-3 sm:px-8 sm:py-6 text-base sm:text-2xl font-bold transition-all rounded-xl sm:rounded-3xl flex items-center justify-center space-x-2 sm:space-x-4 relative ${
+            className={`relative px-3 py-2 text-xs font-medium transition-all rounded border flex items-center justify-center gap-1.5 ${
               deliveryType === 'pickup'
-                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white border-2 sm:border-4 border-blue-700 shadow-xl sm:shadow-2xl'
-                : 'bg-white text-gray-800 hover:bg-blue-50 border-2 sm:border-4 border-gray-300 hover:border-blue-400'
-            } ${notificationAnimation === 'pickup' ? 'animate-pulse' : ''}`}
+                ? 'bg-black text-white border-black'
+                : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
+            }`}
           >
-            <span className="text-2xl sm:text-5xl">🏪</span>
-            <span>RETIRO</span>
+            <span className="text-sm">🏪</span>
+            <span>Retiro</span>
             {pendingPickupCount > 0 && (
-              <span 
-                className={`absolute -top-2 -right-2 sm:-top-3 sm:-right-3 bg-red-500 text-white text-sm sm:text-xl font-bold rounded-full w-7 h-7 sm:w-10 sm:h-10 flex items-center justify-center shadow-xl ${
-                  notificationAnimation === 'pickup' ? 'animate-bounce' : ''
-                }`}
-              >
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
                 {pendingPickupCount > 9 ? '9+' : pendingPickupCount}
               </span>
             )}
@@ -1242,205 +1373,358 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
         </div>
       </div>
       
-      {/* Estilos CSS para animación de vibración */}
+      {/* Estilos CSS Premium */}
       <style>{`
         @keyframes vibrate {
           0%, 100% { transform: translateX(0); }
           10%, 30%, 50%, 70%, 90% { transform: translateX(-3px); }
           20%, 40%, 60%, 80% { transform: translateX(3px); }
         }
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        @keyframes slideInRight {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        @keyframes fadeInUp {
+          from {
+            transform: translateY(20px);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+        .animate-shimmer {
+          animation: shimmer 2s infinite;
+        }
+        .animate-slideInRight {
+          animation: slideInRight 0.3s ease-out;
+        }
+        .animate-fadeInUp {
+          animation: fadeInUp 0.5s ease-out;
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.3s ease-out;
+        }
+        .scrollbar-hide::-webkit-scrollbar { 
+          display: none; 
+        }
+        .scrollbar-hide { 
+          -ms-overflow-style: none; 
+          scrollbar-width: none; 
+        }
       `}</style>
 
-      {/* Búsqueda y Filtros - SÚPER SIMPLES */}
-      <div className="bg-white border-2 sm:border-4 border-gray-300 rounded-xl sm:rounded-3xl shadow-xl sm:shadow-2xl p-3 sm:p-6 mb-4 sm:mb-8">
-        <div className="flex flex-col md:flex-row gap-3 sm:gap-6">
-          {/* Búsqueda - GRANDE */}
-          <div className="flex-1">
+      {/* Búsqueda y Filtros - Ultra Premium */}
+      <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 p-6 mb-6">
+        <div className="flex flex-col lg:flex-row gap-4">
+          {/* Búsqueda Premium */}
+          <div className="flex-1 relative">
+            <div className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10">
+              <i className="ri-search-line text-gray-400 text-xl"></i>
+            </div>
             <input
               type="text"
-              placeholder="Buscar pedido..."
+              placeholder="Buscar por número de pedido, cliente o teléfono..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-3 py-2 sm:px-6 sm:py-4 border-2 sm:border-4 border-gray-300 rounded-xl sm:rounded-2xl focus:ring-2 sm:focus:ring-4 focus:ring-orange-400 focus:border-orange-500 transition-all text-sm sm:text-xl text-gray-800 font-bold"
+              className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-2xl focus:ring-4 focus:ring-orange-300 focus:border-orange-500 transition-all text-base text-gray-800 font-medium bg-gray-50 focus:bg-white"
             />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <i className="ri-close-circle-line text-xl"></i>
+              </button>
+            )}
           </div>
           
-          {/* Filtros - GRANDES */}
-          <div className="flex gap-2 sm:gap-4 overflow-x-auto pb-2 sm:pb-0" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-            <style>{`
-              div::-webkit-scrollbar {
-                display: none;
-              }
-            `}</style>
+          {/* Filtros - Diseño Premium */}
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
             <button
               onClick={() => setActiveFilter('pending')}
-              className={`px-3 py-2 sm:px-8 sm:py-4 text-sm sm:text-xl font-bold transition-all rounded-xl sm:rounded-2xl flex items-center space-x-1 sm:space-x-3 whitespace-nowrap flex-shrink-0 ${
+              className={`px-5 py-3 text-base sm:text-lg font-bold transition-all rounded-xl flex items-center space-x-2 whitespace-nowrap flex-shrink-0 relative overflow-hidden ${
                 activeFilter === 'pending'
-                  ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-white border-2 sm:border-4 border-yellow-600 shadow-xl'
-                  : 'bg-white text-gray-800 hover:bg-yellow-50 border-2 sm:border-4 border-gray-300 hover:border-yellow-400'
+                  ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-white shadow-lg scale-105 ring-2 ring-amber-300'
+                  : 'bg-white text-gray-700 hover:bg-amber-50 border-2 border-gray-200 hover:border-amber-300 hover:shadow-md'
               }`}
             >
-              <span className="text-xl sm:text-3xl">⏳</span>
-              <span>PENDIENTES</span>
+              {activeFilter === 'pending' && (
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+              )}
+              <i className={`ri-time-line text-xl sm:text-2xl ${activeFilter === 'pending' ? 'text-white' : 'text-amber-500'}`}></i>
+              <span className="relative z-10">PENDIENTES</span>
             </button>
             <button
               onClick={() => setActiveFilter('cancelled')}
-              className={`px-3 py-2 sm:px-8 sm:py-4 text-sm sm:text-xl font-bold transition-all rounded-xl sm:rounded-2xl flex items-center space-x-1 sm:space-x-3 whitespace-nowrap flex-shrink-0 ${
+              className={`px-5 py-3 text-base sm:text-lg font-bold transition-all rounded-xl flex items-center space-x-2 whitespace-nowrap flex-shrink-0 relative overflow-hidden ${
                 activeFilter === 'cancelled'
-                  ? 'bg-gradient-to-r from-red-400 to-red-500 text-white border-2 sm:border-4 border-red-600 shadow-xl'
-                  : 'bg-white text-gray-800 hover:bg-red-50 border-2 sm:border-4 border-gray-300 hover:border-red-400'
+                  ? 'bg-gradient-to-r from-red-400 to-red-500 text-white shadow-lg scale-105 ring-2 ring-red-300'
+                  : 'bg-white text-gray-700 hover:bg-red-50 border-2 border-gray-200 hover:border-red-300 hover:shadow-md'
               }`}
             >
-              <span className="text-xl sm:text-3xl">❌</span>
-              <span>CANCELADAS</span>
+              {activeFilter === 'cancelled' && (
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+              )}
+              <i className={`ri-close-circle-line text-xl sm:text-2xl ${activeFilter === 'cancelled' ? 'text-white' : 'text-red-500'}`}></i>
+              <span className="relative z-10">CANCELADAS</span>
             </button>
             <button
               onClick={() => setActiveFilter('completed')}
-              className={`px-3 py-2 sm:px-8 sm:py-4 text-sm sm:text-xl font-bold transition-all rounded-xl sm:rounded-2xl flex items-center space-x-1 sm:space-x-3 whitespace-nowrap flex-shrink-0 ${
+              className={`px-5 py-3 text-base sm:text-lg font-bold transition-all rounded-xl flex items-center space-x-2 whitespace-nowrap flex-shrink-0 relative overflow-hidden ${
                 activeFilter === 'completed'
-                  ? 'bg-gradient-to-r from-green-400 to-green-500 text-white border-2 sm:border-4 border-green-600 shadow-xl'
-                  : 'bg-white text-gray-800 hover:bg-green-50 border-2 sm:border-4 border-gray-300 hover:border-green-400'
+                  ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white shadow-lg scale-105 ring-2 ring-green-300'
+                  : 'bg-white text-gray-700 hover:bg-green-50 border-2 border-gray-200 hover:border-green-300 hover:shadow-md'
               }`}
             >
-              <span className="text-xl sm:text-3xl">✅</span>
-              <span>COMPLETADAS</span>
+              {activeFilter === 'completed' && (
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+              )}
+              <i className={`ri-checkbox-circle-line text-xl sm:text-2xl ${activeFilter === 'completed' ? 'text-white' : 'text-green-500'}`}></i>
+              <span className="relative z-10">COMPLETADAS</span>
             </button>
           </div>
         </div>
         
-        {/* Filtros Avanzados */}
-        <div className="mt-3 pt-3 border-t border-gray-200">
+        {/* Filtros Avanzados Premium */}
+        <div className="mt-4 pt-4 border-t border-gray-200">
           <button
             onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 font-medium"
+            className="flex items-center gap-2 text-sm font-bold text-gray-700 hover:text-gray-900 transition-colors group"
           >
-            <i className={`ri-arrow-${showAdvancedFilters ? 'up' : 'down'}-s-line`}></i>
-            Filtros Avanzados
+            <i className={`ri-filter-3-line text-lg transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`}></i>
+            <span>Filtros Avanzados</span>
+            <i className={`ri-arrow-${showAdvancedFilters ? 'up' : 'down'}-s-line transition-transform`}></i>
           </button>
           
           {showAdvancedFilters && (
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-              {/* Método de Pago */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Método de Pago</label>
-                <select
-                  value={paymentMethodFilter}
-                  onChange={(e) => setPaymentMethodFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                >
-                  <option value="all">Todos</option>
-                  <option value="mercadopago">Mercado Pago</option>
-                  <option value="transferencia">Transferencia</option>
-                  <option value="efectivo">Efectivo</option>
-                </select>
+            <div className="mt-4 p-4 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border border-gray-200">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Método de Pago */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-2 flex items-center gap-2">
+                    <i className="ri-bank-card-line text-purple-500"></i>
+                    Método de Pago
+                  </label>
+                  <select
+                    value={paymentMethodFilter}
+                    onChange={(e) => setPaymentMethodFilter(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm font-medium focus:ring-4 focus:ring-purple-200 focus:border-purple-500 transition-all bg-white"
+                  >
+                    <option value="all">Todos los métodos</option>
+                    <option value="mercadopago">Mercado Pago</option>
+                    <option value="transferencia">Transferencia</option>
+                    <option value="efectivo">Efectivo</option>
+                  </select>
+                </div>
+                
+                {/* Rango de Fechas */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-2 flex items-center gap-2">
+                    <i className="ri-calendar-line text-blue-500"></i>
+                    Rango de Fechas
+                  </label>
+                  <select
+                    value={dateRange}
+                    onChange={(e) => setDateRange(e.target.value as any)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm font-medium focus:ring-4 focus:ring-blue-200 focus:border-blue-500 transition-all bg-white"
+                  >
+                    <option value="all">Todas las fechas</option>
+                    <option value="today">Hoy</option>
+                    <option value="week">Última semana</option>
+                    <option value="month">Último mes</option>
+                  </select>
+                </div>
+                
+                {/* Ordenar Por */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-2 flex items-center gap-2">
+                    <i className="ri-sort-asc text-orange-500"></i>
+                    Ordenar Por
+                  </label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm font-medium focus:ring-4 focus:ring-orange-200 focus:border-orange-500 transition-all bg-white"
+                  >
+                    <option value="newest">Más recientes primero</option>
+                    <option value="oldest">Más antiguos primero</option>
+                    <option value="amount_high">Mayor monto</option>
+                    <option value="amount_low">Menor monto</option>
+                  </select>
+                </div>
               </div>
               
-              {/* Rango de Fechas */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Rango de Fechas</label>
-                <select
-                  value={dateRange}
-                  onChange={(e) => setDateRange(e.target.value as any)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              {/* Botón limpiar filtros */}
+              {(paymentMethodFilter !== 'all' || dateRange !== 'all' || sortBy !== 'newest') && (
+                <button
+                  onClick={() => {
+                    setPaymentMethodFilter('all');
+                    setDateRange('all');
+                    setSortBy('newest');
+                  }}
+                  className="mt-4 w-full py-2 bg-white border-2 border-gray-300 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
                 >
-                  <option value="all">Todos</option>
-                  <option value="today">Hoy</option>
-                  <option value="week">Última semana</option>
-                  <option value="month">Último mes</option>
-                </select>
-              </div>
-              
-              {/* Ordenar Por */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Ordenar Por</label>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                >
-                  <option value="newest">Más recientes</option>
-                  <option value="oldest">Más antiguos</option>
-                  <option value="amount_high">Mayor monto</option>
-                  <option value="amount_low">Menor monto</option>
-                </select>
-              </div>
+                  Limpiar Filtros
+                </button>
+              )}
             </div>
           )}
         </div>
       </div>
 
-      {/* Lista de pedidos - Mejorado */}
+      {/* Lista de pedidos - Ultra Premium */}
       {filteredOrders.length === 0 ? (
-        <div className="bg-white border-2 border-[#E5E5E5] rounded-2xl shadow-lg p-12 text-center">
-          <div className="flex justify-center mb-4">
-            <i className="ri-inbox-line text-gray-400 text-6xl"></i>
+        <div className="relative overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 rounded-3xl shadow-xl p-16 text-center border-2 border-gray-200">
+          <div className="absolute inset-0 opacity-5">
+            <div className="absolute top-0 left-0 w-64 h-64 bg-gray-400 rounded-full blur-3xl"></div>
+            <div className="absolute bottom-0 right-0 w-64 h-64 bg-gray-400 rounded-full blur-3xl"></div>
           </div>
-          <p className="text-lg text-[#666] font-bold">
-            {searchTerm ? 'No se encontraron pedidos con ese criterio' : 'No hay pedidos en este momento'}
-          </p>
+          <div className="relative z-10">
+            <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-gray-200 to-gray-300 rounded-3xl flex items-center justify-center shadow-xl">
+              <i className="ri-inbox-line text-gray-400 text-5xl"></i>
+            </div>
+            <h3 className="text-2xl font-black text-gray-700 mb-2">
+              {searchTerm ? 'No se encontraron pedidos' : 'No hay pedidos en este momento'}
+            </h3>
+            <p className="text-gray-500 font-medium">
+              {searchTerm ? 'Intenta con otros criterios de búsqueda' : 'Los pedidos aparecerán aquí cuando lleguen'}
+            </p>
+          </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
           {filteredOrders.map((order, index) => (
             <div
               key={order.id}
-              className="bg-white border-2 sm:border-4 border-gray-300 rounded-xl sm:rounded-3xl shadow-xl sm:shadow-2xl overflow-hidden transform transition-all duration-200 hover:shadow-2xl hover:border-orange-400 hover:scale-[1.02] sm:hover:scale-[1.03]"
+              className="group relative overflow-hidden bg-white rounded-lg shadow-sm border border-gray-200 transform transition-all duration-200 hover:shadow-md hover:border-gray-300"
+              style={{ 
+                animationDelay: `${index * 30}ms`,
+                animationFillMode: 'both'
+              }}
             >
-              {/* Header - GRANDE Y CLARO */}
-              <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-3 sm:p-6 border-b-2 sm:border-b-4 border-orange-700">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2 sm:space-x-4">
-                    <i className="ri-shopping-bag-line text-orange-400 text-2xl sm:text-5xl"></i>
-                    <h3 className="font-bold text-lg sm:text-3xl">{order.order_number}</h3>
+              {/* Header Compacto */}
+              <div className="relative overflow-hidden bg-gradient-to-r from-orange-500 to-orange-600 text-white p-2.5">
+                <div className="relative z-10 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 bg-white/20 rounded flex items-center justify-center">
+                      <i className="ri-shopping-bag-3-line text-white text-xs"></i>
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm leading-tight">{order.order_number}</h3>
+                      <p className="text-white/80 text-[10px] leading-tight">
+                        {new Date(order.created_at).toLocaleString('es-AR', { 
+                          day: '2-digit', 
+                          month: 'short', 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}
+                      </p>
+                    </div>
                   </div>
-                  <div className="px-3 py-1.5 sm:px-6 sm:py-3 rounded-xl sm:rounded-2xl text-lg sm:text-2xl font-bold bg-white text-orange-600 shadow-xl">
+                  <div className="text-xs">
                     {getStatusIcon(order.status)}
                   </div>
                 </div>
               </div>
 
-              {/* Información - GRANDE Y CLARA */}
-              <div className="p-6">
-                {/* Cliente - GRANDE */}
-                <div className="mb-4 cursor-pointer" onClick={() => setSelectedOrder(order)} title="Click para ver detalles">
-                  <p className="font-bold text-2xl text-gray-800 mb-2 flex items-center space-x-2">
-                    <i className="ri-user-line text-orange-500"></i>
-                    <span>{order.customer_name}</span>
-                  </p>
-                  <p className="text-xl text-gray-600 font-semibold flex items-center space-x-2">
-                    <i className="ri-phone-line text-blue-500"></i>
-                    <span>{order.customer_phone}</span>
-                  </p>
+              {/* Información Compacta */}
+              <div className="p-2.5 space-y-2">
+                {/* Cliente */}
+                <div 
+                  className="p-2 bg-gray-50 rounded cursor-pointer hover:bg-gray-100 transition-colors" 
+                  onClick={() => setSelectedOrder(order)} 
+                  title="Click para ver detalles completos"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 bg-orange-500 rounded flex items-center justify-center flex-shrink-0">
+                      <i className="ri-user-line text-white text-xs"></i>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-xs text-gray-800 truncate">{order.customer_name}</p>
+                      <p className="text-[10px] text-gray-500 flex items-center gap-1 truncate">
+                        <i className="ri-phone-line text-blue-500"></i>
+                        {order.customer_phone}
+                      </p>
+                    </div>
+                  </div>
                 </div>
                 
-                <div className="flex items-center justify-between mb-4 border-t-4 border-gray-200 pt-4 mt-4">
-                  <span className="text-xl text-gray-600 font-bold">TOTAL:</span>
-                  <span className="font-bold text-3xl text-gray-800">${order.total.toLocaleString('es-AR')}</span>
+                {/* Total compacto */}
+                <div className="relative overflow-hidden bg-green-600 rounded p-2 text-white">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-semibold uppercase opacity-90">Total</span>
+                    <span className="font-bold text-base">${order.total.toLocaleString('es-AR')}</span>
+                  </div>
+                  {order.delivery_fee && order.delivery_fee > 0 && (
+                    <div className="mt-1 pt-1 border-t border-white/20 text-[10px] opacity-80">
+                      Envío: ${order.delivery_fee.toLocaleString('es-AR')}
+                    </div>
+                  )}
                 </div>
                 
-                <div className="text-lg text-gray-700 mb-3 font-semibold flex items-center space-x-2">
-                  <i className="ri-bank-card-line text-purple-500"></i>
-                  <span>{order.payment_method || 'Pendiente'}</span>
+                {/* Método de pago compacto */}
+                <div className="flex items-center gap-2 p-1.5 bg-gray-50 rounded">
+                  <div className="w-5 h-5 bg-purple-500 rounded flex items-center justify-center flex-shrink-0">
+                    <i className="ri-bank-card-line text-white text-xs"></i>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] text-gray-500">Pago</p>
+                    <p className="text-xs font-semibold text-gray-800 truncate">{order.payment_method || 'Pendiente'}</p>
+                  </div>
+                  {order.payment_status === 'approved' || order.payment_status === 'completed' ? (
+                    <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-semibold">✓</span>
+                  ) : (
+                    <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] font-semibold">⏳</span>
+                  )}
                 </div>
 
-                {/* Dirección - GRANDE */}
+                {/* Dirección compacta */}
                 {order.customer_address && (
-                  <div className="mb-4">
-                    <p className="text-lg text-gray-700 font-semibold" title={order.customer_address}>
-                      <i className="ri-map-pin-line text-red-500"></i>
-                      <span>{order.customer_address}</span>
-                    </p>
+                  <div className="p-1.5 bg-blue-50 rounded border border-blue-200">
+                    <div className="flex items-start gap-1.5">
+                      <div className="w-5 h-5 bg-blue-500 rounded flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <i className="ri-map-pin-line text-white text-xs"></i>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] text-blue-600 font-medium mb-0.5">Dirección</p>
+                        <p className="text-xs font-semibold text-gray-800 leading-tight line-clamp-2">{order.customer_address}</p>
+                      </div>
+                    </div>
                   </div>
                 )}
 
-                {/* Items - GRANDE */}
+                {/* Items compacto */}
                 {order.items && order.items.length > 0 && (
-                  <div className="mb-4">
-                    <p className="text-xl font-bold text-gray-800 mb-2 flex items-center space-x-2">
-                      <i className="ri-shopping-cart-line text-green-500"></i>
-                      <span>{order.items.length} producto{order.items.length > 1 ? 's' : ''}</span>
-                    </p>
-                    <div className="text-xs text-[#C7C7C7] max-h-20 overflow-y-auto space-y-1">
+                  <div className="p-2 bg-green-50 rounded border border-green-200">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <div className="w-5 h-5 bg-green-500 rounded flex items-center justify-center flex-shrink-0">
+                        <i className="ri-shopping-cart-line text-white text-xs"></i>
+                      </div>
+                      <p className="font-semibold text-xs text-gray-800">
+                        {order.items.length} producto{order.items.length > 1 ? 's' : ''}
+                      </p>
+                    </div>
+                    <div className="space-y-1 max-h-20 overflow-y-auto scrollbar-thin">
                       {order.items.slice(0, 2).map((item, idx) => {
                         // Parsear selected_options si existe
                         let extrasText = '';
@@ -1451,11 +1735,9 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
                               : item.selected_options;
                             
                             if (options.options && Array.isArray(options.options)) {
-                              // Estructura nueva: { options: [...], optionsText: [...] }
                               if (options.optionsText && options.optionsText.length > 0) {
                                 extrasText = ' - ' + options.optionsText.join(', ');
                               } else {
-                                // Construir texto desde las opciones
                                 const extraNames = options.options.map((opt: any) => {
                                   const priceText = opt.price > 0 ? ` (+$${opt.price})` : '';
                                   return `${opt.name}${priceText}`;
@@ -1465,7 +1747,6 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
                                 }
                               }
                             } else if (Array.isArray(options)) {
-                              // Si es un array directo
                               const extraNames = options.map((opt: any) => {
                                 const priceText = opt.price > 0 ? ` (+$${opt.price})` : '';
                                 return `${opt.name}${priceText}`;
@@ -1474,7 +1755,6 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
                                 extrasText = ' - ' + extraNames.join(', ');
                               }
                             } else if (typeof options === 'object') {
-                              // Estructura antigua: {categoryId: [options]}
                               const allExtras: string[] = [];
                               Object.values(options).forEach((categoryOptions: any) => {
                                 if (Array.isArray(categoryOptions)) {
@@ -1494,57 +1774,64 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
                         }
                         
                         return (
-                          <div key={idx} className="truncate" title={`${item.quantity}x ${item.product_name}${extrasText}`}>
-                            {item.quantity}x {item.product_name}
-                            {extrasText && (
-                              <span className="text-[#111111] text-[10px] block truncate">
-                                └ {extrasText.replace(' - ', '')}
-                              </span>
-                            )}
+                          <div key={idx} className="p-1 bg-white rounded border border-green-200" title={`${item.quantity}x ${item.product_name}${extrasText}`}>
+                            <div className="flex items-start justify-between gap-1">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold text-gray-800 truncate">
+                                  {item.quantity}x {item.product_name}
+                                </p>
+                                {extrasText && (
+                                  <p className="text-[10px] text-gray-600 mt-0.5 pl-1 border-l border-green-300 truncate">
+                                    {extrasText.replace(' - ', '')}
+                                  </p>
+                                )}
+                              </div>
+                              <span className="text-xs font-semibold text-green-600 flex-shrink-0">${(item.subtotal || 0).toLocaleString('es-AR')}</span>
+                            </div>
                           </div>
                         );
                       })}
                       {order.items.length > 2 && (
-                        <div className="text-[#C7C7C7]">+{order.items.length - 2} más</div>
+                        <div className="text-center pt-1">
+                          <span className="inline-block px-2 py-0.5 bg-white rounded text-[10px] font-semibold text-gray-600 border border-green-200">
+                            +{order.items.length - 2} más
+                          </span>
+                        </div>
                       )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-                {/* Botones de acción - SÚPER SIMPLES Y GRANDES */}
-                <div className="pt-4 border-t-4 border-gray-200">
+                {/* Botones de acción compactos */}
+                <div className="pt-2 border-t border-gray-200 space-y-1.5">
                   {/* Botones de acción para pedidos pendientes */}
                   {canApprove(order) && (
-                    <div className="space-y-3">
-                      {/* Botón Imprimir - GRANDE */}
+                    <div className="space-y-1.5">
+                      {/* Botón Imprimir */}
                       <button
                         onClick={() => handlePrintTicket(order)}
-                        className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-4 px-6 rounded-2xl transition-all shadow-xl hover:shadow-2xl transform hover:scale-105 text-xl flex items-center justify-center space-x-3"
+                        className="group relative w-full overflow-hidden bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1.5 px-3 rounded text-xs transition-all flex items-center justify-center gap-1.5"
                       >
-                        <i className="ri-printer-line text-3xl"></i>
-                        <span>IMPRIMIR TICKET</span>
+                        <i className="ri-printer-line text-sm"></i>
+                        <span>IMPRIMIR</span>
                       </button>
                       
-                      {/* Botón Aprobar/Pedido Listo - GRANDE */}
+                      {/* Botón Aprobar/Pedido Listo */}
                       {(() => {
                         const isPickup = (order.delivery_fee || 0) === 0;
-                        const buttonText = isPickup ? 'PEDIDO LISTO' : 'APROBAR PEDIDO';
-                        const buttonIcon = isPickup ? '✅' : '✅';
+                        const buttonText = isPickup ? 'LISTO' : 'APROBAR';
                         
                         return (
                           <button
                             onClick={() => handleApprove(order.id)}
                             disabled={actionLoading === order.id}
-                            className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-4 px-6 rounded-2xl transition-all shadow-xl hover:shadow-2xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none text-xl flex items-center justify-center space-x-3"
+                            className="group relative w-full overflow-hidden bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 px-3 rounded text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                           >
                             {actionLoading === order.id ? (
-                              <svg className="animate-spin h-6 w-6" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                              </svg>
+                              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                             ) : (
                               <>
-                                <i className="ri-checkbox-circle-fill text-3xl"></i>
+                                <i className="ri-checkbox-circle-fill text-sm"></i>
                                 <span>{buttonText}</span>
                               </>
                             )}
@@ -1552,48 +1839,45 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
                         );
                       })()}
                       
-                      {/* Botón Cancelar - GRANDE */}
+                      {/* Botón Cancelar */}
                       <button
                         onClick={() => {
                           setRejectingOrderId(order.id);
                           setShowRejectModal(true);
                         }}
                         disabled={actionLoading === order.id}
-                        className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-4 px-6 rounded-2xl transition-all shadow-xl hover:shadow-2xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed text-xl flex items-center justify-center space-x-3"
+                        className="group relative w-full overflow-hidden bg-red-600 hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                       >
-                        <i className="ri-close-circle-line text-3xl"></i>
+                        <i className="ri-close-circle-line text-sm"></i>
                         <span>CANCELAR</span>
                       </button>
                     </div>
                   )}
 
-                  {/* Botón de notificación para pedidos de retiro listos - GRANDE */}
+                  {/* Botón de notificación para pedidos de retiro listos */}
                   {canNotifyPickup(order) && (
-                    <div className="space-y-3">
-                      {/* Botón Imprimir Ticket - GRANDE */}
+                    <div className="space-y-1.5">
+                      {/* Botón Imprimir Ticket */}
                       <button
                         onClick={() => handlePrintTicket(order)}
-                        className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-4 px-6 rounded-2xl transition-all shadow-xl hover:shadow-2xl transform hover:scale-105 text-xl flex items-center justify-center space-x-3"
+                        className="group relative w-full overflow-hidden bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1.5 px-3 rounded text-xs transition-all flex items-center justify-center gap-1.5"
                       >
-                        <i className="ri-printer-line text-3xl"></i>
-                        <span>IMPRIMIR TICKET</span>
+                        <i className="ri-printer-line text-sm"></i>
+                        <span>IMPRIMIR</span>
                       </button>
                       
-                      {/* Botón Notificar Pedido Listo para Retiro - GRANDE */}
+                      {/* Botón Notificar Pedido Listo para Retiro */}
                       <button
                         onClick={() => handleNotifyPickupReady(order)}
                         disabled={actionLoading === order.id}
-                        className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-bold py-4 px-6 rounded-2xl transition-all shadow-xl hover:shadow-2xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none text-xl flex items-center justify-center space-x-3"
+                        className="group relative w-full overflow-hidden bg-purple-600 hover:bg-purple-700 text-white font-bold py-1.5 px-3 rounded text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                       >
                         {actionLoading === order.id ? (
-                          <svg className="animate-spin h-6 w-6" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
+                          <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         ) : (
                           <>
-                            <i className="ri-notification-line text-3xl"></i>
-                            <span>AVISAR AL CLIENTE</span>
+                            <i className="ri-notification-3-line text-sm"></i>
+                            <span>AVISAR</span>
                           </>
                         )}
                       </button>
@@ -1607,194 +1891,295 @@ export default function OrdersManagement({ storeId }: OrdersManagementProps = {}
         </div>
       )}
 
-      {/* Modal de detalles del pedido */}
+      {/* Modal de detalles del pedido - Ultra Premium */}
       {selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto transform transition-all">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-extrabold text-gray-800">
-                Detalles del Pedido {selectedOrder.order_number}
-              </h3>
-              <button
-                onClick={() => setSelectedOrder(null)}
-                className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
-              >
-                ×
-              </button>
-            </div>
-            
-            {/* Información del cliente */}
-            <div className="mb-6 p-4 bg-gray-50 rounded-xl">
-              <h4 className="font-semibold text-gray-800 mb-3 flex items-center space-x-2">
-                <i className="ri-user-line text-orange-500"></i>
-                <span>Cliente</span>
-              </h4>
-              <div className="space-y-2 text-sm">
-                <p><strong>Nombre:</strong> {selectedOrder.customer_name}</p>
-                <p><strong>Teléfono:</strong> {selectedOrder.customer_phone}</p>
-                {selectedOrder.customer_address && (
-                  <p><strong>Dirección:</strong> {selectedOrder.customer_address}</p>
-                )}
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-fadeIn">
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden transform transition-all">
+            {/* Header del Modal */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-6">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent"></div>
+              <div className="relative z-10 flex items-center justify-between">
+                <div>
+                  <h3 className="text-3xl font-black mb-1">Pedido #{selectedOrder.order_number}</h3>
+                  <p className="text-white/80 text-sm">
+                    {new Date(selectedOrder.created_at).toLocaleString('es-AR', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSelectedOrder(null)}
+                  className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center transition-all hover:scale-110"
+                >
+                  <i className="ri-close-line text-2xl"></i>
+                </button>
               </div>
             </div>
             
-            {/* Items con extras */}
-            <div className="mb-6">
-              <h4 className="font-semibold text-gray-800 mb-3 flex items-center space-x-2">
-                <i className="ri-shopping-cart-line text-green-500"></i>
-                <span>Items del Pedido</span>
-              </h4>
-              <div className="space-y-3">
-                {selectedOrder.items && selectedOrder.items.map((item, idx) => {
-                  // Parsear selected_options
-                  let extras: any[] = [];
-                  try {
-                    if (item.selected_options) {
-                      const options = typeof item.selected_options === 'string' 
-                        ? JSON.parse(item.selected_options) 
-                        : item.selected_options;
-                      
-                      if (options.options && Array.isArray(options.options)) {
-                        extras = options.options;
-                      } else if (Array.isArray(options)) {
-                        extras = options;
-                      } else if (typeof options === 'object') {
-                        // Estructura antigua: {categoryId: [options]}
-                        const allExtras: any[] = [];
-                        Object.values(options).forEach((categoryOptions: any) => {
-                          if (Array.isArray(categoryOptions)) {
-                            allExtras.push(...categoryOptions);
-                          }
-                        });
-                        extras = allExtras;
-                      }
-                    }
-                  } catch (e) {
-                    console.error('Error parsing selected_options:', e);
-                  }
-                  
-                  return (
-                    <div key={idx} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <p className="font-semibold text-gray-900">
-                            {item.quantity}x {item.product_name}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            ${item.unit_price?.toLocaleString('es-AR') || '0'} c/u
-                          </p>
-                        </div>
-                        <p className="font-bold text-green-600">
-                          ${item.subtotal.toLocaleString('es-AR')}
-                        </p>
-                      </div>
-                      
-                      {/* Mostrar extras si existen */}
-                      {extras.length > 0 && (
-                        <div className="mt-2 pt-2 border-t border-gray-200">
-                          <p className="text-xs font-semibold text-gray-700 mb-1">➕ Extras:</p>
-                          <ul className="text-xs text-gray-600 space-y-1">
-                            {extras.map((extra: any, extraIdx: number) => (
-                              <li key={extraIdx} className="flex items-center justify-between">
-                                <span>• {extra.name || extra.id}</span>
-                                {extra.price > 0 && (
-                                  <span className="text-orange-600 font-medium">
-                                    +${extra.price.toLocaleString('es-AR')}
-                                  </span>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+            {/* Contenido del Modal */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+            
+              {/* Información del cliente - Premium */}
+              <div className="mb-6 p-5 bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl border-2 border-orange-200">
+                <h4 className="font-black text-gray-800 mb-4 flex items-center gap-2 text-lg">
+                  <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-amber-500 rounded-xl flex items-center justify-center">
+                    <i className="ri-user-line text-white text-xl"></i>
+                  </div>
+                  <span>Información del Cliente</span>
+                </h4>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="p-3 bg-white rounded-xl">
+                    <p className="text-xs text-gray-500 font-medium mb-1">Nombre</p>
+                    <p className="font-bold text-gray-800">{selectedOrder.customer_name}</p>
+                  </div>
+                  <div className="p-3 bg-white rounded-xl">
+                    <p className="text-xs text-gray-500 font-medium mb-1">Teléfono</p>
+                    <p className="font-bold text-gray-800 flex items-center gap-2">
+                      <i className="ri-phone-line text-blue-500"></i>
+                      {selectedOrder.customer_phone}
+                    </p>
+                  </div>
+                  {selectedOrder.customer_address && (
+                    <div className="p-3 bg-white rounded-xl md:col-span-2">
+                      <p className="text-xs text-gray-500 font-medium mb-1">Dirección de Entrega</p>
+                      <p className="font-bold text-gray-800 flex items-center gap-2">
+                        <i className="ri-map-pin-line text-red-500"></i>
+                        {selectedOrder.customer_address}
+                      </p>
                     </div>
-                  );
-                })}
+                  )}
+                </div>
               </div>
-            </div>
             
-            {/* Total */}
-            <div className="p-4 bg-green-50 rounded-xl">
-              <div className="flex items-center justify-between text-lg">
-                <span className="font-semibold text-gray-800 flex items-center space-x-2">
-                  <i className="ri-money-dollar-circle-line text-green-500"></i>
-                  <span>Total:</span>
-                </span>
-                <span className="font-extrabold text-green-600 text-xl">
-                  ${selectedOrder.total.toLocaleString('es-AR')}
-                </span>
+              {/* Items con extras - Premium */}
+              <div className="mb-6">
+                <h4 className="font-black text-gray-800 mb-4 flex items-center gap-2 text-lg">
+                  <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center">
+                    <i className="ri-shopping-cart-line text-white text-xl"></i>
+                  </div>
+                  <span>Items del Pedido ({selectedOrder.items?.length || 0})</span>
+                </h4>
+                <div className="space-y-3">
+                  {selectedOrder.items && selectedOrder.items.map((item, idx) => {
+                    // Parsear selected_options
+                    let extras: any[] = [];
+                    try {
+                      if (item.selected_options) {
+                        const options = typeof item.selected_options === 'string' 
+                          ? JSON.parse(item.selected_options) 
+                          : item.selected_options;
+                        
+                        if (options.options && Array.isArray(options.options)) {
+                          extras = options.options;
+                        } else if (Array.isArray(options)) {
+                          extras = options;
+                        } else if (typeof options === 'object') {
+                          // Estructura antigua: {categoryId: [options]}
+                          const allExtras: any[] = [];
+                          Object.values(options).forEach((categoryOptions: any) => {
+                            if (Array.isArray(categoryOptions)) {
+                              allExtras.push(...categoryOptions);
+                            }
+                          });
+                          extras = allExtras;
+                        }
+                      }
+                    } catch (e) {
+                      console.error('Error parsing selected_options:', e);
+                    }
+                    
+                    return (
+                      <div key={idx} className="bg-gradient-to-br from-white to-gray-50 border-2 border-gray-200 rounded-2xl p-4 hover:border-green-300 transition-all">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <span className="px-3 py-1 bg-green-100 text-green-700 rounded-lg font-bold text-sm">
+                                {item.quantity}x
+                              </span>
+                              <p className="font-black text-lg text-gray-900">
+                                {item.product_name}
+                              </p>
+                            </div>
+                            <p className="text-sm text-gray-500 font-medium">
+                              ${item.unit_price?.toLocaleString('es-AR') || '0'} c/u
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-black text-xl text-green-600">
+                              ${item.subtotal.toLocaleString('es-AR')}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {/* Mostrar extras si existen */}
+                        {extras.length > 0 && (
+                          <div className="mt-3 pt-3 border-t-2 border-gray-200 bg-white/50 rounded-xl p-3">
+                            <p className="text-xs font-bold text-gray-700 mb-2 flex items-center gap-2">
+                              <i className="ri-add-circle-line text-orange-500"></i>
+                              Extras agregados
+                            </p>
+                            <div className="space-y-2">
+                              {extras.map((extra: any, extraIdx: number) => (
+                                <div key={extraIdx} className="flex items-center justify-between text-sm">
+                                  <span className="text-gray-700 font-medium">• {extra.name || extra.id}</span>
+                                  {extra.price > 0 && (
+                                    <span className="text-orange-600 font-bold">
+                                      +${extra.price.toLocaleString('es-AR')}
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            
+              {/* Resumen de totales - Premium */}
+              <div className="p-6 bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl text-white mb-6">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium opacity-90">Subtotal:</span>
+                    <span className="font-bold">
+                      ${((selectedOrder.total || 0) - (selectedOrder.delivery_fee || 0)).toLocaleString('es-AR')}
+                    </span>
+                  </div>
+                  {selectedOrder.delivery_fee && selectedOrder.delivery_fee > 0 && (
+                    <div className="flex items-center justify-between pt-2 border-t border-white/20">
+                      <span className="text-sm font-medium opacity-90">Envío:</span>
+                      <span className="font-bold">${selectedOrder.delivery_fee.toLocaleString('es-AR')}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between pt-3 border-t-2 border-white/30">
+                    <span className="text-lg font-black uppercase tracking-wider">Total:</span>
+                    <span className="font-black text-3xl">
+                      ${selectedOrder.total.toLocaleString('es-AR')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Información adicional */}
+              <div className="grid md:grid-cols-2 gap-4 mb-6">
+                <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
+                  <p className="text-xs text-blue-600 font-medium mb-1">Método de Pago</p>
+                  <p className="font-bold text-gray-800">{selectedOrder.payment_method || 'Pendiente'}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Estado: {selectedOrder.payment_status === 'approved' || selectedOrder.payment_status === 'completed' ? '✓ Pagado' : '⏳ Pendiente'}
+                  </p>
+                </div>
+                <div className="p-4 bg-purple-50 rounded-xl border border-purple-200">
+                  <p className="text-xs text-purple-600 font-medium mb-1">Estado del Pedido</p>
+                  <p className="font-bold text-gray-800">{getStatusText(selectedOrder.status)}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {new Date(selectedOrder.created_at).toLocaleDateString('es-AR')}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Botones de acción en el modal */}
+              <div className="flex gap-3 pt-4 border-t-2 border-gray-200">
+                <button
+                  onClick={() => handlePrintTicket(selectedOrder)}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold rounded-xl hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                >
+                  <i className="ri-printer-line"></i>
+                  Imprimir
+                </button>
+                {canApprove(selectedOrder) && (
+                  <button
+                    onClick={() => {
+                      handleApprove(selectedOrder.id);
+                      setSelectedOrder(null);
+                    }}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-xl hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                  >
+                    <i className="ri-checkbox-circle-fill"></i>
+                    Aprobar
+                  </button>
+                )}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal de rechazo */}
+      {/* Modal de rechazo - Ultra Premium */}
       {showRejectModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md transform transition-all">
-            <div className="text-center mb-6">
-              <div className="bg-gradient-to-r from-red-500 to-rose-600 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
-                <span className="text-4xl">❌</span>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-fadeIn">
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
+            <div className="relative overflow-hidden bg-gradient-to-br from-red-500 to-rose-600 text-white p-6">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent"></div>
+              <div className="relative z-10 text-center">
+                <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4 shadow-xl">
+                  <i className="ri-error-warning-fill text-white text-4xl"></i>
+                </div>
+                <h3 className="text-3xl font-black mb-2">Cancelar Pedido</h3>
+                <p className="text-white/90 font-medium">
+                  Esta acción no se puede deshacer
+                </p>
               </div>
-              <h3 className="text-3xl font-extrabold text-gray-800 mb-2">
-                Cancelar Pedido
-              </h3>
-              <p className="text-gray-600 font-semibold">
-                ¿Estás seguro de que querés cancelar este pedido?
-              </p>
             </div>
             
-            <div className="mb-6">
-              <label className="block text-sm font-bold text-gray-700 mb-2 uppercase">
-                Motivo de la cancelación *
-              </label>
-              <textarea
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Ej: Cliente canceló, producto no disponible, pago rechazado, etc."
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-red-500 focus:border-red-500 transition-all resize-none"
-                rows={3}
-                required
-              />
-            </div>
+            <div className="p-6">
+              <div className="mb-6">
+                <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+                  <i className="ri-edit-box-line text-red-500"></i>
+                  Motivo de la cancelación *
+                </label>
+                <textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="Ej: Cliente canceló, producto no disponible, pago rechazado, etc."
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-red-200 focus:border-red-500 transition-all resize-none font-medium"
+                  rows={4}
+                  required
+                />
+              </div>
 
-            <div className="flex space-x-4">
-              <button
-                onClick={() => {
-                  setShowRejectModal(false);
-                  setRejectReason('');
-                  setRejectingOrderId(null);
-                }}
-                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-extrabold py-4 rounded-xl transition-all duration-300 transform hover:scale-105 active:scale-95"
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowRejectModal(false);
+                    setRejectReason('');
+                    setRejectingOrderId(null);
+                  }}
+                  className="flex-1 px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:scale-[1.02] flex items-center justify-center gap-2"
               >
-                Volver
-              </button>
-      <button
-                onClick={() => {
-                  if (!rejectReason.trim()) {
-                    showToast('Por favor, ingresá el motivo de la cancelación', 'error');
-                    return;
-                  }
-                  if (rejectingOrderId) {
-                    handleReject(rejectingOrderId, rejectReason);
-                  }
-                }}
-                disabled={actionLoading === rejectingOrderId || !rejectReason.trim()}
-                className="flex-1 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-extrabold py-4 rounded-xl transition-all duration-300 disabled:opacity-50 shadow-xl hover:shadow-2xl transform hover:scale-105 active:scale-95"
-              >
-                {actionLoading === rejectingOrderId ? (
-                  <span className="flex items-center justify-center space-x-2">
-                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>Cancelando...</span>
-                  </span>
-                ) : (
-                  '❌ Confirmar Cancelación'
-                )}
-      </button>
+                  <i className="ri-arrow-left-line"></i>
+                  <span>Volver</span>
+                </button>
+                <button
+                  onClick={() => {
+                    if (!rejectReason.trim()) {
+                      showToast('Por favor, ingresá el motivo de la cancelación', 'error');
+                      return;
+                    }
+                    if (rejectingOrderId) {
+                      handleReject(rejectingOrderId, rejectReason);
+                    }
+                  }}
+                  disabled={actionLoading === rejectingOrderId || !rejectReason.trim()}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-black rounded-xl transition-all shadow-lg hover:shadow-2xl transform hover:scale-[1.02] disabled:opacity-50 disabled:transform-none flex items-center justify-center gap-2"
+                >
+                  {actionLoading === rejectingOrderId ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <>
+                      <i className="ri-close-circle-fill text-xl"></i>
+                      <span>Confirmar Cancelación</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
