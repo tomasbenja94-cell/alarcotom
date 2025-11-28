@@ -126,7 +126,7 @@ async function findLostData() {
         const count = await prisma.$queryRawUnsafe(
           `SELECT COUNT(*) as count FROM ${table.name}`
         );
-        const countNum = (count as any[])[0]?.count || 0;
+        const countNum = Array.isArray(count) && count[0] ? count[0].count : 0;
         if (countNum > 0) {
           console.log(`   ✅ ${table.name}: ${countNum} registros`);
           
@@ -136,7 +136,7 @@ async function findLostData() {
               `SELECT DISTINCT ${table.field} as store_id FROM ${table.name} WHERE ${table.field} IS NOT NULL`
             );
             if (Array.isArray(storeIds) && storeIds.length > 0) {
-              const ids = storeIds.map((s: any) => s.store_id).filter(Boolean);
+              const ids = storeIds.map(s => s.store_id).filter(Boolean);
               if (ids.length > 0) {
                 console.log(`      - StoreIds encontrados: ${ids.join(', ')}`);
               }
