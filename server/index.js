@@ -4115,6 +4115,7 @@ app.post('/api/delivery/update-order-status',
           deliveryCode: true,
           trackingToken: true,
           deliveryPersonId: true,
+          storeId: true,
           createdAt: true,
           updatedAt: true
         }
@@ -4132,40 +4133,30 @@ app.post('/api/delivery/update-order-status',
       // Enviar notificación al cliente cuando el repartidor marca "voy en camino" (in_transit)
       if (status === 'in_transit' && updatedOrder.customerPhone && updatedOrder.customerPhone.trim() !== '') {
         try {
-          const webhookUrl = process.env.BOT_WEBHOOK_URL || 'https://elbuenmenu.site';
-          // Si BOT_WEBHOOK_URL apunta al frontend, usar localhost para el bot
-          const botUrl = webhookUrl.includes('elbuenmenu.site') && !webhookUrl.includes('api.') 
-            ? 'http://localhost:3001' 
-            : webhookUrl;
-          
-          const trackingUrl = `${process.env.FRONTEND_URL || 'https://elbuenmenu.site'}/track/${updatedOrder.trackingToken}`;
-          const deliveryCode = updatedOrder.deliveryCode || 'N/A';
-          
-          const notificationMessage = `🛵 ¡Tu pedido está en camino!\n\n🔐 *Código de entrega: ${deliveryCode}*\n\n📍 Podés seguir al repartidor en tiempo real:\n${trackingUrl}\n\n⏰ Llegada estimada: 15-20 minutos\n\n¡Gracias por elegirnos! ❤️`;
-          
-          const notifyResponse = await fetch(`${botUrl}/notify-order`, {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'X-API-Key': process.env.INTERNAL_API_KEY || ''
-            },
-            body: JSON.stringify({
-              customerPhone: updatedOrder.customerPhone,
-              orderNumber: updatedOrder.orderNumber,
-              message: notificationMessage
-            })
+          // Obtener storeId del pedido
+          const orderWithStore = await prisma.order.findUnique({
+            where: { id: order_id },
+            select: { storeId: true }
           });
           
-          if (!notifyResponse.ok) {
-            const responseText = await notifyResponse.text();
-            // Verificar si la respuesta es HTML (el bot no está corriendo o la URL está mal)
-            if (responseText.trim().startsWith('<!doctype') || responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
-              console.warn('⚠️ [UPDATE ORDER STATUS] El bot devolvió HTML en lugar de JSON. Verifica que el bot esté corriendo.');
+          if (orderWithStore?.storeId) {
+            const trackingUrl = `${process.env.FRONTEND_URL || 'https://elbuenmenu.site'}/track/${updatedOrder.trackingToken}`;
+            
+            // Usar el servicio de WhatsApp multi-tenant
+            const notifyResult = await whatsappService.notifyOrderStatus(
+              orderWithStore.storeId,
+              order_id,
+              'in_transit',
+              { trackingUrl }
+            );
+            
+            if (notifyResult.success) {
+              console.log(`✅ [UPDATE ORDER STATUS] Notificación enviada al cliente ${updatedOrder.customerPhone} para pedido ${updatedOrder.orderNumber}`);
             } else {
-              console.error('⚠️ [UPDATE ORDER STATUS] Error al notificar cliente:', responseText);
+              console.warn(`⚠️ [UPDATE ORDER STATUS] No se pudo enviar notificación: ${notifyResult.error || 'Error desconocido'}`);
             }
           } else {
-            console.log(`✅ [UPDATE ORDER STATUS] Notificación enviada al cliente ${updatedOrder.customerPhone} para pedido ${updatedOrder.orderNumber}`);
+            console.warn(`⚠️ [UPDATE ORDER STATUS] Pedido sin storeId, no se puede enviar notificación`);
           }
         } catch (error) {
           console.error('⚠️ [UPDATE ORDER STATUS] Error notificando cliente:', error.message);
