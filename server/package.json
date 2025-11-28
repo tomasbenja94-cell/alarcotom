@@ -10,7 +10,9 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "prisma:seed": "node prisma/seed.js",
-    "create-admin": "node create-admin.js"
+    "create-admin": "node create-admin.js",
+    "check-data": "node check-data.js",
+    "reactivate-stores": "node reactivate-stores.js"
   },
   "dependencies": {
     "@prisma/client": "^5.7.1",
