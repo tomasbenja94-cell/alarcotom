@@ -4638,6 +4638,7 @@ app.get('/api/delivery/order-history/:driver_id',
       }
       
       // Obtener todos los pedidos del repartidor, ordenados por fecha de creación (más recientes primero)
+      // Usar el mismo formato que available-orders para consistencia
       const orders = await prisma.order.findMany({
         where: {
           deliveryPersonId: driver_id
@@ -4663,10 +4664,10 @@ app.get('/api/delivery/order-history/:driver_id',
           createdAt: true,
           updatedAt: true,
           items: true,
+          storeId: true,
           store: {
             select: {
-              name: true,
-              address: true
+              name: true
             }
           }
         },
@@ -4676,6 +4677,8 @@ app.get('/api/delivery/order-history/:driver_id',
       
       res.json(objectToSnakeCase(orders));
     } catch (error) {
+      console.error('Error obteniendo historial de pedidos:', error);
+      console.error('Error details:', error.message, error.stack);
       next(error);
     }
   }
