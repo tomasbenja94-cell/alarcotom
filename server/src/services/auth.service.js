@@ -297,10 +297,19 @@ class DriverAuthService {
       try {
         decoded = jwt.verify(token, JWT_DRIVER_SECRET);
       } catch (jwtError) {
-        console.error('❌ [VERIFY DRIVER TOKEN] Error verificando JWT:', jwtError.message);
+        // Loggear el error específico para debugging
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('❌ [VERIFY DRIVER TOKEN] Error verificando JWT:', jwtError.message);
+          console.error('❌ [VERIFY DRIVER TOKEN] Error name:', jwtError.name);
+        }
+        
         if (jwtError.name === 'TokenExpiredError') {
           throw new Error('Token expirado');
         } else if (jwtError.name === 'JsonWebTokenError') {
+          // Mensaje más específico para errores de firma
+          if (jwtError.message.includes('invalid signature')) {
+            throw new Error('Token inválido: firma incorrecta. El token puede haber sido generado con un secret diferente.');
+          }
           throw new Error('Token inválido: ' + jwtError.message);
         }
         throw jwtError;
