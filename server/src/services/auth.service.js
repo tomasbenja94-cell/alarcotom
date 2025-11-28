@@ -351,20 +351,21 @@ class DriverAuthService {
         
         // Si la sesión está expirada pero no revocada, permitir (el JWT puede seguir siendo válido)
         // Esto permite que el token funcione aunque la sesión en BD haya expirado
-        if (session && session.expiresAt < new Date()) {
-          console.warn('⚠️ [VERIFY DRIVER TOKEN] Sesión en BD expirada, pero JWT sigue siendo válido para driver:', decoded.driverId);
-        }
+        // No loggear esto para no saturar logs
       } catch (sessionError) {
         // Si la tabla no existe o hay error, continuar con verificación básica del token
         // Esto permite que funcione aunque no exista la tabla de sesiones
         if (sessionError.code === 'P2021' || sessionError.message?.includes('does not exist')) {
-          console.warn('⚠️ [VERIFY DRIVER TOKEN] Tabla driverSession no existe, usando verificación básica del token');
+          // No loggear esto para no saturar logs (es un caso esperado si la tabla no existe)
         } else if (sessionError.message?.includes('Sesión revocada')) {
           // Si la sesión está revocada, rechazar
           throw sessionError;
         } else {
           // Otros errores de sesión: ignorar y continuar con verificación básica
-          console.warn('⚠️ [VERIFY DRIVER TOKEN] Error verificando sesión (continuando):', sessionError.message);
+          // Solo loggear en desarrollo para no saturar logs
+          if (process.env.NODE_ENV !== 'production') {
+            console.warn('⚠️ [VERIFY DRIVER TOKEN] Error verificando sesión (continuando):', sessionError.message);
+          }
         }
       }
 

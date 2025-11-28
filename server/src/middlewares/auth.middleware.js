@@ -118,20 +118,32 @@ export const authenticateDriver = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
-      console.warn('⚠️ [AUTH DRIVER] Token no proporcionado en:', req.path);
+      // Solo loggear en desarrollo
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('⚠️ [AUTH DRIVER] Token no proporcionado en:', req.path);
+      }
       return res.status(401).json({ error: 'Token no proporcionado' });
     }
 
     const token = authHeader.split(' ')[1];
-    console.log('🔍 [AUTH DRIVER] Verificando token para:', req.path);
+    // Solo loggear en desarrollo para no saturar logs en producción
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔍 [AUTH DRIVER] Verificando token para:', req.path);
+    }
     const driver = await driverAuthService.verifyDriverToken(token);
-    console.log('✅ [AUTH DRIVER] Token válido, driver:', driver.id);
+    // Solo loggear en desarrollo
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('✅ [AUTH DRIVER] Token válido, driver:', driver.id);
+    }
 
     req.driver = driver;
     next();
   } catch (error) {
-    console.error('❌ [AUTH DRIVER] Error verificando token:', error.message);
-    return res.status(401).json({ error: 'Token inválido o expirado' });
+    // Solo loggear errores críticos en producción, todos en desarrollo
+    if (process.env.NODE_ENV !== 'production' || error.message?.includes('invalid signature')) {
+      console.error('❌ [AUTH DRIVER] Error verificando token:', error.message);
+    }
+    return res.status(401).json({ error: 'Token inválido o expirado', details: error.message });
   }
 };
 

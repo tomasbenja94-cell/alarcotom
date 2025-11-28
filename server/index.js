@@ -4656,9 +4656,9 @@ app.get('/api/admin/driver-payments',
       }, {});
       
       // Convertir a array
-      const result = Object.values(grouped).map((storeGroup: any) => ({
+      const result = Object.values(grouped).map((storeGroup) => ({
         store: storeGroup.store,
-        drivers: Object.values(storeGroup.drivers).map((driverGroup: any) => ({
+        drivers: Object.values(storeGroup.drivers).map((driverGroup) => ({
           ...driverGroup,
           total_amount: Math.round(driverGroup.total_amount * 100) / 100 // Redondear a 2 decimales
         }))
