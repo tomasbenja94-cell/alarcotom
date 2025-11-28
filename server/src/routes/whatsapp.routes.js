@@ -162,6 +162,9 @@ router.post('/:storeId/send', authenticateAdmin, async (req, res) => {
   }
 });
 
+// Protección contra múltiples llamadas simultáneas al test
+const testInProgress = new Map(); // storeId -> timestamp
+
 /**
  * POST /api/whatsapp/:storeId/test
  * Envía un mensaje de prueba al número configurado
@@ -174,6 +177,17 @@ router.post('/:storeId/test', authenticateAdmin, async (req, res) => {
       return res.status(403).json({ error: 'No tienes acceso a esta tienda' });
     }
 
+    // Evitar múltiples llamadas simultáneas (cooldown de 5 segundos)
+    const lastTest = testInProgress.get(storeId);
+    if (lastTest && Date.now() - lastTest < 5000) {
+      return res.status(429).json({ 
+        error: 'Espera unos segundos antes de enviar otro mensaje de prueba',
+        retryAfter: Math.ceil((5000 - (Date.now() - lastTest)) / 1000)
+      });
+    }
+    
+    testInProgress.set(storeId, Date.now());
+
     const { PrismaClient } = await import('@prisma/client');
     const prisma = new PrismaClient();
     
@@ -182,16 +196,23 @@ router.post('/:storeId/test', authenticateAdmin, async (req, res) => {
     });
 
     if (!settings?.whatsappBotNumber) {
+      testInProgress.delete(storeId);
       return res.status(400).json({ error: 'No hay número de WhatsApp configurado' });
     }
 
     const testMessage = '✅ ¡Conexión exitosa! Este es un mensaje de prueba de Negocios App.';
     const result = await whatsappService.sendMessageToClient(storeId, settings.whatsappBotNumber, testMessage);
     
+    // Limpiar después de 5 segundos
+    setTimeout(() => {
+      testInProgress.delete(storeId);
+    }, 5000);
+    
     res.json({ ...result, message: 'Mensaje de prueba enviado' });
 
   } catch (error) {
     console.error('Error enviando mensaje de prueba:', error);
+    testInProgress.delete(req.params.storeId);
     res.status(500).json({ error: error.message || 'Error enviando mensaje de prueba' });
   }
 });
