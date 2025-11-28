@@ -1,9 +1,8 @@
-export default {
+module.exports = {
   apps: [
     {
       name: 'backend',
-      script: 'npm',
-      args: 'start',
+      script: 'index.js',
       cwd: '/opt/elbuenmenu/server',
       env: {
         NODE_ENV: 'production'
@@ -20,10 +19,10 @@ export default {
       // Reiniciar automáticamente si se cae
       min_uptime: '10s',
       max_restarts: 10,
-      restart_delay: 4000
+      restart_delay: 4000,
+      // El bot de WhatsApp ahora se ejecuta dentro del backend (whatsapp-multi.service.js)
+      // No necesita un proceso PM2 separado
     }
-    // El bot de WhatsApp ahora se ejecuta dentro del backend (whatsapp-multi.service.js)
-    // No necesita un proceso PM2 separado
   ]
 };
 
