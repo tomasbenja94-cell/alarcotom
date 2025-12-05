@@ -1161,6 +1161,7 @@ model KardexEntry {
 model POSSale {
   id              String        @id @default(uuid())
   storeId         String?       @map("store_id")
+  store           Store?       @relation(fields: [storeId], references: [id], onDelete: SetNull)
   saleNumber      String        @unique @map("sale_number") // Número de venta (ej: POS-001)
   total           Float
   subtotal        Float
@@ -1206,6 +1207,7 @@ model POSSaleItem {
 model POSConfig {
   id                    String   @id @default(uuid())
   storeId               String   @unique @map("store_id")
+  store                 Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   scanSoundEnabled      Boolean  @default(true) @map("scan_sound_enabled")
   cameraScannerEnabled   Boolean  @default(false) @map("camera_scanner_enabled")
   defaultPaymentMethod   String   @default("cash") @map("default_payment_method")
