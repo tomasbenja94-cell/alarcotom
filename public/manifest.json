@@ -1,23 +1,58 @@
 {
-  "name": "Negocios App - Delivery",
-  "short_name": "Negocios",
-  "description": "Pedí comida, bebidas y más desde tu celular",
+  "name": "Kiosco Av. Anta - App Completa",
+  "short_name": "Kiosco Anta",
+  "description": "Sistema completo de pedidos online, POS, inventario y gestión para Kiosco Av. Anta",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#14B8A6",
-  "orientation": "portrait-primary",
+  "background_color": "#000000",
+  "theme_color": "#FF3366",
+  "orientation": "any",
   "icons": [
     {
       "src": "/logo-negocios-app.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/logo-negocios-app.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo-negocios-app.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ],
-  "categories": ["food", "shopping", "lifestyle"],
+  "categories": ["food", "shopping", "business", "productivity"],
   "lang": "es-AR",
   "scope": "/",
-  "prefer_related_applications": false
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Menú",
+      "short_name": "Menú",
+      "description": "Ver menú de productos",
+      "url": "/menu",
+      "icons": [{ "src": "/logo-negocios-app.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "POS",
+      "short_name": "POS",
+      "description": "Sistema de punto de venta",
+      "url": "/pos",
+      "icons": [{ "src": "/logo-negocios-app.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Admin",
+      "short_name": "Admin",
+      "description": "Panel de administración",
+      "url": "/admin",
+      "icons": [{ "src": "/logo-negocios-app.svg", "sizes": "192x192" }]
+    }
+  ]
 }
 

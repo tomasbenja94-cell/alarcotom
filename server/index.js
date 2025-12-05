@@ -39,10 +39,15 @@ import usersRoutes from './src/routes/users.routes.js';
 import stockIssuesRoutes from './src/routes/stock-issues.routes.js';
 import whatsappRoutes from './src/routes/whatsapp.routes.js';
 import whatsappService from './src/services/whatsapp-multi.service.js';
+import mercadoPagoService from './src/services/mercadopago.service.js';
 import reviewsRoutes from './src/routes/reviews.routes.js';
 import couponsRoutes from './src/routes/coupons.routes.js';
 import referralsRoutes from './src/routes/referrals.routes.js';
 import deliveryTasksRoutes from './src/routes/delivery-tasks.routes.js';
+import posRoutes from './src/routes/pos.routes.js';
+import savedCardsRoutes from './src/routes/saved-cards.routes.js';
+import inventoryRoutes from './src/routes/inventory.routes.js';
+import paymentsRoutes from './src/routes/payments.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -326,6 +331,10 @@ app.use('/api/referrals', referralsRoutes); // Rutas de referidos
 app.use('/api/users', usersRoutes); // Rutas de usuarios (auth, puntos, niveles)
 app.use('/api/reviews', reviewsRoutes); // Rutas de reseñas
 app.use('/api/coupons', couponsRoutes); // Rutas de cupones
+app.use('/api/pos', posRoutes); // Rutas del sistema POS
+app.use('/api/saved-cards', savedCardsRoutes); // Rutas de tarjetas guardadas
+app.use('/api/inventory', inventoryRoutes); // Rutas de inventario y Kardex
+app.use('/api/payments', paymentsRoutes); // Rutas de procesamiento de pagos
 
 // ========== HELPER: Convertir camelCase a snake_case ==========
 function toSnakeCase(str) {
@@ -2809,30 +2818,30 @@ app.put('/api/delivery-persons/:id',
   authenticateAdmin,
   authorize('admin', 'super_admin'),
   async (req, res) => {
-    try {
-      const deliveryPersonData = {};
-      if (req.body.name !== undefined) {
-        deliveryPersonData.name = req.body.name;
-      }
-      if (req.body.phone !== undefined) {
-        deliveryPersonData.phone = req.body.phone;
-      }
-      if (req.body.is_active !== undefined || req.body.isActive !== undefined) {
-        deliveryPersonData.isActive = req.body.is_active !== undefined ? req.body.is_active : req.body.isActive;
-      }
-      if (req.body.current_order_id !== undefined || req.body.currentOrderId !== undefined) {
-        deliveryPersonData.currentOrderId = req.body.current_order_id || req.body.currentOrderId;
-      }
-      
-      const deliveryPerson = await prisma.deliveryPerson.update({
-        where: { id: req.params.id },
-        data: deliveryPersonData
-      });
-      res.json(objectToSnakeCase(deliveryPerson));
-    } catch (error) {
-      console.error('Error updating delivery person:', error);
-      res.status(500).json({ error: 'Error al actualizar repartidor' });
+  try {
+    const deliveryPersonData = {};
+    if (req.body.name !== undefined) {
+      deliveryPersonData.name = req.body.name;
     }
+    if (req.body.phone !== undefined) {
+      deliveryPersonData.phone = req.body.phone;
+    }
+    if (req.body.is_active !== undefined || req.body.isActive !== undefined) {
+      deliveryPersonData.isActive = req.body.is_active !== undefined ? req.body.is_active : req.body.isActive;
+    }
+    if (req.body.current_order_id !== undefined || req.body.currentOrderId !== undefined) {
+      deliveryPersonData.currentOrderId = req.body.current_order_id || req.body.currentOrderId;
+    }
+    
+    const deliveryPerson = await prisma.deliveryPerson.update({
+      where: { id: req.params.id },
+      data: deliveryPersonData
+    });
+    res.json(objectToSnakeCase(deliveryPerson));
+  } catch (error) {
+    console.error('Error updating delivery person:', error);
+    res.status(500).json({ error: 'Error al actualizar repartidor' });
+  }
   }
 );
 
@@ -4140,7 +4149,7 @@ app.post('/api/delivery/update-order-status',
           });
           
           if (orderWithStore?.storeId) {
-            const trackingUrl = `${process.env.FRONTEND_URL || 'https://elbuenmenu.site'}/track/${updatedOrder.trackingToken}`;
+          const trackingUrl = `${process.env.FRONTEND_URL || 'https://elbuenmenu.site'}/track/${updatedOrder.trackingToken}`;
             
             // Usar el servicio de WhatsApp multi-tenant
             const notifyResult = await whatsappService.notifyOrderStatus(
@@ -4393,8 +4402,8 @@ app.post('/api/delivery/deliver-order',
       } else {
         successMessage = `Entrega registrada.\n\n✅ Entrega: +$4000 (pendiente de pago)\n\nEl pago se procesará cuando el administrador lo apruebe.`;
       }
-      
-      res.json({
+
+      res.json({ 
         success: true,
         message: successMessage,
         cash_collected: needsCashCollection ? order.total : 0,
@@ -6253,6 +6262,51 @@ app.post('/api/payments/mercadopago/webhook', async (req, res) => {
     console.error('❌ Stack:', error.stack);
     // Responder 200 para que Mercado Pago no reintente
     res.status(200).json({ received: true, error: error.message });
+  }
+});
+
+// Webhook de Mercado Pago multi-tenant (con storeId en la URL)
+app.post('/api/webhooks/mercadopago/:storeId', async (req, res) => {
+  try {
+    const { storeId } = req.params;
+    const { type, data } = req.body;
+
+    console.log(`📦 [Mercado Pago Webhook Multi-Tenant] Notificación recibida para tienda ${storeId}:`, {
+      type,
+      paymentId: data?.id
+    });
+
+    // Verificar que es una notificación de pago
+    if (type === 'payment' && data?.id) {
+      const paymentId = data.id;
+      
+      try {
+        // Procesar el webhook usando el servicio multi-tenant
+        const result = await mercadoPagoService.processPaymentWebhook(storeId, paymentId);
+        
+        console.log(`✅ [Mercado Pago Webhook Multi-Tenant] Webhook procesado:`, result);
+        
+        return res.status(200).json({ 
+          received: true, 
+          processed: result.processed,
+          status: result.status 
+        });
+      } catch (processError) {
+        console.error(`❌ [Mercado Pago Webhook Multi-Tenant] Error procesando webhook:`, processError);
+        // Responder 200 para que Mercado Pago no reintente infinitamente
+        return res.status(200).json({ 
+          received: true, 
+          processed: false,
+          error: processError.message 
+        });
+      }
+    }
+
+    // Si no es una notificación de pago, responder OK de todas formas
+    return res.status(200).json({ received: true, processed: false, reason: 'Not a payment notification' });
+  } catch (error) {
+    console.error('❌ [Mercado Pago Webhook Multi-Tenant] Error general:', error);
+    return res.status(200).json({ received: true, error: error.message });
   }
 });
 

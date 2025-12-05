@@ -76,9 +76,10 @@ session/
 # Prisma
 server/prisma/migrations/
 
-# Documentation files (no necesarios en producción)
+# Documentation files (permitir archivos importantes)
 *.md
 !README.md
+!COMANDOS_VPS.md
 !whatsapp-bot/README.md
 !server/README.md
 

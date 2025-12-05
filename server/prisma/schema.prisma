@@ -40,17 +40,28 @@ model Product {
   name                    String
   description             String?
   price                   Float
+  costPrice               Float?                  @default(0) @map("cost_price") // Precio de costo
   imageUrl                String?                 @map("image_url")
   isAvailable             Boolean                 @default(true) @map("is_available")
   displayOrder            Int                     @default(0) @map("display_order")
+  // Campos de inventario
+  stock                   Float?                  @default(0) // Stock actual
+  minStock                Float?                  @default(0) @map("min_stock") // Stock mínimo
+  barcode                 String?                 @unique // Código de barras
+  sku                     String?                 @unique // SKU único
+  unit                    String?                 @default("unidad") // unidad, pack, caja, kg, litro
   orderItems              OrderItem[]
   productOptionCategories ProductOptionCategory[]
   recipe                  Recipe?
   favorites               UserFavorite[]
+  kardexEntries           KardexEntry[]
+  posSales                POSSaleItem[]
   createdAt               DateTime                @default(now()) @map("created_at")
   updatedAt               DateTime                @updatedAt @map("updated_at")
 
   @@index([storeId])
+  @@index([barcode])
+  @@index([sku])
   @@map("products")
 }
 
@@ -883,6 +894,8 @@ model Store {
   coupons         Coupon[]
   favorites       UserFavorite[]
   referrals       Referral[]
+  posSales        POSSale[]
+  posConfig       POSConfig?
 
   @@index([categoryId])
   @@map("stores")
@@ -1089,4 +1102,117 @@ model StoreSettings {
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@map("store_settings")
+}
+
+// ========== SISTEMA DE PAGOS Y TARJETAS ==========
+
+// Tarjetas guardadas de clientes (máx. 3 por usuario)
+model SavedCard {
+  id              String   @id @default(uuid())
+  userId          String?  @map("user_id") // Usuario autenticado (opcional, puede ser guest)
+  customerPhone   String?  @map("customer_phone") // Teléfono del cliente (para guest)
+  cardToken       String   @map("card_token") // Token de Mercado Pago
+  lastFourDigits  String   @map("last_four_digits") // Últimos 4 dígitos
+  cardHolderName  String   @map("card_holder_name") // Nombre del titular
+  expirationMonth String   @map("expiration_month")
+  expirationYear  String   @map("expiration_year")
+  cardType        String?  @map("card_type") // visa, mastercard, amex, etc.
+  isDefault       Boolean  @default(false) @map("is_default")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([customerPhone])
+  @@map("saved_cards")
+}
+
+// ========== SISTEMA DE INVENTARIO Y KARDEX ==========
+
+// Movimientos de inventario (Kardex)
+model KardexEntry {
+  id              String   @id @default(uuid())
+  productId       String   @map("product_id")
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  storeId         String?  @map("store_id")
+  type            String   // 'entrada', 'salida', 'ajuste', 'venta', 'compra', 'rotura', 'caducidad', 'perdida'
+  quantity        Float    // Cantidad (positiva para entrada, negativa para salida)
+  previousStock   Float    @map("previous_stock") // Stock anterior
+  newStock        Float    @map("new_stock") // Stock nuevo
+  unitPrice       Float?   @map("unit_price") // Precio unitario (para compras)
+  totalPrice      Float?   @map("total_price") // Precio total
+  reason          String?  // Razón del movimiento
+  reference       String?  // Referencia (número de orden, factura, etc.)
+  orderId         String?  @map("order_id") // Si está relacionado con un pedido
+  posSaleId       String?  @map("pos_sale_id") // Si está relacionado con una venta POS
+  userId          String?  @map("user_id") // Usuario que realizó el movimiento
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([productId])
+  @@index([storeId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("kardex_entries")
+}
+
+// ========== SISTEMA POS (PUNTO DE VENTA) ==========
+
+// Ventas del POS
+model POSSale {
+  id              String        @id @default(uuid())
+  storeId         String?       @map("store_id")
+  saleNumber      String        @unique @map("sale_number") // Número de venta (ej: POS-001)
+  total           Float
+  subtotal        Float
+  discount        Float?        @default(0)
+  paymentMethod   String        @map("payment_method") // 'cash', 'mercado_pago', 'card'
+  paymentStatus   String        @default("completed") @map("payment_status") // 'completed', 'pending', 'cancelled'
+  cashReceived   Float?       @map("cash_received") // Monto recibido en efectivo
+  change          Float?        // Vuelto
+  mpPaymentId     String?       @map("mp_payment_id") // ID de pago de Mercado Pago
+  userId          String?       @map("user_id") // Usuario que realizó la venta
+  customerName    String?       @map("customer_name") // Nombre del cliente (opcional)
+  customerPhone   String?       @map("customer_phone") // Teléfono del cliente (opcional)
+  notes           String?       @db.Text
+  items           POSSaleItem[]
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  @@index([storeId])
+  @@index([saleNumber])
+  @@index([createdAt])
+  @@map("pos_sales")
+}
+
+// Items de ventas POS
+model POSSaleItem {
+  id              String   @id @default(uuid())
+  posSaleId       String   @map("pos_sale_id")
+  posSale         POSSale @relation(fields: [posSaleId], references: [id], onDelete: Cascade)
+  productId       String?  @map("product_id")
+  product         Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productName     String   @map("product_name")
+  quantity        Float
+  unitPrice       Float    @map("unit_price")
+  subtotal        Float
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([posSaleId])
+  @@index([productId])
+  @@map("pos_sale_items")
+}
+
+// Configuración del POS
+model POSConfig {
+  id                    String   @id @default(uuid())
+  storeId               String   @unique @map("store_id")
+  scanSoundEnabled      Boolean  @default(true) @map("scan_sound_enabled")
+  cameraScannerEnabled   Boolean  @default(false) @map("camera_scanner_enabled")
+  defaultPaymentMethod   String   @default("cash") @map("default_payment_method")
+  autoPrintEnabled       Boolean  @default(false) @map("auto_print_enabled")
+  nightModeEnabled       Boolean  @default(false) @map("night_mode_enabled")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@map("pos_config")
 }

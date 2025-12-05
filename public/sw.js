@@ -3,11 +3,12 @@
  * Maneja cache, offline y push notifications
  */
 
-const CACHE_NAME = 'pedidos-app-v1';
+const CACHE_NAME = 'kiosco-anta-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/logo-negocios-app.svg',
+  '/manifest.json',
 ];
 
 // Instalar service worker

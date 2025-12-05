@@ -213,6 +213,38 @@ router.put('/:storeId', corsMiddleware, authenticateAdmin, async (req, res) => {
   }
 });
 
+// GET /api/store-settings/:storeId/mercadopago-public - Obtener public key de MP (sin auth, para frontend)
+router.get('/:storeId/mercadopago-public', corsMiddleware, async (req, res) => {
+  try {
+    const identifier = req.params.storeId;
+    const storeId = await resolveStoreId(identifier);
+    
+    if (!storeId) {
+      return res.status(404).json({ error: 'Store no encontrado' });
+    }
+
+    const settings = await prisma.storeSettings.findUnique({
+      where: { storeId }
+    });
+
+    if (!settings || !settings.mercadoPagoEnabled || !settings.mercadoPagoKey) {
+      return res.json({ 
+        enabled: false,
+        publicKey: null 
+      });
+    }
+
+    // Solo devolver la public key (no el token privado)
+    res.json({
+      enabled: true,
+      publicKey: settings.mercadoPagoKey
+    });
+  } catch (error) {
+    console.error('Error fetching Mercado Pago public key:', error);
+    res.status(500).json({ error: 'Error al obtener configuración de Mercado Pago' });
+  }
+});
+
 // GET /api/store-settings/:storeId/is-empty - Verificar si tienda está vacía
 router.get('/:storeId/is-empty', corsMiddleware, authenticateAdmin, async (req, res) => {
   try {

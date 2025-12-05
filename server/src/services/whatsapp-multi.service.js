@@ -17,6 +17,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { PrismaClient } from '@prisma/client';
+import mercadoPagoService from './mercadopago.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -799,12 +800,76 @@ async function handlePaymentSelection(storeId, socket, from, body, userSession, 
   if (mercadoPagoActive && (body === '1' || body.includes('mercado'))) {
     userSession.paymentMethod = 'mercadopago';
     userSession.waitingForPayment = false;
-    userSession.waitingForTransferProof = true;
     
-    const mpLink = parsedSettings?.mercadoPagoLink || 'Contactanos para el link de pago';
-    
-    await socket.sendMessage(from, { 
-      text: `💳 *MERCADO PAGO*
+    // Verificar si hay un pedido actual para generar la preferencia
+    if (userSession.currentOrder?.id) {
+      try {
+        // Obtener el pedido completo con items
+        const order = await prisma.order.findUnique({
+          where: { id: userSession.currentOrder.id },
+          include: {
+            items: true,
+            store: true
+          }
+        });
+        
+        if (order) {
+          // Generar preferencia de pago automáticamente
+          const preference = await mercadoPagoService.createPreference(storeId, {
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            items: order.items.map(item => ({
+              productId: item.productId || item.id,
+              productName: item.productName,
+              quantity: item.quantity,
+              unitPrice: Number(item.unitPrice)
+            })),
+            customerName: order.customerName,
+            customerEmail: null, // WhatsApp no proporciona email
+            customerPhone: from.split('@')[0], // Extraer número del JID
+            total: Number(order.total),
+            deliveryFee: Number(order.deliveryFee || 0)
+          });
+          
+          // Guardar el link de pago en el pedido
+          await prisma.order.update({
+            where: { id: order.id },
+            data: {
+              paymentMethod: 'mercadopago',
+              paymentStatus: 'pending'
+            }
+          });
+          
+          const paymentLink = preference.initPoint || preference.sandboxInitPoint;
+          
+          await socket.sendMessage(from, { 
+            text: `💳 *MERCADO PAGO*
+
+🔗 Link de pago generado:
+${paymentLink}
+
+📱 Hacé clic en el link para pagar de forma segura.
+
+✅ Una vez que completes el pago, te notificaremos automáticamente.
+
+💰 Total a pagar: $${order.total.toLocaleString('es-AR')}
+
+🔄 Escribí "09" si querés cambiar el método de pago.` 
+          });
+          
+          console.log(`[WhatsApp] [${storeId}] ✅ Preferencia de MercadoPago creada para pedido ${order.orderNumber}`);
+          return;
+        }
+      } catch (error) {
+        console.error(`[WhatsApp] [${storeId}] ❌ Error generando preferencia de MercadoPago:`, error);
+        
+        // Fallback a link estático si hay error
+        const mpLink = parsedSettings?.mercadoPagoLink || 'Contactanos para el link de pago';
+        
+        await socket.sendMessage(from, { 
+          text: `💳 *MERCADO PAGO*
+
+⚠️ Hubo un problema al generar el link automático.
 
 🔗 Link de pago:
 ${mpLink}
@@ -812,8 +877,25 @@ ${mpLink}
 📸 Una vez que pagues, enviá una captura del comprobante acá.
 
 🔄 Escribí "09" si querés cambiar el método de pago.` 
-    });
-    return;
+        });
+        return;
+      }
+    } else {
+      // Si no hay pedido, usar link estático
+      const mpLink = parsedSettings?.mercadoPagoLink || 'Contactanos para el link de pago';
+      
+      await socket.sendMessage(from, { 
+        text: `💳 *MERCADO PAGO*
+
+🔗 Link de pago:
+${mpLink}
+
+📸 Una vez que pagues, enviá una captura del comprobante acá.
+
+🔄 Escribí "09" si querés cambiar el método de pago.` 
+      });
+      return;
+    }
   }
   
   // Transferencia (2 si MP está activo, 1 si no)

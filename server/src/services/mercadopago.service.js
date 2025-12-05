@@ -163,6 +163,27 @@ class MercadoPagoService {
         amount: paymentInfo.transaction_amount,
       }, 'Payment info retrieved');
 
+      // Obtener pedido completo con información del cliente
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          store: {
+            select: {
+              name: true
+            }
+          }
+        }
+      });
+
+      if (!order) {
+        logger.error({
+          storeId,
+          orderId,
+          paymentId,
+        }, 'Order not found for payment webhook');
+        return { processed: false, reason: 'Order not found' };
+      }
+
       // Actualizar pedido según estado
       if (status === 'approved') {
         await prisma.order.update({
@@ -184,6 +205,45 @@ class MercadoPagoService {
             verifiedAt: new Date(),
           },
         });
+
+        // Enviar notificación automática al cliente vía WhatsApp
+        if (order.customerPhone && order.customerPhone.trim() !== '') {
+          try {
+            // Importar el servicio de WhatsApp multi-tenant
+            const { notifyOrderStatus } = await import('./whatsapp-multi.service.js');
+            
+            const notificationResult = await notifyOrderStatus(
+              storeId,
+              orderId,
+              'payment_approved',
+              {
+                orderNumber: order.orderNumber,
+                total: Number(order.total)
+              }
+            );
+
+            if (notificationResult.success) {
+              logger.info({
+                storeId,
+                orderId,
+                customerPhone: order.customerPhone,
+              }, 'Payment approval notification sent successfully');
+            } else {
+              logger.warn({
+                storeId,
+                orderId,
+                error: notificationResult.error,
+              }, 'Failed to send payment approval notification');
+            }
+          } catch (notifyError) {
+            logger.error({
+              storeId,
+              orderId,
+              error: notifyError.message,
+            }, 'Error sending payment approval notification');
+            // No fallar el procesamiento del pago si falla la notificación
+          }
+        }
 
         return { processed: true, status: 'approved', orderId };
       }
