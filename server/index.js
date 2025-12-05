@@ -791,6 +791,8 @@ app.get('/api/products', corsMiddleware, async (req, res) => {
 
 app.post('/api/products', corsMiddleware, async (req, res) => {
   try {
+    // Construir productData solo con campos que existen en la BD
+    // No incluir costPrice, stock, barcode, etc. si no vienen en el request
     const productData = {
       categoryId: req.body.category_id || req.body.categoryId,
       storeId: req.body.storeId || req.body.store_id || null,
@@ -802,13 +804,66 @@ app.post('/api/products', corsMiddleware, async (req, res) => {
       displayOrder: req.body.display_order || req.body.displayOrder || 0
     };
     
+    // Solo agregar campos nuevos si vienen en el request Y si la migración está aplicada
+    // Intentar detectar si la columna existe antes de incluirla
+    if (req.body.cost_price !== undefined || req.body.costPrice !== undefined) {
+      // Intentar incluir costPrice solo si viene en el request
+      // Si la columna no existe, Prisma fallará, pero al menos intentamos
+      productData.costPrice = parseFloat(req.body.cost_price || req.body.costPrice || 0);
+    }
+    
+    if (req.body.stock !== undefined) {
+      productData.stock = parseFloat(req.body.stock || 0);
+    }
+    
+    if (req.body.barcode !== undefined) {
+      productData.barcode = req.body.barcode || null;
+    }
+    
+    if (req.body.sku !== undefined) {
+      productData.sku = req.body.sku || null;
+    }
+    
+    if (req.body.unit !== undefined) {
+      productData.unit = req.body.unit || 'unidad';
+    }
+    
     console.log('📦 Creando producto con datos:', productData);
     
-    const product = await prisma.product.create({
-      data: productData
-    });
+    // Intentar crear el producto
+    // Si falla por columnas que no existen, usar raw SQL como fallback
+    let product;
+    try {
+      product = await prisma.product.create({
+        data: productData
+      });
+      console.log('✅ Producto creado exitosamente:', product.id);
+    } catch (createError) {
+      // Si el error es por columnas que no existen, crear sin esos campos
+      if (createError.code === 'P2022') {
+        console.warn('⚠️ Error por columna inexistente, creando producto sin campos nuevos...');
+        // Crear solo con campos básicos que seguro existen
+        const basicProductData = {
+          categoryId: productData.categoryId,
+          storeId: productData.storeId,
+          name: productData.name,
+          description: productData.description,
+          price: productData.price,
+          imageUrl: productData.imageUrl,
+          isAvailable: productData.isAvailable,
+          displayOrder: productData.displayOrder
+        };
+        
+        product = await prisma.product.create({
+          data: basicProductData
+        });
+        console.log('✅ Producto creado con campos básicos:', product.id);
+        console.warn('⚠️ Ejecuta la migración para habilitar campos de inventario: npx prisma migrate deploy');
+      } else {
+        throw createError; // Re-lanzar si es otro error
+      }
+    }
     
-    console.log('✅ Producto creado exitosamente:', product.id);
     res.json(objectToSnakeCase(product));
   } catch (error) {
     console.error('❌ Error creating product:', error);
